@@ -22,11 +22,22 @@ import { staffRouter } from "./modules/staff/staff.routes.js";
 import { suppliersRouter } from "./modules/suppliers/suppliers.routes.js";
 import { tenantsRouter } from "./modules/tenants/tenants.routes.js";
 
+const allowedOrigins = env.WEB_URL.split(",").map((origin) => origin.trim()).filter(Boolean);
+
 export function createApp() {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ origin: env.WEB_URL, credentials: true }));
+  app.use(cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true
+  }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
   app.use(requestContext);
