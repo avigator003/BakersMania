@@ -1,0 +1,13 @@
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'PENDING';
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'ACCEPTED';
+
+ALTER TABLE "Order" ALTER COLUMN "status" SET DEFAULT 'PENDING';
+
+UPDATE "Order"
+SET "status" = CASE
+  WHEN "status" IN ('DRAFT', 'QUOTED') THEN 'PENDING'::"OrderStatus"
+  WHEN "status" IN ('CONFIRMED', 'IN_PRODUCTION', 'READY') THEN 'ACCEPTED'::"OrderStatus"
+  WHEN "status" = 'DISPATCHED' THEN 'DISPATCHED'::"OrderStatus"
+  WHEN "status" = 'COMPLETED' THEN 'COMPLETED'::"OrderStatus"
+  ELSE 'PENDING'::"OrderStatus"
+END;

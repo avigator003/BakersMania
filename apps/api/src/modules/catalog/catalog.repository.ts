@@ -1,0 +1,157 @@
+import { prisma } from "../../db/prisma.js";
+import type { CategoryInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
+
+export const catalogRepository = {
+  findCategory(tenantId: string, categoryId: string) {
+    return prisma.productCategory.findFirst({ where: { id: categoryId, tenantId }, select: { id: true, name: true } });
+  },
+
+  findProduct(tenantId: string, productId: string) {
+    return prisma.product.findFirst({ where: { id: productId, tenantId }, select: { id: true } });
+  },
+
+  findProductDetail(tenantId: string, productId: string) {
+    return prisma.product.findFirst({
+      where: { id: productId, tenantId },
+      include: {
+        categoryRef: true,
+        customerPrices: {
+          include: { customer: { include: { route: true } } },
+          orderBy: { createdAt: "desc" }
+        }
+      }
+    });
+  },
+
+  listPriceHistory(tenantId: string, productId: string) {
+    return prisma.customerProductPriceHistory.findMany({
+      where: { tenantId, productId },
+      include: { customer: { include: { route: true } }, product: true },
+      orderBy: { changedAt: "desc" },
+      take: 100
+    });
+  },
+
+  findCustomer(tenantId: string, customerId: string) {
+    return prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true } });
+  },
+
+  listCategories(tenantId: string) {
+    return prisma.productCategory.findMany({
+      where: { tenantId },
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      include: { _count: { select: { products: true } } }
+    });
+  },
+
+  createCategory(tenantId: string, input: CategoryInput) {
+    return prisma.productCategory.create({ data: { ...input, tenantId } });
+  },
+
+  listProducts(tenantId: string, includeManagementDetails = false) {
+    return prisma.product.findMany({
+      where: { tenantId, ...(includeManagementDetails ? {} : { active: true }) },
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      include: {
+        categoryRef: true,
+        customerPrices: includeManagementDetails
+          ? {
+              include: { customer: { include: { route: true } } },
+              orderBy: { createdAt: "desc" }
+            }
+          : false
+      }
+    });
+  },
+
+  async createProduct(tenantId: string, input: ProductInput) {
+    const category = input.categoryId
+      ? await prisma.productCategory.findFirst({ where: { id: input.categoryId, tenantId } })
+      : input.category
+        ? await prisma.productCategory.upsert({
+            where: { tenantId_name: { tenantId, name: input.category } },
+            update: {},
+            create: { tenantId, name: input.category }
+          })
+        : null;
+
+    return prisma.product.create({
+      data: {
+        tenantId,
+        name: input.name,
+        categoryId: category?.id,
+        category: category?.name || input.category || "General",
+        description: input.description,
+        unitPrice: input.unitPrice,
+        taxRate: input.taxRate,
+        active: input.active
+      },
+      include: {
+        categoryRef: true,
+        customerPrices: { include: { customer: { include: { route: true } } } }
+      }
+    });
+  },
+
+  async updateProduct(tenantId: string, productId: string, input: ProductUpdateInput) {
+    const category = input.categoryId
+      ? await prisma.productCategory.findFirst({ where: { id: input.categoryId, tenantId } })
+      : null;
+    return prisma.product.update({
+      where: { id: productId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.unitPrice !== undefined ? { unitPrice: input.unitPrice } : {}),
+        ...(input.taxRate !== undefined ? { taxRate: input.taxRate } : {}),
+        ...(input.active !== undefined ? { active: input.active } : {}),
+        ...(category ? { categoryId: category.id, category: category.name } : {})
+      },
+      include: {
+        categoryRef: true,
+        customerPrices: { include: { customer: { include: { route: true } } } }
+      }
+    });
+  },
+
+  upsertCustomerPrice(tenantId: string, input: CustomerPriceInput) {
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.customerProductPrice.findUnique({
+        where: {
+          tenantId_productId_customerId: {
+            tenantId,
+            productId: input.productId,
+            customerId: input.customerId
+          }
+        }
+      });
+      const customerPrice = await tx.customerProductPrice.upsert({
+        where: {
+          tenantId_productId_customerId: {
+            tenantId,
+            productId: input.productId,
+            customerId: input.customerId
+          }
+        },
+        update: { price: input.price, notes: input.notes },
+        create: { ...input, tenantId },
+        include: {
+          product: true,
+          customer: { include: { route: true } }
+        }
+      });
+      if (!existing || Number(existing.price) !== Number(input.price)) {
+        await tx.customerProductPriceHistory.create({
+          data: {
+            tenantId,
+            productId: input.productId,
+            customerId: input.customerId,
+            oldPrice: existing?.price,
+            newPrice: input.price
+          }
+        });
+      }
+      return customerPrice;
+    });
+  }
+};
