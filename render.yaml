@@ -4,8 +4,7 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: npm ci && npm run prisma:generate && npm run build -w apps/api
-    preDeployCommand: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+    buildCommand: npm ci && npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && npm run prisma:generate && npm run build -w apps/api
     startCommand: npm run start -w apps/api
     healthCheckPath: /health
     envVars:
