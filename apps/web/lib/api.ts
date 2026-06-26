@@ -1,4 +1,4 @@
-export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://bakersmania-api.onrender.com";
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
