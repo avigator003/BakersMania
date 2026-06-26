@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: bakersmania-api
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run prisma:generate && npm run build -w apps/api
+    preDeployCommand: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+    startCommand: npm run start -w apps/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WEB_URL
+        sync: false

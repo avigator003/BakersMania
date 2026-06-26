@@ -11,6 +11,10 @@ for (const path of envPaths) {
   }
 }
 
+if (!process.env.API_PORT && process.env.PORT) {
+  process.env.API_PORT = process.env.PORT;
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: z.coerce.number().default(4000),
