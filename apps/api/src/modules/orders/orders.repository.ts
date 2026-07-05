@@ -7,6 +7,8 @@ type OrderListFilters = {
   endDate?: string;
   customerId?: string;
   routeId?: string;
+  customerIds?: string[];
+  routeIds?: string[];
 };
 
 function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
@@ -35,11 +37,17 @@ export const ordersRepository = {
     if (filters.customerId && filters.customerId !== "all") {
       andFilters.push({ customerId: filters.customerId });
     }
+    if (filters.customerIds?.length) {
+      andFilters.push({ customerId: { in: filters.customerIds } });
+    }
 
     if (filters.routeId && filters.routeId !== "all") {
       andFilters.push({
         OR: [{ routeId: filters.routeId }, { routeId: null, customer: { routeId: filters.routeId } }]
       });
+    }
+    if (filters.routeIds?.length) {
+      andFilters.push(routeScope(filters.routeIds));
     }
 
     if (filters.startDate || filters.endDate) {
@@ -105,6 +113,12 @@ export const ordersRepository = {
 
     if (filters.routeId && filters.routeId !== "all") {
       andFilters.push({ OR: [{ routeId: filters.routeId }, { routeId: null, customer: { routeId: filters.routeId } }] });
+    }
+    if (filters.routeIds?.length) {
+      andFilters.push(routeScope(filters.routeIds));
+    }
+    if (filters.customerIds?.length) {
+      andFilters.push({ customerId: { in: filters.customerIds } });
     }
 
     where.AND = andFilters;

@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { IndianRupee, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { IndianRupee, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../../../components/shell";
 import { LoadingSpinner } from "../../../../../components/loading-spinner";
 import { PaginationControls, usePagination } from "../../../../../components/pagination";
+import { SearchableSelect } from "../../../../../components/searchable-select";
 import { useToast } from "../../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../../lib/api";
 
@@ -62,18 +63,12 @@ export default function ProductPriceAssignmentPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [history, setHistory] = useState<PriceHistory[]>([]);
   const [priceRows, setPriceRows] = useState<PriceRow[]>([{ id: "row-1", price: "", customerIds: [] }]);
-  const [rowSearches, setRowSearches] = useState<Record<string, string>>({});
-  const [openRowId, setOpenRowId] = useState<string | null>(null);
-  const [routeFilter, setRouteFilter] = useState("all");
+  const [routeFilter, setRouteFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
-
-  const priceByCustomerId = useMemo(() => {
-    return Object.fromEntries((product?.customerPrices || []).map((item) => [item.customer.id, item]));
-  }, [product]);
 
   const routes = useMemo(() => {
     const routeMap = new Map<string, string>();
@@ -83,9 +78,7 @@ export default function ProductPriceAssignmentPage() {
     return Array.from(routeMap.entries()).map(([id, name]) => ({ id, name }));
   }, [customers]);
 
-  const customerById = useMemo(() => {
-    return Object.fromEntries(customers.map((customer) => [customer.id, customer]));
-  }, [customers]);
+  const routeOptions = useMemo(() => routes.map((route) => ({ value: route.id, label: route.name })), [routes]);
 
   const validRows = useMemo(() => {
     return priceRows.filter((row) => Number(row.price) > 0 && row.customerIds.length);
@@ -126,54 +119,28 @@ export default function ProductPriceAssignmentPage() {
 
   function removeRow(rowId: string) {
     setPriceRows((current) => (current.length === 1 ? current : current.filter((row) => row.id !== rowId)));
-    setRowSearches((current) => {
-      const next = { ...current };
-      delete next[rowId];
-      return next;
-    });
-    if (openRowId === rowId) setOpenRowId(null);
   }
 
   function updateRow(rowId: string, patch: Partial<PriceRow>) {
     setPriceRows((current) => current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
   }
 
-  function addRowCustomer(rowId: string, customerId: string) {
-    setPriceRows((current) =>
-      current.map((row) => {
-        if (row.id !== rowId) return row;
-        if (row.customerIds.includes(customerId)) return row;
-        return { ...row, customerIds: [...row.customerIds, customerId] };
-      })
-    );
-    setRowSearches((current) => ({ ...current, [rowId]: "" }));
-    setOpenRowId(null);
-  }
-
-  function removeRowCustomer(rowId: string, customerId: string) {
-    setPriceRows((current) =>
-      current.map((row) => (row.id === rowId ? { ...row, customerIds: row.customerIds.filter((id) => id !== customerId) } : row))
-    );
-  }
-
-  function customersForRow(row: PriceRow) {
+  function customerOptionsForRow(row: PriceRow) {
     const selectedInOtherRows = new Set(
       priceRows
         .filter((item) => item.id !== row.id)
         .flatMap((item) => item.customerIds)
     );
-    const query = (rowSearches[row.id] || "").trim().toLowerCase();
     return customers
       .filter((customer) => {
-        const matchesRoute = routeFilter === "all" || customer.route?.id === routeFilter;
-        const matchesSearch =
-          !query ||
-          [customer.name, customer.phone, customer.city, customer.route?.name]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(query));
-        return matchesRoute && matchesSearch && !row.customerIds.includes(customer.id) && !selectedInOtherRows.has(customer.id);
+        const matchesRoute = row.customerIds.includes(customer.id) || !routeFilter.length || (customer.route?.id && routeFilter.includes(customer.route.id));
+        return matchesRoute && !selectedInOtherRows.has(customer.id);
       })
-      .slice(0, 8);
+      .map((customer) => ({
+        value: customer.id,
+        label: customer.name,
+        description: [customer.phone, customer.city, customer.route?.name || "No route"].filter(Boolean).join(" · ")
+      }));
   }
 
   async function savePrices() {
@@ -242,14 +209,7 @@ export default function ProductPriceAssignmentPage() {
                 <Plus size={16} />
                 Add Row
               </button>
-              <select
-                className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint"
-                onChange={(event) => setRouteFilter(event.target.value)}
-                value={routeFilter}
-              >
-                <option value="all">All routes</option>
-                {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
-              </select>
+              <SearchableSelect multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
             </div>
           </div>
 
@@ -257,7 +217,6 @@ export default function ProductPriceAssignmentPage() {
 
           <div className="grid gap-3 p-3 sm:hidden">
             {priceRows.map((row, index) => {
-              const rowCustomers = customersForRow(row);
               return (
                 <article key={row.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-center justify-between gap-3">
@@ -281,83 +240,31 @@ export default function ProductPriceAssignmentPage() {
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  <div className="mt-3 flex min-h-10 flex-wrap gap-2">
-                    {row.customerIds.map((customerId) => {
-                      const customer = customerById[customerId];
-                      if (!customer) return null;
-                      return (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1 text-xs font-semibold" key={customerId}>
-                          <span>{customer.name}</span>
-                          <span className="text-muted">({customer.route?.name || "No route"})</span>
-                          <button
-                            className="focus-ring grid h-5 w-5 place-items-center rounded-full hover:bg-berry/10 hover:text-berry"
-                            onClick={() => removeRowCustomer(row.id, customerId)}
-                            title={`Remove ${customer.name}`}
-                            type="button"
-                          >
-                            <X size={12} />
-                          </button>
-                        </span>
-                      );
-                    })}
-                    {!row.customerIds.length ? <span className="text-sm text-muted">No customers selected</span> : null}
-                  </div>
-                  <div className="mt-3">
-                    <label className="flex h-10 items-center gap-2 rounded-md border border-line bg-panel px-3">
-                      <Search size={15} className="text-muted" />
-                      <input
-                        className="w-full bg-transparent text-sm outline-none"
-                        onChange={(event) => {
-                          setRowSearches((current) => ({ ...current, [row.id]: event.target.value }));
-                          setOpenRowId(row.id);
-                        }}
-                        onFocus={() => setOpenRowId(row.id)}
-                        placeholder="Search customer"
-                        value={rowSearches[row.id] || ""}
-                      />
-                    </label>
-                    {openRowId === row.id ? (
-                      <div className="mt-2 max-h-64 w-full max-w-full overflow-auto rounded-md border border-line bg-panel shadow-subtle">
-                        {rowCustomers.map((customer) => {
-                          const existingPrice = priceByCustomerId[customer.id];
-                          return (
-                            <button
-                              className="grid w-full grid-cols-[1fr_auto] gap-3 px-3 py-2 text-left text-sm hover:bg-panel2"
-                              key={customer.id}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => addRowCustomer(row.id, customer.id)}
-                              type="button"
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate font-semibold">{customer.name}</span>
-                                <span className="block truncate text-xs text-muted">{customer.route?.name || "No route"}</span>
-                              </span>
-                              {existingPrice ? <span className="text-xs font-semibold text-mint">{formatAmount(existingPrice.price)}</span> : null}
-                            </button>
-                          );
-                        })}
-                        {!rowCustomers.length ? <p className="px-3 py-2 text-sm text-muted">No available customers</p> : null}
-                      </div>
-                    ) : null}
-                  </div>
+                  <SearchableSelect
+                    className="mt-3"
+                    multiple
+                    onChange={(customerIds) => updateRow(row.id, { customerIds })}
+                    options={customerOptionsForRow(row)}
+                    placeholder="Select customers"
+                    searchPlaceholder="Search customers"
+                    value={row.customerIds}
+                  />
                 </article>
               );
             })}
           </div>
 
           <div className="hidden w-full max-w-full overflow-x-auto sm:block">
-            <table className="w-full min-w-[880px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Price</th>
-                  <th className="px-4 py-3 font-semibold">Assigned customers</th>
-                  <th className="px-4 py-3 font-semibold">Add customer</th>
+                  <th className="px-4 py-3 font-semibold">Customers</th>
                   <th className="px-4 py-3 text-right font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {priceRows.map((row, index) => {
-                  const rowCustomers = customersForRow(row);
                   return (
                     <tr key={row.id} className="align-top">
                       <td className="w-44 px-4 py-3">
@@ -371,67 +278,14 @@ export default function ProductPriceAssignmentPage() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex min-h-10 flex-wrap gap-2">
-                          {row.customerIds.map((customerId) => {
-                            const customer = customerById[customerId];
-                            if (!customer) return null;
-                            return (
-                              <span className="inline-flex items-center gap-2 rounded-full border border-line bg-panel2 px-3 py-1 text-xs font-semibold" key={customerId}>
-                                <span>{customer.name}</span>
-                                <span className="text-muted">({customer.route?.name || "No route"})</span>
-                                <button
-                                  className="focus-ring grid h-5 w-5 place-items-center rounded-full hover:bg-berry/10 hover:text-berry"
-                                  onClick={() => removeRowCustomer(row.id, customerId)}
-                                  title={`Remove ${customer.name}`}
-                                  type="button"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </span>
-                            );
-                          })}
-                          {!row.customerIds.length ? <span className="pt-2 text-sm text-muted">No customers selected</span> : null}
-                        </div>
-                      </td>
-                      <td className="w-[340px] px-4 py-3">
-                        <div>
-                          <label className="flex h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3">
-                            <Search size={15} className="text-muted" />
-                            <input
-                              className="w-full bg-transparent text-sm outline-none"
-                              onChange={(event) => {
-                                setRowSearches((current) => ({ ...current, [row.id]: event.target.value }));
-                                setOpenRowId(row.id);
-                              }}
-                              onFocus={() => setOpenRowId(row.id)}
-                              placeholder="Search customer"
-                              value={rowSearches[row.id] || ""}
-                            />
-                          </label>
-                          {openRowId === row.id ? (
-                            <div className="mt-2 max-h-64 w-full max-w-full overflow-auto rounded-md border border-line bg-panel shadow-subtle">
-                              {rowCustomers.map((customer) => {
-                                const existingPrice = priceByCustomerId[customer.id];
-                                return (
-                                  <button
-                                    className="grid w-full grid-cols-[1fr_auto] gap-3 px-3 py-2 text-left text-sm hover:bg-panel2"
-                                    key={customer.id}
-                                    onMouseDown={(event) => event.preventDefault()}
-                                    onClick={() => addRowCustomer(row.id, customer.id)}
-                                    type="button"
-                                  >
-                                    <span className="min-w-0">
-                                      <span className="block truncate font-semibold">{customer.name}</span>
-                                      <span className="block truncate text-xs text-muted">{customer.route?.name || "No route"}</span>
-                                    </span>
-                                    {existingPrice ? <span className="text-xs font-semibold text-mint">{formatAmount(existingPrice.price)}</span> : null}
-                                  </button>
-                                );
-                              })}
-                              {!rowCustomers.length ? <p className="px-3 py-2 text-sm text-muted">No available customers</p> : null}
-                            </div>
-                          ) : null}
-                        </div>
+                        <SearchableSelect
+                          multiple
+                          onChange={(customerIds) => updateRow(row.id, { customerIds })}
+                          options={customerOptionsForRow(row)}
+                          placeholder="Select customers"
+                          searchPlaceholder="Search customers"
+                          value={row.customerIds}
+                        />
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button

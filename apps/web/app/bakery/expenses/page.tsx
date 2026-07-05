@@ -6,6 +6,7 @@ import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -79,6 +80,11 @@ export default function BakeryExpensesPage() {
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
+  const routeOptions = useMemo(() => routes.map((route) => ({
+    value: route.id,
+    label: route.name,
+    description: route.vehicle?.name || route.vehicle?.number || undefined
+  })), [routes]);
 
   const filteredExpenses = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -337,13 +343,7 @@ export default function BakeryExpensesPage() {
               Carry forward monthly
             </label>
             {form.type === "RENT" ? (
-              <label className="grid gap-1 text-sm font-semibold">
-                Route
-                <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, routeId: event.target.value }))} required value={form.routeId}>
-                  <option value="">Select route</option>
-                  {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
-                </select>
-              </label>
+              <SearchableSelect label="Route" onChange={(value) => setForm((current) => ({ ...current, routeId: value }))} options={routeOptions} placeholder="Select route" required searchPlaceholder="Search routes" value={form.routeId} />
             ) : (
               <label className="grid gap-1 text-sm font-semibold">
                 Name

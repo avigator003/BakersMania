@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
 import { ordersService } from "./orders.service.js";
 
+function listParam(value: unknown) {
+  if (!value) return undefined;
+  return String(value).split(",").map((item) => item.trim()).filter((item) => item && item !== "all");
+}
+
 export const ordersController = {
   async list(req: Request, res: Response) {
     res.json({
@@ -8,7 +13,9 @@ export const ordersController = {
         startDate: req.query.startDate ? String(req.query.startDate) : undefined,
         endDate: req.query.endDate ? String(req.query.endDate) : undefined,
         customerId: req.query.customerId ? String(req.query.customerId) : undefined,
-        routeId: req.query.routeId ? String(req.query.routeId) : undefined
+        routeId: req.query.routeId ? String(req.query.routeId) : undefined,
+        customerIds: listParam(req.query.customerIds),
+        routeIds: listParam(req.query.routeIds)
       })
     });
   },
@@ -38,7 +45,8 @@ export const ordersController = {
       statement: await ordersService.routeStatement(req.tenant!.id, req.auth, {
         startDate: req.query.startDate ? String(req.query.startDate) : today,
         endDate: req.query.endDate ? String(req.query.endDate) : today,
-        routeId: req.query.routeId ? String(req.query.routeId) : undefined
+        routeId: req.query.routeId ? String(req.query.routeId) : undefined,
+        routeIds: listParam(req.query.routeIds)
       })
     });
   },

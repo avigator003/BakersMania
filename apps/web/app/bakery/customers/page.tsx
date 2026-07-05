@@ -7,6 +7,7 @@ import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { PhotoPicker } from "../../../components/photo-picker";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -100,6 +101,7 @@ export default function BakeryCustomersPage() {
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
   const cities = stateCityMap[customerForm.state] || [];
+  const routeOptions = useMemo(() => routes.filter((route) => route.active).map((route) => ({ value: route.id, label: route.name })), [routes]);
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -405,17 +407,7 @@ export default function BakeryCustomersPage() {
                 </select>
               </label>
             </div>
-            <label className="grid gap-1">
-              <span className="text-sm font-medium">Route</span>
-              <select
-                className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
-                onChange={(event) => setCustomerForm((current) => ({ ...current, routeId: event.target.value }))}
-                value={customerForm.routeId}
-              >
-                <option value="">No route</option>
-                {routes.filter((route) => route.active).map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
-              </select>
-            </label>
+            <SearchableSelect label="Route" onChange={(value) => setCustomerForm((current) => ({ ...current, routeId: value }))} options={routeOptions} placeholder="No route" searchPlaceholder="Search routes" value={customerForm.routeId} />
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setCustomerOpen(false); setEditCustomer(null); setCustomerForm(initialCustomerForm); }} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : editCustomer ? "Save Customer" : "Create Customer"}</button>

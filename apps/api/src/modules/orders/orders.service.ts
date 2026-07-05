@@ -8,6 +8,8 @@ type OrderFilters = {
   endDate?: string;
   customerId?: string;
   routeId?: string;
+  customerIds?: string[];
+  routeIds?: string[];
 };
 
 async function vehicleRouteIds(tenantId: string, auth: AccessTokenPayload | undefined) {
@@ -234,7 +236,7 @@ export const ordersService = {
     return { sourceDate: input.sourceDate, targetDate: input.targetDate, copied: created.length, orders: created };
   },
 
-  async routeStatement(tenantId: string, auth: AccessTokenPayload | undefined, filters: { startDate: string; endDate: string; routeId?: string }) {
+  async routeStatement(tenantId: string, auth: AccessTokenPayload | undefined, filters: { startDate: string; endDate: string; routeId?: string; routeIds?: string[] }) {
     const routeIds = await vehicleRouteIds(tenantId, auth);
     const orders = await ordersRepository.listForRange(tenantId, { ...filters, routeIds: routeIds || undefined });
     const customers = new Map<string, { customerId: string; customerName: string; routeName: string; orderTotal: number; paidTotal: number; dueTotal: number; orderCount: number }>();

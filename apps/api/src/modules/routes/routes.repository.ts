@@ -17,12 +17,32 @@ export const bakeryRoutesRepository = {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },
 
-  upsertVehicleUser(input: { email: string; phone: string; name: string; passwordHash: string }) {
-    return prisma.user.upsert({
-      where: { email: input.email },
-      update: { phone: input.phone, name: input.name, passwordHash: input.passwordHash },
-      create: input
+  async upsertVehicleUser(input: { email: string; phone: string; name: string; passwordHash: string }) {
+    const existingByEmail = await prisma.user.findUnique({ where: { email: input.email } });
+    if (existingByEmail) {
+      return prisma.user.update({
+        where: { id: existingByEmail.id },
+        data: { phone: input.phone, name: input.name, passwordHash: input.passwordHash }
+      });
+    }
+
+    const reusableByPhone = await prisma.user.findFirst({
+      where: {
+        phone: input.phone,
+        memberships: { none: {} },
+        customers: { none: {} },
+        vehicles: { none: {} }
+      },
+      orderBy: { createdAt: "desc" }
     });
+    if (reusableByPhone) {
+      return prisma.user.update({
+        where: { id: reusableByPhone.id },
+        data: { email: input.email, phone: input.phone, name: input.name, passwordHash: input.passwordHash }
+      });
+    }
+
+    return prisma.user.create({ data: input });
   },
 
   createVehicle(tenantId: string, input: VehicleInput & { userId?: string }) {

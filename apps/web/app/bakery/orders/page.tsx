@@ -7,6 +7,7 @@ import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { PaymentHistory, paymentDue, paymentTotal, resolvedPaymentStatus } from "../../../components/payment-history";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -147,8 +148,8 @@ export default function BakeryOrdersPage() {
   const [search, setSearch] = useState("");
   const [startDate, setStartDate] = useState(monthStart);
   const [endDate, setEndDate] = useState(today);
-  const [customerFilter, setCustomerFilter] = useState("all");
-  const [routeFilter, setRouteFilter] = useState("all");
+  const [customerFilter, setCustomerFilter] = useState<string[]>([]);
+  const [routeFilter, setRouteFilter] = useState<string[]>([]);
   const [form, setForm] = useState<OrderFormState>(emptyOrderForm);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [repeatForm, setRepeatForm] = useState({
@@ -159,6 +160,17 @@ export default function BakeryOrdersPage() {
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
+
+  const customerOptions = useMemo(() => customers.map((customer) => ({
+    value: customer.id,
+    label: customer.name,
+    description: [customer.phone, customer.route?.name || "No route"].filter(Boolean).join(" · ")
+  })), [customers]);
+
+  const routeOptions = useMemo(() => routes.map((route) => ({
+    value: route.id,
+    label: route.name
+  })), [routes]);
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -197,8 +209,8 @@ export default function BakeryOrdersPage() {
       const orderParams = new URLSearchParams();
       if (startDate) orderParams.set("startDate", startDate);
       if (endDate) orderParams.set("endDate", endDate);
-      if (customerFilter !== "all") orderParams.set("customerId", customerFilter);
-      if (routeFilter !== "all") orderParams.set("routeId", routeFilter);
+      if (customerFilter.length) orderParams.set("customerIds", customerFilter.join(","));
+      if (routeFilter.length) orderParams.set("routeIds", routeFilter.join(","));
       const [orderData, customerData, productData, routeData] = await Promise.all([
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${orderParams.toString()}`),
         authFetch<{ customers: Customer[] }>(`${apiBase}/customers`),
@@ -507,7 +519,7 @@ export default function BakeryOrdersPage() {
     if (!apiBase) return;
     try {
       const params = new URLSearchParams({ startDate: startDate || today, endDate: endDate || today });
-      if (routeFilter !== "all") params.set("routeId", routeFilter);
+      if (routeFilter.length) params.set("routeIds", routeFilter.join(","));
       const { statement } = await authFetch<{ statement: RouteStatement }>(`${apiBase}/orders/route-statement?${params.toString()}`);
       const rows = [
         ["Start Date", statement.startDate],
@@ -547,14 +559,8 @@ export default function BakeryOrdersPage() {
                 </label>
                 <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setStartDate(event.target.value)} type="date" value={startDate} />
                 <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} />
-                <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setCustomerFilter(event.target.value)} value={customerFilter}>
-                  <option value="all">All customers</option>
-                  {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.route?.name || "No route"})</option>)}
-                </select>
-                <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setRouteFilter(event.target.value)} value={routeFilter}>
-                  <option value="all">All routes</option>
-                  {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
-                </select>
+                <SearchableSelect multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
+                <SearchableSelect multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
               </div>
               {loading ? <LoadingSpinner label="Loading orders" /> : null}
               <PaginationControls
@@ -721,7 +727,14 @@ export default function BakeryOrdersPage() {
             <label className="grid gap-1 text-sm font-semibold">Source date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRepeatForm((current) => ({ ...current, sourceDate: event.target.value }))} required type="date" value={repeatForm.sourceDate} /></label>
             <label className="grid gap-1 text-sm font-semibold">Target date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRepeatForm((current) => ({ ...current, targetDate: event.target.value }))} required type="date" value={repeatForm.targetDate} /></label>
           </div>
-          <label className="grid gap-1 text-sm font-semibold">Route<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRepeatForm((current) => ({ ...current, routeId: event.target.value }))} value={repeatForm.routeId}><option value="all">All routes</option>{routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
+          <SearchableSelect
+            label="Route"
+            onChange={(value) => setRepeatForm((current) => ({ ...current, routeId: value || "all" }))}
+            options={routeOptions}
+            placeholder="All routes"
+            searchPlaceholder="Search routes"
+            value={repeatForm.routeId === "all" ? "" : repeatForm.routeId}
+          />
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setRepeatOpen(false)} type="button">Cancel</button>
             <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Copying..." : "Repeat Orders"}</button>
@@ -732,7 +745,7 @@ export default function BakeryOrdersPage() {
       <Modal open={orderOpen} title="Create order" description="Select customer and product quantities. The route is taken from the customer for truck loading." onClose={() => setOrderOpen(false)}>
         <form className="grid gap-4" onSubmit={createOrder}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-semibold">Customer<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))} required value={form.customerId}><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.route?.name || "No route"})</option>)}</select></label>
+            <SearchableSelect label="Customer" onChange={(value) => setForm((current) => ({ ...current, customerId: value }))} options={customerOptions} placeholder="Select customer" required searchPlaceholder="Search customers" value={form.customerId} />
             <label className="grid gap-1 text-sm font-semibold">Order date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, dueAt: event.target.value }))} type="date" value={form.dueAt} /></label>
             <label className="grid gap-1 text-sm font-semibold">Source<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, source: event.target.value }))} value={form.source}><option value="STAFF_CREATED">Staff created</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="WALK_IN">Walk-in</option></select></label>
             <label className="grid gap-1 text-sm font-semibold">Fulfillment<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, fulfillmentType: event.target.value }))} value={form.fulfillmentType}><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select></label>
@@ -825,7 +838,7 @@ export default function BakeryOrdersPage() {
       <Modal open={Boolean(editOrder)} title="Edit order" description="Change customer, date, source, and product quantities." onClose={() => setEditOrder(null)}>
         <form className="grid gap-4" onSubmit={updateOrder}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-semibold">Customer<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, customerId: event.target.value }))} required value={editForm.customerId}><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.route?.name || "No route"})</option>)}</select></label>
+            <SearchableSelect label="Customer" onChange={(value) => setEditForm((current) => ({ ...current, customerId: value }))} options={customerOptions} placeholder="Select customer" required searchPlaceholder="Search customers" value={editForm.customerId} />
             <label className="grid gap-1 text-sm font-semibold">Order date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, dueAt: event.target.value }))} type="date" value={editForm.dueAt} /></label>
             <label className="grid gap-1 text-sm font-semibold">Source<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, source: event.target.value }))} value={editForm.source}><option value="STAFF_CREATED">Staff created</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="WALK_IN">Walk-in</option></select></label>
             <label className="grid gap-1 text-sm font-semibold">Fulfillment<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, fulfillmentType: event.target.value }))} value={editForm.fulfillmentType}><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select></label>
