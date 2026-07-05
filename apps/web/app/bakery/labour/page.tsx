@@ -233,22 +233,6 @@ export default function LabourManagementPage() {
   return (
     <AppShell title="Bakery CRM" subtitle="Labour attendance, advances, partial payments, and salary records" surface="bakery">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {[
-            ["Total labour", data?.stats.totalLabour ?? 0],
-            ["Active", data?.stats.activeLabour ?? 0],
-            ["Present today", data?.stats.presentToday ?? 0],
-            ["Absent today", data?.stats.absentToday ?? 0],
-            ["Paid this month", formatAmount(data?.stats.paymentThisMonth ?? 0)],
-            ["Advances", formatAmount(data?.stats.advanceThisMonth ?? 0)]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -452,7 +436,16 @@ export default function LabourManagementPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls {...laboursPage} />
+          <PaginationControls
+            {...laboursPage}
+            summary={[
+              { label: "Active", value: data?.stats.activeLabour ?? 0 },
+              { label: "Present", value: data?.stats.presentToday ?? 0 },
+              { label: "Absent", value: data?.stats.absentToday ?? 0 },
+              { label: "Paid", value: formatAmount(data?.stats.paymentThisMonth ?? 0) },
+              { label: "Advances", value: formatAmount(data?.stats.advanceThisMonth ?? 0) }
+            ]}
+          />
         </section>
 
         <Modal open={labourOpen} title="Add Labour" description="Create a bakery labour profile for attendance and payment tracking." onClose={() => setLabourOpen(false)}>

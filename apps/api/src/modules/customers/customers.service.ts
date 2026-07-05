@@ -11,17 +11,16 @@ function customerEmail(tenantId: string, phone: string, email?: string) {
   return email || `customer-${tenantId}-${phone.replace(/[^\d]/g, "")}@bakersmania.local`;
 }
 
-function withBalance(customer: Awaited<ReturnType<typeof customersRepository.listByTenant>>[number]) {
-  const orderTotal = customer.orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
-  const paidTotal = customer.orders.reduce(
-    (sum, order) => sum + order.payments.reduce((paymentSum, payment) => paymentSum + Number(payment.amount || 0), 0),
-    0
-  );
+function withBalance(
+  customer: Awaited<ReturnType<typeof customersRepository.listByTenant>>[number],
+  summary?: { orderTotal: number; paidTotal: number }
+) {
+  const orderTotal = summary?.orderTotal || 0;
+  const paidTotal = summary?.paidTotal || 0;
   const dueBalance = Math.max(orderTotal - paidTotal, 0);
   const creditLimit = customer.creditLimit === null || customer.creditLimit === undefined ? null : Number(customer.creditLimit);
-  const { orders: _orders, ...customerWithoutOrders } = customer;
   return {
-    ...customerWithoutOrders,
+    ...customer,
     orderTotal,
     paidTotal,
     dueBalance,
@@ -30,8 +29,12 @@ function withBalance(customer: Awaited<ReturnType<typeof customersRepository.lis
 }
 
 export const customersService = {
-  listCustomers(tenantId: string) {
-    return customersRepository.listByTenant(tenantId).then((customers) => customers.map(withBalance));
+  async listCustomers(tenantId: string) {
+    const [customers, summaries] = await Promise.all([
+      customersRepository.listByTenant(tenantId),
+      customersRepository.financialSummaryByCustomer(tenantId)
+    ]);
+    return customers.map((customer) => withBalance(customer, summaries.get(customer.id)));
   },
 
   async createCustomer(actorType: string | undefined, tenantId: string, input: CustomerInput) {

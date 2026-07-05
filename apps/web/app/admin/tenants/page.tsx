@@ -268,20 +268,16 @@ export default function AdminTenantsPage() {
   return (
     <AppShell title="Platform Admin" subtitle="Onboarding, support, billing status, and full tenant visibility" surface="admin">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {stats.map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-3xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold">Bakery Workspaces</h2>
               <p className="text-sm text-muted">Manage bakery details, status, activation, and deletion through modals.</p>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
+              {stats.map(([label, value]) => (
+                <span key={label}>{label}: <span className="font-semibold text-ink">{value}</span></span>
+              ))}
             </div>
             <div className="grid gap-2 sm:flex sm:flex-wrap">
               <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" onClick={() => setCreateOpen(true)}>

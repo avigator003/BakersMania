@@ -123,25 +123,17 @@ export default function VehicleRoutesPage() {
   return (
     <AppShell title="Vehicle Workspace" subtitle="Assigned route deliveries and collections" surface="vehicle">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {[
-            ["Orders", totals.orders],
-            ["Delivered", totals.delivered],
-            ["Collected", formatAmount(totals.paid)],
-            ["Due", formatAmount(totals.due)]
-          ].map(([label, value]) => (
-            <div className="rounded-lg border border-line bg-panel p-4 shadow-subtle" key={label}>
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold">Assigned Routes</h1>
               <p className="mt-1 text-sm text-muted">Only route orders assigned to this vehicle are visible.</p>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
+              <span>Orders: <span className="font-semibold text-ink">{totals.orders}</span></span>
+              <span>Delivered: <span className="font-semibold text-ink">{totals.delivered}</span></span>
+              <span>Collected: <span className="font-semibold text-ink">{formatAmount(totals.paid)}</span></span>
+              <span>Due: <span className="font-semibold text-ink">{formatAmount(totals.due)}</span></span>
             </div>
             <div className="flex gap-2">
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setDate(event.target.value)} type="date" value={date} />

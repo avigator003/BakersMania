@@ -19,7 +19,7 @@ export default function AdminPage() {
             Manage the whole BakersMania SaaS platform from clear, route-based sections.
           </p>
         </section>
-        <section className="summary-grid">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {modules.map((module) => {
             const Icon = module.icon;
             return (

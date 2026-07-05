@@ -39,6 +39,7 @@ export function PaginationControls({
   pageSize,
   setPage,
   setPageSize,
+  summary,
   total
 }: {
   page: number;
@@ -46,6 +47,7 @@ export function PaginationControls({
   pageSize: number;
   setPage: (page: number) => void;
   setPageSize: (pageSize: number) => void;
+  summary?: Array<{ label: string; value: string | number }>;
   total: number;
 }) {
   const start = total ? (page - 1) * pageSize + 1 : 0;
@@ -53,10 +55,15 @@ export function PaginationControls({
 
   return (
     <div className="flex flex-col gap-3 border-t border-line px-4 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span>
           Showing <span className="font-semibold text-ink">{start}-{end}</span> of <span className="font-semibold text-ink">{total}</span>
         </span>
+        {summary?.map((item) => (
+          <span key={item.label} className="whitespace-nowrap">
+            {item.label}: <span className="font-semibold text-ink">{item.value}</span>
+          </span>
+        ))}
         <label className="inline-flex items-center gap-2">
           <span>Rows</span>
           <select

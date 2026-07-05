@@ -212,22 +212,8 @@ export default function LabourAttendancePage() {
           </div>
         </section>
 
-        <section className="summary-grid">
-          {[
-            ["Full day", counts.PRESENT],
-            ["Half day", counts.HALF_DAY],
-            ["Absent", counts.ABSENT],
-            ["Active labour", activeLabours.length]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="border-b border-line p-4">
+          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
             <label className="flex max-w-md items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Search size={16} className="text-muted" />
               <input
@@ -237,6 +223,12 @@ export default function LabourAttendancePage() {
                 value={search}
               />
             </label>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
+              <span>Full: <span className="font-semibold text-ink">{counts.PRESENT}</span></span>
+              <span>Half: <span className="font-semibold text-ink">{counts.HALF_DAY}</span></span>
+              <span>Absent: <span className="font-semibold text-ink">{counts.ABSENT}</span></span>
+              <span>Active: <span className="font-semibold text-ink">{activeLabours.length}</span></span>
+            </div>
           </div>
 
           {loading ? <p className="p-4 text-sm text-muted">Loading attendance...</p> : null}

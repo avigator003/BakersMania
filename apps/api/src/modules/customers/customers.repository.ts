@@ -9,18 +9,35 @@ export const customersRepository = {
   listByTenant(tenantId: string) {
     return prisma.customer.findMany({
       where: { tenantId },
-      include: {
-        route: true,
-        orders: {
-          select: {
-            grandTotal: true,
-            payments: { select: { amount: true } }
-          }
-        }
-      },
+      include: { route: true },
       orderBy: { createdAt: "desc" },
       take: 100
     });
+  },
+
+  async financialSummaryByCustomer(tenantId: string) {
+    const rows = await prisma.$queryRaw<Array<{ customerId: string; orderTotal: unknown; paidTotal: unknown }>>`
+      SELECT
+        o."customerId" AS "customerId",
+        COALESCE(SUM(o."grandTotal"), 0) AS "orderTotal",
+        COALESCE(SUM(payment_totals."paidTotal"), 0) AS "paidTotal"
+      FROM "Order" o
+      LEFT JOIN (
+        SELECT "orderId", SUM(amount) AS "paidTotal"
+        FROM "Payment"
+        WHERE "tenantId" = ${tenantId} AND "orderId" IS NOT NULL
+        GROUP BY "orderId"
+      ) payment_totals ON payment_totals."orderId" = o.id
+      WHERE o."tenantId" = ${tenantId}
+      GROUP BY o."customerId"
+    `;
+    return new Map(rows.map((row) => [
+      row.customerId,
+      {
+        orderTotal: Number(row.orderTotal || 0),
+        paidTotal: Number(row.paidTotal || 0)
+      }
+    ]));
   },
 
   findById(tenantId: string, customerId: string) {

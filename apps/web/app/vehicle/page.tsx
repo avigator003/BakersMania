@@ -79,26 +79,18 @@ export default function VehicleOverviewPage() {
   return (
     <AppShell title="Vehicle Workspace" subtitle="Monthly route and payment overview" surface="vehicle">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {[
-            ["Assigned orders", orders.length],
-            ["Delivered", stats.delivered],
-            ["Pending", stats.notDelivered],
-            ["Collected", formatAmount(stats.paid)],
-            ["Due", formatAmount(stats.due)]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex items-center justify-between gap-3 border-b border-line p-4">
             <div>
               <h1 className="text-xl font-semibold">This Month</h1>
               <p className="mt-1 text-sm text-muted">Assigned routes from {monthStart} to {today}.</p>
+            </div>
+            <div className="hidden flex-wrap gap-x-4 gap-y-2 text-sm text-muted lg:flex">
+              <span>Orders: <span className="font-semibold text-ink">{orders.length}</span></span>
+              <span>Delivered: <span className="font-semibold text-ink">{stats.delivered}</span></span>
+              <span>Pending: <span className="font-semibold text-ink">{stats.notDelivered}</span></span>
+              <span>Collected: <span className="font-semibold text-ink">{formatAmount(stats.paid)}</span></span>
+              <span>Due: <span className="font-semibold text-ink">{formatAmount(stats.due)}</span></span>
             </div>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button">
               <RefreshCw size={16} />

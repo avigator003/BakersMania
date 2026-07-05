@@ -202,15 +202,6 @@ export default function AdminBillingPage() {
   return (
     <AppShell title="Platform Admin" subtitle="Billing, payment dates, recurrence, and subscription status" surface="admin">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {stats.map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-4 border-b border-line p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -220,6 +211,11 @@ export default function AdminBillingPage() {
                   <h1 className="text-xl font-semibold">Billing</h1>
                 </div>
                 <p className="mt-1 text-sm text-muted">Track payment dates, recurrence, monthly amount, due date, and billing status.</p>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
+                {stats.map(([label, value]) => (
+                  <span key={label}>{label}: <span className="font-semibold text-ink">{value}</span></span>
+                ))}
               </div>
               <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => loadBilling({ dueMonth, billingStatus })}>
                 <RefreshCw size={16} />

@@ -317,20 +317,6 @@ export default function BakeryInventoryPage() {
 
         {activeTab === "products" ? (
           <>
-            <section className="summary-grid">
-              {[
-                ["Products", products.length],
-                ["Stock available", formatNumber(totals.stock)],
-                ["Order requirement", formatNumber(totals.required)],
-                ["Short products", totals.short]
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-                  <p className="text-sm text-muted">{label}</p>
-                  <p className="mt-2 text-2xl font-bold">{value}</p>
-                </div>
-              ))}
-            </section>
-
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
               <div className="flex min-w-0 flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
@@ -453,25 +439,18 @@ export default function BakeryInventoryPage() {
                   </tbody>
                 </table>
               </div>
-              <PaginationControls {...productsPage} />
+              <PaginationControls
+                {...productsPage}
+                summary={[
+                  { label: "Stock", value: formatNumber(totals.stock) },
+                  { label: "Required", value: formatNumber(totals.required) },
+                  { label: "Short", value: totals.short }
+                ]}
+              />
             </section>
           </>
         ) : (
           <>
-            <section className="summary-grid">
-              {[
-                ["Raw materials", materials.length],
-                ["Total quantity", formatNumber(materialTotals.stock)],
-                ["Estimated value", formatAmount(materialTotals.value)],
-                ["Low stock", materialTotals.low]
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-                  <p className="text-sm text-muted">{label}</p>
-                  <p className="mt-2 text-2xl font-bold">{value}</p>
-                </div>
-              ))}
-            </section>
-
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
               <div className="flex min-w-0 flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
@@ -619,7 +598,14 @@ export default function BakeryInventoryPage() {
                   </tbody>
                 </table>
               </div>
-              <PaginationControls {...materialsPage} />
+              <PaginationControls
+                {...materialsPage}
+                summary={[
+                  { label: "Quantity", value: formatNumber(materialTotals.stock) },
+                  { label: "Value", value: formatAmount(materialTotals.value) },
+                  { label: "Low", value: materialTotals.low }
+                ]}
+              />
             </section>
           </>
         )}

@@ -22,6 +22,32 @@ body {
   overflow-x: hidden;
 }
 
+main,
+main > *,
+section,
+article,
+form,
+aside {
+  min-width: 0;
+  max-width: 100%;
+}
+
+table {
+  max-width: none;
+}
+
+th,
+td {
+  overflow-wrap: anywhere;
+}
+
+main [class*="overflow-auto"],
+main [class*="overflow-x-auto"] {
+  min-width: 0;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
 button,
 input,
 select,
@@ -39,48 +65,27 @@ textarea {
   outline-color: #34d399;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: 1rem;
+@media (max-width: 1280px) {
+  main table[class*="min-w-"] {
+    min-width: 900px !important;
+  }
+
+  th,
+  td {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  main table[class*="min-w-"] {
+    min-width: 760px !important;
+  }
 }
 
 @media (max-width: 640px) {
-  main,
-  main > *,
-  section,
-  form,
-  label {
-    min-width: 0;
-    max-width: 100%;
-  }
-
   section,
   article,
-  .summary-grid > * {
-    overflow-wrap: anywhere;
-  }
-
-  .summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-
-  .summary-grid > * {
-    min-width: 0;
-    padding: 0.875rem;
-  }
-
-  .summary-grid p:first-child {
-    font-size: 0.75rem;
-    line-height: 1rem;
-  }
-
-  .summary-grid p:last-child {
-    font-size: 1.25rem;
-    line-height: 1.6rem;
-  }
-
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea,
@@ -88,7 +93,9 @@ textarea {
     min-width: 0;
   }
 
-  table {
-    max-width: none;
+  th,
+  td {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 }

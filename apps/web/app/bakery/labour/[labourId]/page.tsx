@@ -131,6 +131,12 @@ export default function LabourDetailPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm text-muted">
+                <span>Present: <span className="font-semibold text-ink">{detail?.stats.presentDays ?? 0}</span></span>
+                <span>Half: <span className="font-semibold text-ink">{detail?.stats.halfDays ?? 0}</span></span>
+                <span>Absent: <span className="font-semibold text-ink">{detail?.stats.absentDays ?? 0}</span></span>
+                <span>Paid: <span className="font-semibold text-ink">{formatAmount(detail?.stats.totalPaid ?? 0)}</span></span>
+              </div>
               <label className="grid gap-1">
                 <span className="text-xs font-semibold text-muted">Month</span>
                 <input
@@ -148,24 +154,6 @@ export default function LabourDetailPage() {
               </button>
             </div>
           </div>
-        </section>
-
-        <section className="summary-grid">
-          {[
-            ["Present", detail?.stats.presentDays ?? 0],
-            ["Half days", detail?.stats.halfDays ?? 0],
-            ["Absent", detail?.stats.absentDays ?? 0],
-            ["Leaves", detail?.stats.leaveDays ?? 0],
-            ["Total paid", formatAmount(detail?.stats.totalPaid ?? 0)],
-            ["Advance", formatAmount(detail?.stats.advancePaid ?? 0)],
-            ["Partial", formatAmount(detail?.stats.partialPaid ?? 0)],
-            ["Full", formatAmount(detail?.stats.fullPaid ?? 0)]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">

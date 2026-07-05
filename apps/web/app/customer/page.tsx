@@ -134,10 +134,10 @@ export default function CustomerPage() {
             ))}
             {!cart.length ? <p className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">No products selected.</p> : null}
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-            <span className="rounded-md bg-panel2 p-3">Items<br /><strong>{totals.items}</strong></span>
-            <span className="rounded-md bg-panel2 p-3">Qty<br /><strong>{totals.quantity}</strong></span>
-            <span className="rounded-md bg-panel2 p-3">Total<br /><strong>{formatAmount(totals.amount)}</strong></span>
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
+            <span>Items: <strong className="text-ink">{totals.items}</strong></span>
+            <span>Qty: <strong className="text-ink">{totals.quantity}</strong></span>
+            <span>Total: <strong className="text-ink">{formatAmount(totals.amount)}</strong></span>
           </div>
           <label className="mt-4 grid gap-1 text-sm font-semibold">Delivery date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setDueAt(event.target.value)} type="date" value={dueAt} /></label>
           <label className="mt-3 grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setNotes(event.target.value)} value={notes} /></label>

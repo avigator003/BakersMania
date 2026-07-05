@@ -154,20 +154,6 @@ export default function BakeryRoutesPage() {
   return (
     <AppShell title="Bakery CRM" subtitle="Route and vehicle management" surface="bakery">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {[
-            ["Routes", routes.length],
-            ["Active routes", routes.filter((route) => route.active).length],
-            ["Vehicles", vehicles.length],
-            ["Active vehicles", vehicles.filter((vehicle) => vehicle.active).length]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -263,7 +249,14 @@ export default function BakeryRoutesPage() {
                 </tbody>
               </table>
             </div>
-            <PaginationControls {...routesPage} />
+            <PaginationControls
+              {...routesPage}
+              summary={[
+                { label: "Active routes", value: routes.filter((route) => route.active).length },
+                { label: "Vehicles", value: vehicles.length },
+                { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
+              ]}
+            />
             </>
           ) : (
             <>
@@ -334,7 +327,14 @@ export default function BakeryRoutesPage() {
                 </tbody>
               </table>
             </div>
-            <PaginationControls {...vehiclesPage} />
+            <PaginationControls
+              {...vehiclesPage}
+              summary={[
+                { label: "Routes", value: routes.length },
+                { label: "Active routes", value: routes.filter((route) => route.active).length },
+                { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
+              ]}
+            />
             </>
           )}
         </section>

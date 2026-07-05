@@ -237,21 +237,8 @@ export default function LabourPaymentsPage() {
           </div>
         </section>
 
-        <section className="summary-grid">
-          {[
-            ["Rows to save", draftRows.length],
-            ["Total amount", formatAmount(totalAmount)],
-            ["Salary period", monthLabel(periodMonth)]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="border-b border-line p-4">
+          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
             <label className="flex max-w-md items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Search size={16} className="text-muted" />
               <input
@@ -261,6 +248,11 @@ export default function LabourPaymentsPage() {
                 value={search}
               />
             </label>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
+              <span>Rows: <span className="font-semibold text-ink">{draftRows.length}</span></span>
+              <span>Total: <span className="font-semibold text-ink">{formatAmount(totalAmount)}</span></span>
+              <span>Period: <span className="font-semibold text-ink">{monthLabel(periodMonth)}</span></span>
+            </div>
           </div>
 
           {loading ? <p className="p-4 text-sm text-muted">Loading payment sheet...</p> : null}

@@ -250,20 +250,6 @@ export default function RawMaterialSellersPage() {
   return (
     <AppShell title="Bakery CRM" subtitle="Raw material sellers, purchases, and payments" surface="bakery">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {[
-            ["Sellers", suppliers.length],
-            ["Purchases", purchases.length],
-            ["Month total", formatAmount(totals.amount)],
-            ["Due", formatAmount(totals.due)]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -403,7 +389,14 @@ export default function RawMaterialSellersPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls {...purchasesPage} />
+          <PaginationControls
+            {...purchasesPage}
+            summary={[
+              { label: "Sellers", value: suppliers.length },
+              { label: "Month total", value: formatAmount(totals.amount) },
+              { label: "Due", value: formatAmount(totals.due) }
+            ]}
+          />
         </section>
       </div>
 

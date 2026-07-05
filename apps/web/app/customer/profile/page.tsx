@@ -113,13 +113,17 @@ export default function CustomerProfilePage() {
         </form>
 
         <aside className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-          <h2 className="text-lg font-semibold">Account</h2>
-          <div className="mt-4 grid gap-3 text-sm">
-            <p className="rounded-md bg-panel2 p-3"><span className="block text-muted">Email</span><strong>{profile?.customer.email || "-"}</strong></p>
-            <p className="rounded-md bg-panel2 p-3"><span className="block text-muted">Route</span><strong>{profile?.customer.route?.name || "No route assigned"}</strong></p>
-            <p className="rounded-md bg-panel2 p-3"><span className="block text-muted">Credit limit</span><strong>{profile?.customer.creditLimit ? formatAmount(profile.customer.creditLimit) : "-"}</strong></p>
-            <p className={`rounded-md p-3 ${profile?.summary.creditExceeded ? "bg-berry/10 text-berry" : "bg-panel2"}`}><span className="block text-muted">Due balance</span><strong>{formatAmount(profile?.summary.dueBalance || 0)}</strong></p>
-            <p className="rounded-md bg-panel2 p-3"><span className="block text-muted">Paid total</span><strong>{formatAmount(profile?.summary.paidTotal || 0)}</strong></p>
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold">Account</h2>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
+              <span className={profile?.summary.creditExceeded ? "font-semibold text-berry" : ""}>Due: <span className="font-semibold text-ink">{formatAmount(profile?.summary.dueBalance || 0)}</span></span>
+              <span>Paid: <span className="font-semibold text-ink">{formatAmount(profile?.summary.paidTotal || 0)}</span></span>
+            </div>
+          </div>
+          <div className="mt-4 divide-y divide-line text-sm">
+            <p className="flex items-start justify-between gap-3 py-3"><span className="text-muted">Email</span><strong className="text-right">{profile?.customer.email || "-"}</strong></p>
+            <p className="flex items-start justify-between gap-3 py-3"><span className="text-muted">Route</span><strong className="text-right">{profile?.customer.route?.name || "No route assigned"}</strong></p>
+            <p className="flex items-start justify-between gap-3 py-3"><span className="text-muted">Credit limit</span><strong className="text-right">{profile?.customer.creditLimit ? formatAmount(profile.customer.creditLimit) : "-"}</strong></p>
           </div>
         </aside>
       </div>

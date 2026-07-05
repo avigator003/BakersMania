@@ -106,24 +106,16 @@ export default function CustomerOrdersPage() {
   return (
     <AppShell title="Customer Portal" subtitle="Your orders, status, and bakery updates" surface="customer">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {[
-            ["Open orders", stats.open],
-            ["Completed", stats.completed],
-            ["Total ordered", formatAmount(stats.total)]
-          ].map(([label, value]) => (
-            <div className="rounded-lg border border-line bg-panel p-4 shadow-subtle" key={label}>
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex items-center justify-between gap-3 border-b border-line p-4">
             <div>
               <h1 className="text-xl font-semibold">Order History</h1>
               <p className="mt-1 text-sm text-muted">Production, delivery, and payment status for your orders.</p>
+            </div>
+            <div className="hidden flex-wrap gap-x-4 gap-y-2 text-sm text-muted md:flex">
+              <span>Open: <span className="font-semibold text-ink">{stats.open}</span></span>
+              <span>Completed: <span className="font-semibold text-ink">{stats.completed}</span></span>
+              <span>Total: <span className="font-semibold text-ink">{formatAmount(stats.total)}</span></span>
             </div>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadOrders} title="Refresh orders" type="button"><RefreshCw size={16} /></button>
           </div>

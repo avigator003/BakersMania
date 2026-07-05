@@ -586,21 +586,6 @@ export default function BakeryOrdersPage() {
 
         {activeTab === "orders" ? (
           <>
-            <section className="summary-grid">
-              {[
-                ["Orders", orderTotals.orders],
-                ["Total quantity", formatQty(orderTotals.quantity) || "0"],
-                ["Total", formatAmount(orderTotals.amount)],
-                ["Due", formatAmount(orderTotals.due)],
-                ["Today's Due", formatAmount(orderTotals.todaysDue)]
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-                  <p className="text-sm text-muted">{label}</p>
-                  <p className="mt-2 text-2xl font-bold">{value}</p>
-                </div>
-              ))}
-            </section>
-
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
               <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
@@ -781,7 +766,15 @@ export default function BakeryOrdersPage() {
                   </tbody>
                 </table>
               </div>
-              <PaginationControls {...ordersPage} />
+              <PaginationControls
+                {...ordersPage}
+                summary={[
+                  { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
+                  { label: "Total", value: formatAmount(orderTotals.amount) },
+                  { label: "Due", value: formatAmount(orderTotals.due) },
+                  { label: "Today due", value: formatAmount(orderTotals.todaysDue) }
+                ]}
+              />
             </section>
           </>
         ) : (

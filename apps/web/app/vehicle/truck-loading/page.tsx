@@ -81,25 +81,17 @@ export default function VehicleTruckLoadingPage() {
             <p className="mt-1 text-sm text-muted">Product quantities are limited to this vehicle&apos;s assigned routes.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm text-muted">
+              <span>Routes: <span className="font-semibold text-ink">{truckLoading?.routes.length || 0}</span></span>
+              <span>Products: <span className="font-semibold text-ink">{truckLoading?.products.length || 0}</span></span>
+              <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
+              <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
+            </div>
             <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
             <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!truckLoading?.routes.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
         </div>
-
-        <section className="summary-grid border-b border-line p-4">
-          {[
-            ["Routes", truckLoading?.routes.length || 0],
-            ["Products", truckLoading?.products.length || 0],
-            ["Orders", truckLoading?.orderCount || 0],
-            ["Quantity", formatQty(totalQuantity) || "0"]
-          ].map(([label, value]) => (
-            <div className="rounded-lg border border-line bg-panel2 p-4" key={label}>
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
 
         {loading ? <p className="p-4 text-sm text-muted">Loading truck sheet...</p> : null}
 
