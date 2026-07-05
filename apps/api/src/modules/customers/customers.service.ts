@@ -75,7 +75,18 @@ export const customersService = {
         throw new HttpError(400, "Selected route does not belong to this bakery");
       }
     }
-    return customersRepository.update(tenantId, customerId, input);
+    const phone = normalizePhone(input.phone);
+    if (!phone) {
+      throw new HttpError(422, "Customer phone number is required for portal credentials");
+    }
+    const passwordHash = await bcrypt.hash("123456", 12);
+    const user = await customersRepository.upsertPortalUser({
+      email: customerEmail(tenantId, phone, input.email || customer.email || undefined),
+      name: input.name || customer.name,
+      phone,
+      passwordHash
+    });
+    return customersRepository.update(tenantId, customerId, { ...input, phone, userId: user.id });
   },
 
   async getLedger(tenantId: string, customerId: string) {
