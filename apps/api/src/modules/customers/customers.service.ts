@@ -77,7 +77,7 @@ export const customersService = {
         throw new HttpError(400, "Selected route does not belong to this bakery");
       }
     }
-    const phone = normalizePhone(input.phone);
+    const phone = normalizePhone(input.phone ?? customer.phone);
     if (!phone) {
       throw new HttpError(422, "Customer phone number is required for portal credentials");
     }

@@ -7,10 +7,10 @@ Scenarios:
 
 | ID | Scenario | Steps | Expected | Status | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| AU-001 | Bakery owner login | Login as Star Bakery owner. | Redirects to `/star-bakery/bakery`. | DONE | Run 20260705090324: owner login owner@starbakery.local |
-| AU-002 | Customer phone login | Create customer with phone, login with phone + `123456`. | Redirects to `/star-bakery/customer`. | DONE | Run 20260705090324: customer phone login +919700090324 |
-| AU-003 | Vehicle phone login | Onboard vehicle with driver phone, login with phone + `123456`. | Redirects to `/star-bakery/vehicle`. | DONE | Run 20260705090324: vehicle phone login +919800090324 |
-| AU-004 | Invalid password rejection | Try valid user with wrong password. | Login rejected, no session stored. | DONE | Run 20260705090324: wrong password rejected |
-| AU-005 | Tenant slug redirect | Open legacy `/bakery`, `/customer`, `/vehicle` after login. | Redirects to tenant-prefixed workspace. | DONE | Run 20260705090324: legacy workspace routes render |
-| AU-006 | Actor route isolation | Open bakery route as customer/vehicle and customer route as bakery. | Wrong actor is denied. | DONE | Run 20260705090324: non-bakery actor rejected from staff route |
-| AU-007 | Phone collision safety | If same phone exists for multiple records, verify password selects correct account. | Correct actor account logs in; wrong password rejected. | DONE | Run 20260705090324: same phone credential rejects wrong password |
+| AU-001 | Bakery owner login | Login as Star Bakery owner. | Redirects to `/star-bakery/bakery`. | DONE | Run 20260705170235: owner login owner@starbakery.local |
+| AU-002 | Customer phone login | Create customer with phone, login with phone + `123456`. | Redirects to `/star-bakery/customer`. | DONE | Run 20260705170235: customer phone login +919700170235 |
+| AU-003 | Vehicle phone login | Onboard vehicle with driver phone, login with phone + `123456`. | Redirects to `/star-bakery/vehicle`. | DONE | Run 20260705170235: vehicle phone login +919800170235 |
+| AU-004 | Invalid password rejection | Try valid user with wrong password. | Login rejected, no session stored. | DONE | Run 20260705170235: wrong password rejected |
+| AU-005 | Tenant slug redirect | Open legacy `/bakery`, `/customer`, `/vehicle` after login. | Redirects to tenant-prefixed workspace. | DONE | Run 20260705170235: legacy workspace routes render |
+| AU-006 | Actor route isolation | Open bakery route as customer/vehicle and customer route as bakery. | Wrong actor is denied. | DONE | Run 20260705170235: non-bakery actor rejected from staff route |
+| AU-007 | Phone collision safety | If same phone exists for multiple records, verify password selects correct account. | Correct actor account logs in; wrong password rejected. | DONE | Run 20260705170235: same phone credential rejects wrong password |

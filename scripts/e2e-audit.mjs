@@ -302,14 +302,13 @@ async function main() {
     return `vehicle login ${ctx.vehiclePhone}`;
   });
   await run("RV-003", async () => {
-    const vehicle = await request(`${t}/routes/vehicles`, {
+    await request(`${t}/routes/vehicles`, {
       token: ctx.owner.token,
       method: "POST",
-      expected: [201],
+      expected: [422],
       body: { name: `No Phone Vehicle ${runId}`, number: `NP-${runId.slice(-4)}`, active: true }
     });
-    assert(!vehicle.vehicle.userId, "vehicle without phone should not get login user");
-    return "vehicle without phone saved without credentials";
+    return "vehicle without phone rejected because portal credentials require phone";
   });
   await run("RV-004", async () => {
     ctx.route = (await request(`${t}/routes`, {
