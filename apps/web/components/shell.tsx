@@ -9,6 +9,7 @@ import {
   Building2,
   ClipboardList,
   CreditCard,
+  Gauge,
   Home,
   LogOut,
   Menu,
@@ -51,25 +52,25 @@ export function AppShell({
   title: string;
   subtitle: string;
   children: React.ReactNode;
-  surface?: "bakery" | "admin" | "customer";
+  surface?: "bakery" | "admin" | "customer" | "vehicle";
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [authState, setAuthState] = useState<"checking" | "allowed" | "denied">("checking");
-  const [workspaceName, setWorkspaceName] = useState(surface === "bakery" || surface === "customer" ? getStoredTenantName() || "" : "");
+  const [workspaceName, setWorkspaceName] = useState(surface === "bakery" || surface === "customer" || surface === "vehicle" ? getStoredTenantName() || "" : "");
   const [menuOpen, setMenuOpen] = useState(false);
 
   const requiredActor =
-    surface === "admin" ? "platform_admin" : surface === "customer" ? "customer" : "bakery_user";
+    surface === "admin" ? "platform_admin" : surface === "customer" ? "customer" : surface === "vehicle" ? "vehicle" : "bakery_user";
   const pathSegments = pathname.split("/").filter(Boolean);
   const pathTenantSlug =
-    pathSegments.length > 1 && (pathSegments[1] === "bakery" || pathSegments[1] === "customer")
+    pathSegments.length > 1 && (pathSegments[1] === "bakery" || pathSegments[1] === "customer" || pathSegments[1] === "vehicle")
       ? pathSegments[0]
       : "";
   const storedTenantSlug = getStoredTenantSlug() || "";
   const tenantSlug = pathTenantSlug || storedTenantSlug;
   const routeBase = surface === "admin" || !tenantSlug ? "" : `/${tenantSlug}`;
-  const shellTitle = (surface === "bakery" || surface === "customer") && workspaceName ? workspaceName : title;
+  const shellTitle = (surface === "bakery" || surface === "customer" || surface === "vehicle") && workspaceName ? workspaceName : title;
 
   const footerCopy =
     surface === "admin"
@@ -82,6 +83,11 @@ export function AppShell({
             title: "Customer Portal",
             body: "Orders, invoices, and profile"
           }
+        : surface === "vehicle"
+          ? {
+              title: "Vehicle Workspace",
+              body: "Assigned routes, delivery status, and truck loading"
+            }
         : {
             title: "Bakery Workspace",
             body: "Orders, staff, stock, routes, and customers"
@@ -104,7 +110,7 @@ export function AppShell({
         return;
       }
 
-      if ((surface === "bakery" || surface === "customer") && sessionTenantSlug) {
+      if ((surface === "bakery" || surface === "customer" || surface === "vehicle") && sessionTenantSlug) {
         const surfaceSegment = surface;
         const expectedPrefix = `/${sessionTenantSlug}/${surfaceSegment}`;
         const legacyPrefix = `/${surfaceSegment}`;
@@ -143,7 +149,7 @@ export function AppShell({
     let cancelled = false;
 
     async function loadTenantName() {
-      if ((surface !== "bakery" && surface !== "customer") || !tenantSlug) return;
+      if ((surface !== "bakery" && surface !== "customer" && surface !== "vehicle") || !tenantSlug) return;
 
       const storedName = getStoredTenantName();
       if (storedName && !workspaceName) {
@@ -176,6 +182,12 @@ export function AppShell({
         { href: `${routeBase}/customer/billing`, label: "Invoices", icon: CreditCard },
         { href: `${routeBase}/customer/profile`, label: "Profile", icon: Settings }
       ]
+    : surface === "vehicle"
+      ? [
+        { href: `${routeBase}/vehicle`, label: "Overview", icon: Gauge },
+        { href: `${routeBase}/vehicle/routes`, label: "Routes", icon: ClipboardList },
+        { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck }
+      ]
     : surface === "admin"
       ? [
         { href: "/admin", label: "Overview", icon: Home },
@@ -186,7 +198,7 @@ export function AppShell({
     : bakeryNav.map((item) => ({ ...item, href: `${routeBase}${item.href}` }));
 
   const isActive = (href: string) => {
-    const rootHrefs = new Set(["/admin", `${routeBase}/bakery`, `${routeBase}/customer`]);
+    const rootHrefs = new Set(["/admin", `${routeBase}/bakery`, `${routeBase}/customer`, `${routeBase}/vehicle`]);
     if (rootHrefs.has(href)) {
       return pathname === href;
     }
@@ -198,6 +210,7 @@ export function AppShell({
       admin: "Platform Admin",
       bakery: surface === "bakery" ? shellTitle : "Bakery CRM",
       customer: surface === "customer" ? shellTitle : "Customer Portal",
+      vehicle: surface === "vehicle" ? shellTitle : "Vehicle Workspace",
       tenants: "Bakeries",
       billing: "Billing",
       reports: "Reports",
@@ -218,11 +231,11 @@ export function AppShell({
 
     const segments = pathname.split("/").filter(Boolean);
     const visibleSegments =
-      segments.length > 1 && (segments[1] === "bakery" || segments[1] === "customer")
+      segments.length > 1 && (segments[1] === "bakery" || segments[1] === "customer" || segments[1] === "vehicle")
         ? segments.slice(1)
         : segments;
     const hrefBase =
-      segments.length > 1 && (segments[1] === "bakery" || segments[1] === "customer")
+      segments.length > 1 && (segments[1] === "bakery" || segments[1] === "customer" || segments[1] === "vehicle")
         ? `/${segments[0]}`
         : "";
 

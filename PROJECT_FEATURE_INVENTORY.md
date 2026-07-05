@@ -89,7 +89,7 @@ Features:
 ### 3.9 Subscription and billing
 Features:
 - plan selection and upgrade paths
-- recurring billing via Stripe
+- manual recurring billing controls
 - trial periods and usage limits
 - billing history and invoice management
 
@@ -111,5 +111,4 @@ The initial release should focus on the core workflows that are needed to valida
 - basic inventory tracking
 - dashboards and reports
 - subscription billing
-
 

@@ -55,17 +55,14 @@ The product should be simple enough for a small bakery to adopt quickly, while p
 
 6. Subscription and growth
    - free trial and paid plans
-   - Stripe-based billing
+   - manual billing controls
    - usage-based or tiered plan controls
 
 ## Implemented technical direction
 - Frontend/PWA: Next.js, TypeScript, Tailwind CSS, TanStack Query, mobile-first responsive screens.
 - Backend: plain Node.js with Express and TypeScript, organized by routes, middleware, validation, and domain modules.
 - Database: PostgreSQL with Prisma schema and generated Prisma Client.
-- Cache and queues: Redis/BullMQ planned in the API dependency set for PDFs, exports, reminders, reports, and billing sync.
-- File storage: S3-compatible object storage planned for invoice PDFs, exports, logos, and attachments.
-- Payments: Stripe foundation planned through billing module and subscription models.
-- Deployment: Vercel for frontend/PWA, Render or Railway for API, Neon/Supabase for Postgres, Upstash/Render Redis.
+- Deployment: Vercel for frontend/PWA, Render or Railway for API, and PostgreSQL for data.
 
 ## MVP scope for launch
 The first release should focus on the essentials needed to validate the subscription model:

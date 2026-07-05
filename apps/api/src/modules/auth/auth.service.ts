@@ -14,8 +14,16 @@ export const authService = {
       };
     }
 
-    const user = await authRepository.findUserWithAccess(input.email);
-    if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
+    const identifier = input.email.trim();
+    const users = await authRepository.findUsersWithAccess(identifier);
+    let user = null;
+    for (const candidate of users) {
+      if (await bcrypt.compare(input.password, candidate.passwordHash)) {
+        user = candidate;
+        break;
+      }
+    }
+    if (!user) {
       throw new HttpError(401, "Invalid email or password");
     }
 
@@ -62,7 +70,28 @@ export const authService = {
       throw new HttpError(409, "Multiple customer accounts found. Workspace selection is required.");
     }
 
-    throw new HttpError(403, "No active bakery membership or customer account found");
+    const vehicleAccounts = user.vehicles.filter((vehicle) => vehicle.active);
+
+    if (vehicleAccounts.length === 1) {
+      const vehicle = vehicleAccounts[0];
+      return {
+        token: signAccessToken({
+          sub: user.id,
+          actorType: "vehicle",
+          tenantId: vehicle.tenantId,
+          vehicleId: vehicle.id
+        }),
+        actorType: "vehicle" as const,
+        tenantSlug: vehicle.tenant.slug,
+        tenantName: vehicle.tenant.name
+      };
+    }
+
+    if (vehicleAccounts.length > 1) {
+      throw new HttpError(409, "Multiple vehicle workspaces found. Workspace selection is required.");
+    }
+
+    throw new HttpError(403, "No active bakery membership, customer account, or vehicle account found");
   },
 
   getSession(auth: NonNullable<Express.Request["auth"]>) {

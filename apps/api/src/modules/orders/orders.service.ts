@@ -10,6 +10,19 @@ type OrderFilters = {
   routeId?: string;
 };
 
+async function vehicleRouteIds(tenantId: string, auth: AccessTokenPayload | undefined) {
+  if (auth?.actorType !== "vehicle" || !auth.vehicleId) return null;
+  const vehicle = await ordersRepository.findVehicleRoutes(tenantId, auth.vehicleId);
+  if (!vehicle) {
+    throw new HttpError(403, "Vehicle workspace access required");
+  }
+  return vehicle.routes.map((route) => route.id);
+}
+
+function orderRouteId(order: Awaited<ReturnType<typeof ordersRepository.findOrder>>) {
+  return order?.routeId || order?.customer.routeId || null;
+}
+
 async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput) {
   const customer = await ordersRepository.findCustomer(tenantId, customerId);
   if (!customer) {
@@ -70,12 +83,19 @@ export const ordersService = {
       return ordersRepository.listForCustomer(tenantId, auth.customerId!);
     }
 
+    if (auth?.actorType === "vehicle") {
+      return vehicleRouteIds(tenantId, auth).then((routeIds) => ordersRepository.listForVehicle(tenantId, routeIds || [], filters));
+    }
+
     return ordersRepository.listForStaff(tenantId, filters);
   },
 
   async createOrder(tenantId: string, auth: AccessTokenPayload | undefined, input: CreateOrderInput) {
     if (auth?.actorType === "customer" && input.source !== "CUSTOMER_PORTAL") {
       throw new HttpError(403, "Customers can only create customer portal orders");
+    }
+    if (auth?.actorType === "vehicle") {
+      throw new HttpError(403, "Vehicles cannot create orders");
     }
 
     const resolvedCustomerId = auth?.actorType === "customer" ? auth.customerId : input.customerId;
@@ -96,8 +116,8 @@ export const ordersService = {
   },
 
   async updateOrder(tenantId: string, auth: AccessTokenPayload | undefined, orderId: string, input: CreateOrderInput) {
-    if (auth?.actorType === "customer") {
-      throw new HttpError(403, "Customers cannot update orders");
+    if (auth?.actorType === "customer" || auth?.actorType === "vehicle") {
+      throw new HttpError(403, "Only bakery staff can edit orders");
     }
 
     const existing = await ordersRepository.findOrder(tenantId, orderId);
@@ -132,13 +152,24 @@ export const ordersService = {
     orderId: string,
     input: UpdateOrderStatusInput
   ) {
-    if (auth?.actorType === "customer") {
-      throw new HttpError(403, "Customers cannot update order status");
-    }
-
     const existing = await ordersRepository.findOrder(tenantId, orderId);
     if (!existing) {
       throw new HttpError(404, "Order not found");
+    }
+    if (auth?.actorType === "customer") {
+      if (existing.customerId !== auth.customerId) {
+        throw new HttpError(403, "This order does not belong to this customer");
+      }
+      if (input.status && input.status !== "COMPLETED") {
+        throw new HttpError(403, "Customers can only confirm delivered orders");
+      }
+      if (input.paymentStatus === "UNPAID") {
+        throw new HttpError(403, "Customers cannot clear payment history");
+      }
+    }
+    const routeIds = await vehicleRouteIds(tenantId, auth);
+    if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
+      throw new HttpError(403, "This order is not assigned to this vehicle");
     }
 
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -203,8 +234,9 @@ export const ordersService = {
     return { sourceDate: input.sourceDate, targetDate: input.targetDate, copied: created.length, orders: created };
   },
 
-  async routeStatement(tenantId: string, filters: { startDate: string; endDate: string; routeId?: string }) {
-    const orders = await ordersRepository.listForRange(tenantId, filters);
+  async routeStatement(tenantId: string, auth: AccessTokenPayload | undefined, filters: { startDate: string; endDate: string; routeId?: string }) {
+    const routeIds = await vehicleRouteIds(tenantId, auth);
+    const orders = await ordersRepository.listForRange(tenantId, { ...filters, routeIds: routeIds || undefined });
     const customers = new Map<string, { customerId: string; customerName: string; routeName: string; orderTotal: number; paidTotal: number; dueTotal: number; orderCount: number }>();
     orders.forEach((order) => {
       const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -238,8 +270,9 @@ export const ordersService = {
     };
   },
 
-  async truckLoading(tenantId: string, filters: { date: string; categoryId?: string }) {
-    const orders = await ordersRepository.truckLoading(tenantId, filters);
+  async truckLoading(tenantId: string, filters: { date: string; categoryId?: string }, auth?: AccessTokenPayload) {
+    const routeIds = await vehicleRouteIds(tenantId, auth);
+    const orders = await ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined });
     const productMap = new Map<string, { id: string; name: string; category: string }>();
     const routeMap = new Map<string, { id: string; name: string; quantities: Record<string, number>; total: number }>();
 

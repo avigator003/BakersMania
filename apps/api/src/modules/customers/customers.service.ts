@@ -1,6 +1,15 @@
+import bcrypt from "bcryptjs";
 import { HttpError } from "../../utils/http.js";
 import { customersRepository } from "./customers.repository.js";
 import type { CustomerInput, CustomerUpdateInput } from "./customers.schemas.js";
+
+function normalizePhone(value?: string | null) {
+  return (value || "").replace(/[^\d+]/g, "");
+}
+
+function customerEmail(tenantId: string, phone: string, email?: string) {
+  return email || `customer-${tenantId}-${phone.replace(/[^\d]/g, "")}@bakersmania.local`;
+}
 
 function withBalance(customer: Awaited<ReturnType<typeof customersRepository.listByTenant>>[number]) {
   const orderTotal = customer.orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
@@ -28,13 +37,24 @@ export const customersService = {
     if (actorType !== "bakery_user") {
       throw new HttpError(403, "Only bakery staff can create customers here");
     }
+    const phone = normalizePhone(input.phone);
+    if (!phone) {
+      throw new HttpError(422, "Customer phone number is required for portal credentials");
+    }
     if (input.routeId) {
       const route = await customersRepository.findRoute(tenantId, input.routeId);
       if (!route) {
         throw new HttpError(400, "Selected route does not belong to this bakery");
       }
     }
-    return customersRepository.create(tenantId, input);
+    const passwordHash = await bcrypt.hash("123456", 12);
+    const user = await customersRepository.upsertPortalUser({
+      email: customerEmail(tenantId, phone, input.email),
+      name: input.name,
+      phone,
+      passwordHash
+    });
+    return customersRepository.create(tenantId, { ...input, phone, userId: user.id });
   },
 
   async updateCustomer(actorType: string | undefined, tenantId: string, customerId: string, input: CustomerUpdateInput) {
@@ -107,5 +127,35 @@ export const customersService = {
       entries,
       productPrices: customer.productPrices
     };
+  },
+
+  async getMyProfile(auth: Express.Request["auth"], tenantId: string) {
+    if (auth?.actorType !== "customer") {
+      throw new HttpError(403, "Customer access required");
+    }
+    const customer = await customersRepository.findByUser(tenantId, auth.sub);
+    if (!customer) {
+      throw new HttpError(404, "Customer profile not found");
+    }
+    return customersService.getLedger(tenantId, customer.id);
+  },
+
+  async updateMyProfile(auth: Express.Request["auth"], tenantId: string, input: CustomerUpdateInput) {
+    if (auth?.actorType !== "customer") {
+      throw new HttpError(403, "Customer access required");
+    }
+    const customer = await customersRepository.findByUser(tenantId, auth.sub);
+    if (!customer) {
+      throw new HttpError(404, "Customer profile not found");
+    }
+    const allowedInput: CustomerUpdateInput = {
+      name: input.name,
+      phone: input.phone,
+      address: input.address,
+      state: input.state,
+      city: input.city,
+      notes: input.notes
+    };
+    return customersRepository.update(tenantId, customer.id, allowedInput);
   }
 };

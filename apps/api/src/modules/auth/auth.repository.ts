@@ -5,12 +5,14 @@ export const authRepository = {
     return prisma.platformAdmin.findUnique({ where: { email } });
   },
 
-  findUserWithAccess(email: string) {
-    return prisma.user.findUnique({
-      where: { email },
+  findUsersWithAccess(identifier: string) {
+    const where = identifier.includes("@") ? { email: identifier } : { phone: identifier };
+    return prisma.user.findMany({
+      where,
       include: {
         memberships: { include: { tenant: true } },
-        customers: { include: { tenant: true } }
+        customers: { include: { tenant: true } },
+        vehicles: { include: { tenant: true } }
       }
     });
   },

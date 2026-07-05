@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -124,6 +125,7 @@ model User {
   passwordHash String
   memberships  Membership[]
   customers    Customer[]
+  vehicles     Vehicle[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -513,6 +515,7 @@ model SalaryPayment {
 model Vehicle {
   id                  String   @id @default(cuid())
   tenantId            String
+  userId              String?
   name                String
   number              String?
   driverName          String?
@@ -527,11 +530,13 @@ model Vehicle {
   fitnessPhotoUrl     String?
   active              Boolean  @default(true)
   tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  user                User?    @relation(fields: [userId], references: [id])
   routes              Route[]
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@index([tenantId])
+  @@index([tenantId, userId])
 }
 
 model Route {
@@ -565,8 +570,6 @@ model Subscription {
   lastPaymentPeriodTo   DateTime?
   nextDueDate          DateTime?
   lastPaymentAmount    Decimal?     @db.Decimal(12, 2)
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
   currentPeriodEnd     DateTime?
   tenant               Tenant       @relation(fields: [tenantId], references: [id])
   createdAt            DateTime     @default(now())

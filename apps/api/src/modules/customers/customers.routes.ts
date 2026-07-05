@@ -12,5 +12,7 @@ customersRouter.use(resolveTenant, requireAuth);
 
 customersRouter.get("/", asyncHandler(customersController.list));
 customersRouter.post("/", validateBody(customerSchema), asyncHandler(customersController.create));
+customersRouter.get("/me", asyncHandler(customersController.me));
+customersRouter.patch("/me", validateBody(customerUpdateSchema), asyncHandler(customersController.updateMe));
 customersRouter.get("/:customerId/ledger", asyncHandler(customersController.ledger));
 customersRouter.patch("/:customerId", validateBody(customerUpdateSchema), asyncHandler(customersController.update));

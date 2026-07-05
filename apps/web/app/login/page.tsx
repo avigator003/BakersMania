@@ -8,7 +8,7 @@ import { apiFetch, storeSession } from "../../lib/api";
 
 type LoginResponse = {
   token: string;
-  actorType: "platform_admin" | "bakery_user" | "customer";
+  actorType: "platform_admin" | "bakery_user" | "customer" | "vehicle";
   tenantSlug?: string;
   role?: string;
 };
@@ -40,13 +40,16 @@ export default function LoginPage() {
       const fallback =
         session.actorType === "platform_admin"
           ? "/admin"
-          : session.actorType === "customer"
-            ? `${tenantBase}/customer`
+            : session.actorType === "customer"
+              ? `${tenantBase}/customer`
+              : session.actorType === "vehicle"
+                ? `${tenantBase}/vehicle`
             : `${tenantBase}/bakery`;
       const nextAllowed =
         (session.actorType === "platform_admin" && nextPath.startsWith("/admin")) ||
         (session.actorType === "bakery_user" && (nextPath.startsWith("/bakery") || Boolean(session.tenantSlug && nextPath.startsWith(`/${session.tenantSlug}/bakery`)))) ||
-        (session.actorType === "customer" && (nextPath.startsWith("/customer") || Boolean(session.tenantSlug && nextPath.startsWith(`/${session.tenantSlug}/customer`))));
+        (session.actorType === "customer" && (nextPath.startsWith("/customer") || Boolean(session.tenantSlug && nextPath.startsWith(`/${session.tenantSlug}/customer`)))) ||
+        (session.actorType === "vehicle" && (nextPath.startsWith("/vehicle") || Boolean(session.tenantSlug && nextPath.startsWith(`/${session.tenantSlug}/vehicle`))));
       router.push(nextAllowed ? nextPath : fallback);
     } catch {
       setError("Login failed. Check API is running and credentials are correct.");
@@ -62,20 +65,20 @@ export default function LoginPage() {
           <span className="grid h-10 w-10 place-items-center rounded-md bg-mint font-bold text-white">BM</span>
           <span>
             <span className="block text-xl font-semibold">BakersMania</span>
-            <span className="block text-sm text-muted">Platform, bakery, and customer access</span>
+            <span className="block text-sm text-muted">Platform, bakery, customer, and vehicle access</span>
           </span>
         </Link>
 
         <form className="mt-8 grid gap-4" onSubmit={handleSubmit}>
           <label className="grid gap-2">
-            <span className="text-sm font-medium">Email</span>
+            <span className="text-sm font-medium">Email or phone</span>
             <span className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Mail size={18} />
               <input
                 className="w-full border-0 bg-transparent outline-none"
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                type="email"
+                placeholder="you@example.com or vehicle phone"
+                type="text"
                 value={email}
               />
             </span>

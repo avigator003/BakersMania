@@ -36,7 +36,7 @@
 - Support data export and activity history.
 
 ## Phase 5 — Subscription and growth
-- Integrate Stripe for trial, recurring billing, and plan upgrades.
+- Build manual controls for trial, recurring billing, and plan upgrades.
 - Add billing history and plan limits.
 - Create admin tools for tenant management and support.
 - Prepare onboarding flows for new businesses.

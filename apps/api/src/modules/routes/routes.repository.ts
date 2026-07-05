@@ -13,7 +13,15 @@ export const bakeryRoutesRepository = {
     return prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId }, select: { id: true } });
   },
 
-  createVehicle(tenantId: string, input: VehicleInput) {
+  upsertVehicleUser(input: { email: string; phone: string; name: string; passwordHash: string }) {
+    return prisma.user.upsert({
+      where: { email: input.email },
+      update: { phone: input.phone, name: input.name, passwordHash: input.passwordHash },
+      create: input
+    });
+  },
+
+  createVehicle(tenantId: string, input: VehicleInput & { userId?: string }) {
     return prisma.vehicle.create({ data: { ...input, tenantId } });
   },
 

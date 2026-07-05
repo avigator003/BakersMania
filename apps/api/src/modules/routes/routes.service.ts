@@ -1,14 +1,35 @@
+import bcrypt from "bcryptjs";
 import { bakeryRoutesRepository } from "./routes.repository.js";
 import type { RouteInput, VehicleInput } from "./routes.schemas.js";
 import { HttpError } from "../../utils/http.js";
+
+function normalizePhone(value?: string | null) {
+  return (value || "").replace(/[^\d+]/g, "");
+}
+
+function vehicleEmail(tenantId: string, phone: string) {
+  return `vehicle-${tenantId}-${phone.replace(/[^\d]/g, "")}@bakersmania.local`;
+}
 
 export const bakeryRoutesService = {
   listVehicles(tenantId: string) {
     return bakeryRoutesRepository.listVehicles(tenantId);
   },
 
-  createVehicle(tenantId: string, input: VehicleInput) {
-    return bakeryRoutesRepository.createVehicle(tenantId, input);
+  async createVehicle(tenantId: string, input: VehicleInput) {
+    const phone = normalizePhone(input.driverPhone);
+    if (!phone) {
+      return bakeryRoutesRepository.createVehicle(tenantId, input);
+    }
+
+    const passwordHash = await bcrypt.hash("123456", 12);
+    const user = await bakeryRoutesRepository.upsertVehicleUser({
+      email: vehicleEmail(tenantId, phone),
+      phone,
+      name: input.driverName || input.name,
+      passwordHash
+    });
+    return bakeryRoutesRepository.createVehicle(tenantId, { ...input, driverPhone: phone, userId: user.id });
   },
 
   list(tenantId: string) {

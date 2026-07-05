@@ -3,10 +3,11 @@ import { env } from "../config/env.js";
 
 export type AccessTokenPayload = {
   sub: string;
-  actorType: "platform_admin" | "bakery_user" | "customer";
+  actorType: "platform_admin" | "bakery_user" | "customer" | "vehicle";
   tenantId?: string;
   role?: string;
   customerId?: string;
+  vehicleId?: string;
 };
 
 export function signAccessToken(payload: AccessTokenPayload) {

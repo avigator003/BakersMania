@@ -35,7 +35,7 @@ export const ordersController = {
   async routeStatement(req: Request, res: Response) {
     const today = new Date().toISOString().slice(0, 10);
     res.json({
-      statement: await ordersService.routeStatement(req.tenant!.id, {
+      statement: await ordersService.routeStatement(req.tenant!.id, req.auth, {
         startDate: req.query.startDate ? String(req.query.startDate) : today,
         endDate: req.query.endDate ? String(req.query.endDate) : today,
         routeId: req.query.routeId ? String(req.query.routeId) : undefined
@@ -49,7 +49,7 @@ export const ordersController = {
       truckLoading: await ordersService.truckLoading(req.tenant!.id, {
         date: req.query.date ? String(req.query.date) : today,
         categoryId: req.query.categoryId ? String(req.query.categoryId) : undefined
-      })
+      }, req.auth)
     });
   }
 };

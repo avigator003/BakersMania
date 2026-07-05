@@ -7,8 +7,8 @@ export const billingService = {
 
   createCheckoutPlaceholder() {
     return {
-      message: "Stripe Checkout integration placeholder",
-      next: "Create Stripe customer/session here once STRIPE_SECRET_KEY is configured."
+      message: "Manual billing is active",
+      next: "Record subscription status and payments from the admin billing tools."
     };
   }
 };

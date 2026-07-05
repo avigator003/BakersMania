@@ -9,6 +9,15 @@ type OrderListFilters = {
   routeId?: string;
 };
 
+function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
+  return {
+    OR: [
+      { routeId: { in: routeIds } },
+      { routeId: null, customer: { routeId: { in: routeIds } } }
+    ]
+  };
+}
+
 type CalculatedOrderItem = {
   productId: string;
   name: string;
@@ -72,6 +81,41 @@ export const ordersRepository = {
     });
   },
 
+  findVehicleRoutes(tenantId: string, vehicleId: string) {
+    return prisma.vehicle.findFirst({
+      where: { tenantId, id: vehicleId, active: true },
+      include: { routes: { where: { active: true }, orderBy: { name: "asc" } } }
+    });
+  },
+
+  listForVehicle(tenantId: string, routeIds: string[], filters: OrderListFilters = {}) {
+    const where: Prisma.OrderWhereInput = { tenantId };
+    const andFilters: Prisma.OrderWhereInput[] = [routeScope(routeIds)];
+
+    if (filters.startDate || filters.endDate) {
+      const dateRange: { gte?: Date; lt?: Date } = {};
+      if (filters.startDate) dateRange.gte = new Date(`${filters.startDate}T00:00:00.000Z`);
+      if (filters.endDate) {
+        const end = new Date(`${filters.endDate}T00:00:00.000Z`);
+        end.setUTCDate(end.getUTCDate() + 1);
+        dateRange.lt = end;
+      }
+      andFilters.push({ OR: [{ dueAt: dateRange }, { dueAt: null, createdAt: dateRange }] });
+    }
+
+    if (filters.routeId && filters.routeId !== "all") {
+      andFilters.push({ OR: [{ routeId: filters.routeId }, { routeId: null, customer: { routeId: filters.routeId } }] });
+    }
+
+    where.AND = andFilters;
+    return prisma.order.findMany({
+      where,
+      include: { customer: { include: { route: true } }, route: true, items: true, invoice: true, payments: true },
+      orderBy: { createdAt: "asc" },
+      take: 100
+    });
+  },
+
   findCustomer(tenantId: string, customerId: string) {
     return prisma.customer.findFirst({ where: { tenantId, id: customerId }, include: { route: true } });
   },
@@ -86,22 +130,28 @@ export const ordersRepository = {
   findOrder(tenantId: string, orderId: string) {
     return prisma.order.findFirst({
       where: { tenantId, id: orderId },
-      include: { payments: true, invoice: true }
+      include: { payments: true, invoice: true, customer: true, route: true }
     });
   },
 
-  truckLoading(tenantId: string, filters: { date: string; categoryId?: string }) {
+  truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[] }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
+    const andFilters: Prisma.OrderWhereInput[] = [{
+      OR: [
+        { dueAt: { gte: start, lt: end } },
+        { dueAt: null, createdAt: { gte: start, lt: end } }
+      ]
+    }];
+    if (filters.routeIds) {
+      andFilters.push(routeScope(filters.routeIds));
+    }
     return prisma.order.findMany({
       where: {
         tenantId,
         status: { not: "COMPLETED" },
-        OR: [
-          { dueAt: { gte: start, lt: end } },
-          { dueAt: null, createdAt: { gte: start, lt: end } }
-        ]
+        AND: andFilters
       },
       include: {
         route: true,
@@ -139,7 +189,7 @@ export const ordersRepository = {
     });
   },
 
-  listForRange(tenantId: string, filters: { startDate: string; endDate: string; routeId?: string }) {
+  listForRange(tenantId: string, filters: { startDate: string; endDate: string; routeId?: string; routeIds?: string[] }) {
     const start = new Date(`${filters.startDate}T00:00:00.000Z`);
     const end = new Date(`${filters.endDate}T00:00:00.000Z`);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -151,6 +201,9 @@ export const ordersRepository = {
     }];
     if (filters.routeId && filters.routeId !== "all") {
       andFilters.push({ OR: [{ routeId: filters.routeId }, { routeId: null, customer: { routeId: filters.routeId } }] });
+    }
+    if (filters.routeIds) {
+      andFilters.push(routeScope(filters.routeIds));
     }
     return prisma.order.findMany({
       where: {

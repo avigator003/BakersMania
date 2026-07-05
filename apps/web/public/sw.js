@@ -1,5 +1,5 @@
 const CACHE_NAME = "bakersmania-shell-v1";
-const SHELL_ASSETS = ["/", "/bakery", "/customer", "/admin", "/login", "/icon.svg"];
+const SHELL_ASSETS = ["/", "/bakery", "/customer", "/vehicle", "/admin", "/login", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)));

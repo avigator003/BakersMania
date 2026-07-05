@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import { Copy, Download, Eye, FileDown, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaymentHistory, paymentDue, paymentTotal, resolvedPaymentStatus } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -12,7 +13,7 @@ type Customer = { id: string; name: string; phone?: string | null; route?: Route
 type Category = { id: string; name: string };
 type Product = { id: string; name: string; category: string; unitPrice: string; categoryRef?: Category | null };
 type OrderItem = { id: string; productId: string; name: string; quantity: string | number; unitPrice: string | number; lineTotal: string | number };
-type Payment = { id: string; amount: string | number; paidAt: string };
+type Payment = { id: string; amount: string | number; method?: string | null; reference?: string | null; paidAt?: string | null };
 type Invoice = { id: string; invoiceNumber: string; createdAt: string; total: string | number; paymentStatus: string };
 type Order = {
   id: string;
@@ -81,11 +82,11 @@ function formatDate(value?: string | null) {
 }
 
 function orderPaid(order: Order) {
-  return (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  return paymentTotal(order.payments);
 }
 
 function orderDue(order: Order) {
-  return Math.max(Number(order.grandTotal || 0) - orderPaid(order), 0);
+  return paymentDue(order.grandTotal, order.payments);
 }
 
 function isCarryForwardDue(order: Order) {
@@ -95,11 +96,7 @@ function isCarryForwardDue(order: Order) {
 }
 
 function paymentStatus(order: Order) {
-  const paid = orderPaid(order);
-  const total = Number(order.grandTotal || 0);
-  if (paid >= total && total > 0) return "PAID";
-  if (paid > 0) return "PARTIAL";
-  return order.paymentStatus;
+  return resolvedPaymentStatus(order.grandTotal, order.payments, order.paymentStatus);
 }
 
 function orderStatusClass(status: string) {
@@ -414,6 +411,15 @@ export default function BakeryOrdersPage() {
           <td style="text-align:right;">${escapeHtml(formatAmount(item.lineTotal))}</td>
         </tr>
       `).join("");
+      const paymentRows = (order.payments || []).map((payment, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(formatDate(payment.paidAt))}</td>
+          <td>${escapeHtml(payment.method || "Cash")}</td>
+          <td>${escapeHtml(payment.reference || "")}</td>
+          <td style="text-align:right;">${escapeHtml(formatAmount(payment.amount))}</td>
+        </tr>
+      `).join("");
       const html = `<!doctype html>
 <html>
 <head>
@@ -456,6 +462,13 @@ export default function BakeryOrdersPage() {
     <div class="strong"><span>Due</span><span>${escapeHtml(formatAmount(due))}</span></div>
     <div><span>Payment status</span><span>${escapeHtml(paymentStatus(order))}</span></div>
   </div>
+  <h2>Payment History</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Date</th><th>Method</th><th>Reference</th><th style="text-align:right;">Amount</th></tr>
+    </thead>
+    <tbody>${paymentRows || '<tr><td colspan="5" class="muted">No payment recorded.</td></tr>'}</tbody>
+  </table>
 </body>
 </html>`;
       const fileBase = `${invoice.invoiceNumber}-${order.customer.name.replaceAll(" ", "-").toLowerCase()}`;
@@ -473,7 +486,16 @@ export default function BakeryOrdersPage() {
         [],
         ["Order Total", "", "", Number(order.grandTotal || 0)],
         ["Paid", "", "", paid],
-        ["Due", "", "", due]
+        ["Due", "", "", due],
+        [],
+        ["Payment #", "Date", "Method", "Reference", "Amount"],
+        ...(order.payments || []).map((payment, index) => [
+          index + 1,
+          formatDate(payment.paidAt),
+          payment.method || "Cash",
+          payment.reference || "",
+          Number(payment.amount || 0)
+        ])
       ];
       const csv = csvRows.map((row) => row.map(csvCell).join(",")).join("\n");
       downloadFile(html, "text/html;charset=utf-8", `${fileBase}.html`);
@@ -638,6 +660,9 @@ export default function BakeryOrdersPage() {
                       {todaysDue ? (
                         <p className="mt-3 rounded-md bg-panel px-3 py-2 text-xs font-semibold">Today's Due: {formatAmount(todaysDue)}</p>
                       ) : null}
+                      <div className="mt-3">
+                        <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                      </div>
                       <div className="mt-3 grid gap-2">
                         <select
                           className={`focus-ring rounded-md border px-2 py-2 text-xs font-semibold outline-none ${orderStatusClass(order.status)}`}
@@ -694,7 +719,8 @@ export default function BakeryOrdersPage() {
                       const due = orderDue(order);
                       const todaysDue = isCarryForwardDue(order) ? due : 0;
                       return (
-                      <tr key={order.id} className="align-top">
+                      <Fragment key={order.id}>
+                      <tr className="align-top">
                         <td className="px-4 py-3">
                           <div className="flex min-w-64 items-start gap-3">
                             <div className="flex gap-1.5 pt-0.5">
@@ -741,6 +767,12 @@ export default function BakeryOrdersPage() {
                           </select>
                         </td>
                       </tr>
+                      <tr className="bg-panel2/30">
+                        <td className="px-4 py-3" colSpan={9}>
+                          <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                        </td>
+                      </tr>
+                      </Fragment>
                       );
                     })}
                     {!loading && !filteredOrders.length ? <tr><td className="px-4 py-8 text-center text-muted" colSpan={9}>No orders found.</td></tr> : null}
@@ -910,6 +942,8 @@ export default function BakeryOrdersPage() {
                 </tbody>
               </table>
             </div>
+
+            <PaymentHistory payments={viewOrder.payments} total={viewOrder.grandTotal} />
 
             {viewOrder.notes ? (
               <div className="rounded-lg border border-line bg-panel2 p-4">

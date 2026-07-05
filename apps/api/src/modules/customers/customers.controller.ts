@@ -11,6 +11,14 @@ export const customersController = {
     res.status(201).json({ customer });
   },
 
+  async me(req: Request, res: Response) {
+    res.json({ profile: await customersService.getMyProfile(req.auth, req.tenant!.id) });
+  },
+
+  async updateMe(req: Request, res: Response) {
+    res.json({ customer: await customersService.updateMyProfile(req.auth, req.tenant!.id, req.body) });
+  },
+
   async update(req: Request, res: Response) {
     const customer = await customersService.updateCustomer(req.auth?.actorType, req.tenant!.id, req.params.customerId, req.body);
     res.json({ customer });

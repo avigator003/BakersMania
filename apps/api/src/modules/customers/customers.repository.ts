@@ -29,7 +29,29 @@ export const customersRepository = {
     });
   },
 
-  create(tenantId: string, input: CustomerInput) {
+  findByUser(tenantId: string, userId: string) {
+    return prisma.customer.findFirst({
+      where: { tenantId, userId },
+      include: {
+        route: true,
+        orders: {
+          include: { items: true, payments: true, invoice: true },
+          orderBy: { createdAt: "desc" }
+        },
+        productPrices: { include: { product: true }, orderBy: { updatedAt: "desc" } }
+      }
+    });
+  },
+
+  upsertPortalUser(input: { email: string; name: string; phone: string; passwordHash: string }) {
+    return prisma.user.upsert({
+      where: { email: input.email },
+      update: { name: input.name, phone: input.phone, passwordHash: input.passwordHash },
+      create: input
+    });
+  },
+
+  create(tenantId: string, input: CustomerInput & { userId?: string }) {
     return prisma.customer.create({
       data: {
         ...input,

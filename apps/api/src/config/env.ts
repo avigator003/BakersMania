@@ -21,10 +21,7 @@ const envSchema = z.object({
   WEB_URL: z.string().min(1).default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(24),
-  PLATFORM_ADMIN_EMAIL: z.string().email().default("admin@bakersmania.local"),
-  REDIS_URL: z.string().optional(),
-  STRIPE_SECRET_KEY: z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional()
+  PLATFORM_ADMIN_EMAIL: z.string().email().default("admin@bakersmania.local")
 });
 
 export const env = envSchema.parse(process.env);
