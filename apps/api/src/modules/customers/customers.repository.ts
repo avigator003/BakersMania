@@ -87,7 +87,7 @@ export const customersRepository = {
     });
   },
 
-  update(tenantId: string, customerId: string, input: CustomerUpdateInput) {
+  update(tenantId: string, customerId: string, input: CustomerUpdateInput & { userId?: string }) {
     return prisma.customer.update({
       where: { id: customerId },
       data: {

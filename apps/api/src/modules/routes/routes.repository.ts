@@ -29,7 +29,7 @@ export const bakeryRoutesRepository = {
     return prisma.vehicle.create({ data: { ...input, tenantId } });
   },
 
-  updateVehicle(tenantId: string, vehicleId: string, input: VehicleInput) {
+  updateVehicle(tenantId: string, vehicleId: string, input: VehicleInput & { userId?: string }) {
     return prisma.vehicle.update({
       where: { id: vehicleId },
       data: input

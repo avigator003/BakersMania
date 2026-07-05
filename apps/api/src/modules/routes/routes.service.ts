@@ -19,7 +19,7 @@ export const bakeryRoutesService = {
   async createVehicle(tenantId: string, input: VehicleInput) {
     const phone = normalizePhone(input.driverPhone);
     if (!phone) {
-      return bakeryRoutesRepository.createVehicle(tenantId, input);
+      throw new HttpError(422, "Driver phone number is required for vehicle portal credentials");
     }
 
     const passwordHash = await bcrypt.hash("123456", 12);
@@ -37,7 +37,18 @@ export const bakeryRoutesService = {
     if (!vehicle) {
       throw new HttpError(404, "Vehicle not found");
     }
-    return bakeryRoutesRepository.updateVehicle(tenantId, vehicleId, { ...input, driverPhone: normalizePhone(input.driverPhone) || undefined });
+    const phone = normalizePhone(input.driverPhone);
+    if (!phone) {
+      throw new HttpError(422, "Driver phone number is required for vehicle portal credentials");
+    }
+    const passwordHash = await bcrypt.hash("123456", 12);
+    const user = await bakeryRoutesRepository.upsertVehicleUser({
+      email: vehicleEmail(tenantId, phone),
+      phone,
+      name: input.driverName || input.name,
+      passwordHash
+    });
+    return bakeryRoutesRepository.updateVehicle(tenantId, vehicleId, { ...input, driverPhone: phone, userId: user.id });
   },
 
   list(tenantId: string) {
