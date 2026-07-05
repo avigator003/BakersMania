@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
+import { OrderWorkflowChecklist } from "../../../components/order-workflow-checklist";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -25,6 +26,7 @@ type Order = {
 
 const today = new Date().toISOString().slice(0, 10);
 const paymentMethods = ["Cash", "Advance", "UPI", "Bank Transfer", "Cheque"];
+const paymentTypes = ["Partial", "Full", "Advance"];
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -47,20 +49,14 @@ function routeName(order: Order) {
   return order.route?.name || order.customer.route?.name || "No route";
 }
 
-function statusClass(status: string) {
-  if (status === "COMPLETED") return "border-mint/30 bg-mint/10 text-mint";
-  if (status === "DISPATCHED") return "border-sky-400/40 bg-sky-100 text-sky-700";
-  return "border-amber-400/40 bg-amber-100 text-amber-700";
-}
-
 export default function VehicleRoutesPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [partialOrder, setPartialOrder] = useState<Order | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "Cash", reference: "" });
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ type: "Partial", amount: "", method: "Cash", reference: "" });
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -95,8 +91,8 @@ export default function VehicleRoutesPage() {
     try {
       await authFetch(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
       toast.success("Order updated", `${order.customer.name} has been updated.`);
-      setPartialOrder(null);
-      setPaymentForm({ amount: "", method: "Cash", reference: "" });
+      setPaymentOrder(null);
+      setPaymentForm({ type: "Partial", amount: "", method: "Cash", reference: "" });
       await loadData();
     } catch (error) {
       toast.error("Update failed", error instanceof Error ? error.message : "Could not update this order.");
@@ -105,17 +101,23 @@ export default function VehicleRoutesPage() {
     }
   }
 
-  function startPartial(order: Order, method = "Cash") {
-    setPartialOrder(order);
-    setPaymentForm({ amount: String(orderDue(order) || ""), method, reference: "" });
+  function startPayment(order: Order, type = "Partial") {
+    const due = orderDue(order);
+    setPaymentOrder(order);
+    setPaymentForm({
+      type,
+      amount: type === "Full" ? String(due || "") : "",
+      method: type === "Advance" ? "Advance" : "Cash",
+      reference: ""
+    });
   }
 
-  async function recordPartial(event: FormEvent<HTMLFormElement>) {
+  async function recordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!partialOrder) return;
-    await updateOrder(partialOrder, {
-      paymentStatus: "PARTIAL",
-      paymentAmount: Number(paymentForm.amount),
+    if (!paymentOrder) return;
+    await updateOrder(paymentOrder, {
+      paymentStatus: paymentForm.type === "Full" ? "PAID" : "PARTIAL",
+      paymentAmount: paymentForm.type === "Full" ? undefined : Number(paymentForm.amount),
       paymentMethod: paymentForm.method,
       reference: paymentForm.reference || undefined
     });
@@ -159,16 +161,16 @@ export default function VehicleRoutesPage() {
                       <span className="rounded-md bg-panel px-3 py-2">Due: <strong className="text-berry">{formatAmount(due)}</strong></span>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-2 md:grid-cols-[1fr_1fr_auto_auto]">
-                    <button className={`focus-ring rounded-md border px-3 py-2 text-sm font-semibold ${statusClass("DISPATCHED")}`} disabled={saving} onClick={() => updateOrder(order, { status: "DISPATCHED" })} type="button">Truck Loading</button>
-                    <button className={`focus-ring rounded-md border px-3 py-2 text-sm font-semibold ${statusClass("COMPLETED")}`} disabled={saving} onClick={() => updateOrder(order, { status: "COMPLETED" })} type="button">Delivered</button>
-                    <button className="focus-ring rounded-md border border-berry/30 bg-berry/10 px-3 py-2 text-sm font-semibold text-berry" disabled={saving} onClick={() => updateOrder(order, { status: "DISPATCHED" })} type="button">Not Delivered</button>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <button className="focus-ring rounded-md border border-line bg-panel px-3 py-2 text-sm font-semibold" disabled={saving || !due} onClick={() => startPartial(order)} type="button">Partial</button>
-                      <button className="focus-ring rounded-md border border-line bg-panel px-3 py-2 text-sm font-semibold" disabled={saving || !due} onClick={() => updateOrder(order, { paymentStatus: "PAID", paymentMethod: "Cash" })} type="button">Full</button>
-                      <button className="focus-ring rounded-md border border-line bg-panel px-3 py-2 text-sm font-semibold" disabled={saving || !due} onClick={() => startPartial(order, "Advance")} type="button">Advance</button>
-                    </div>
-                  </div>
+                  <OrderWorkflowChecklist
+                    allowTruckLoading
+                    dueAmount={due}
+                    onDelivered={() => updateOrder(order, { status: "COMPLETED" })}
+                    onNotDelivered={() => updateOrder(order, { status: "DISPATCHED" })}
+                    onPayment={() => startPayment(order)}
+                    onTruckLoading={() => updateOrder(order, { status: "DISPATCHED" })}
+                    order={order}
+                    saving={saving}
+                  />
                   <p className="mt-3 text-xs text-muted">Status: <span className="font-semibold">{order.status}</span> · Payment: <span className="font-semibold">{order.paymentStatus}</span></p>
                   <div className="mt-3">
                     <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
@@ -181,14 +183,23 @@ export default function VehicleRoutesPage() {
         </section>
       </div>
 
-      <Modal open={Boolean(partialOrder)} title="Record partial payment" description="Save amount and payment type for this route order." onClose={() => setPartialOrder(null)}>
-        {partialOrder ? (
-          <form className="grid gap-4" onSubmit={recordPartial}>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={orderDue(partialOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required type="number" value={paymentForm.amount} /></label>
-            <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
+      <Modal open={Boolean(paymentOrder)} title="Record payment" description="Save payment type, method, reference, and amount." onClose={() => setPaymentOrder(null)}>
+        {paymentOrder ? (
+          <form className="grid gap-4" onSubmit={recordPayment}>
+            <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => {
+              const type = event.target.value;
+              setPaymentForm((current) => ({
+                ...current,
+                type,
+                amount: type === "Full" ? String(orderDue(paymentOrder) || "") : "",
+                method: type === "Advance" ? "Advance" : current.method === "Advance" ? "Cash" : current.method
+              }));
+            }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={orderDue(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type === "Full"} required type="number" value={paymentForm.amount} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPartialOrder(null)} type="button">Cancel</button>
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPaymentOrder(null)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
             </div>
           </form>

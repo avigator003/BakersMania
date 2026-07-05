@@ -13,6 +13,14 @@ type LoginResponse = {
   role?: string;
 };
 
+function desiredActorFromPath(path: string) {
+  if (path.startsWith("/admin")) return "platform_admin";
+  if (path.startsWith("/bakery") || path.includes("/bakery")) return "bakery_user";
+  if (path.startsWith("/customer") || path.includes("/customer")) return "customer";
+  if (path.startsWith("/vehicle") || path.includes("/vehicle")) return "vehicle";
+  return undefined;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -33,7 +41,7 @@ export default function LoginPage() {
     try {
       const session = await apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, desiredActor: desiredActorFromPath(nextPath) })
       });
       storeSession(session);
       const tenantBase = session.tenantSlug ? `/${session.tenantSlug}` : "";

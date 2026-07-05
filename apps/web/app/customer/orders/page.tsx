@@ -1,10 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, CreditCard, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
+import { OrderWorkflowChecklist } from "../../../components/order-workflow-checklist";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -21,6 +22,7 @@ type Order = {
 };
 
 const paymentMethods = ["Cash", "Advance", "UPI", "Bank Transfer", "Cheque"];
+const paymentTypes = ["Partial", "Full", "Advance"];
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -44,8 +46,8 @@ export default function CustomerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [partialOrder, setPartialOrder] = useState<Order | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "Cash", reference: "" });
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ type: "Partial", amount: "", method: "Cash", reference: "" });
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -78,8 +80,8 @@ export default function CustomerOrdersPage() {
     try {
       await authFetch(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
       toast.success("Order updated", patch.status ? "Delivery was confirmed." : "Payment details were updated.");
-      setPartialOrder(null);
-      setPaymentForm({ amount: "", method: "Cash", reference: "" });
+      setPaymentOrder(null);
+      setPaymentForm({ type: "Partial", amount: "", method: "Cash", reference: "" });
       await loadOrders();
     } catch (error) {
       toast.error("Update failed", error instanceof Error ? error.message : "Could not update this order.");
@@ -88,17 +90,23 @@ export default function CustomerOrdersPage() {
     }
   }
 
-  function startPartial(order: Order, method = "Cash") {
-    setPartialOrder(order);
-    setPaymentForm({ amount: String(due(order) || ""), method, reference: "" });
+  function startPayment(order: Order, type = "Partial") {
+    const dueAmount = due(order);
+    setPaymentOrder(order);
+    setPaymentForm({
+      type,
+      amount: type === "Full" ? String(dueAmount || "") : "",
+      method: type === "Advance" ? "Advance" : "Cash",
+      reference: ""
+    });
   }
 
-  async function recordPartial(event: FormEvent<HTMLFormElement>) {
+  async function recordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!partialOrder) return;
-    await updateOrder(partialOrder, {
-      paymentStatus: "PARTIAL",
-      paymentAmount: Number(paymentForm.amount),
+    if (!paymentOrder) return;
+    await updateOrder(paymentOrder, {
+      paymentStatus: paymentForm.type === "Full" ? "PAID" : "PARTIAL",
+      paymentAmount: paymentForm.type === "Full" ? undefined : Number(paymentForm.amount),
       paymentMethod: paymentForm.method,
       reference: paymentForm.reference || undefined
     });
@@ -152,24 +160,13 @@ export default function CustomerOrdersPage() {
                     </p>
                   ))}
                 </div>
-                <div className="mt-4 grid gap-2 md:grid-cols-4">
-                  <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-mint/30 bg-mint/10 px-3 py-2 text-sm font-semibold text-mint" disabled={saving || order.status === "COMPLETED"} onClick={() => updateOrder(order, { status: "COMPLETED" })} type="button">
-                    <CheckCircle2 size={16} />
-                    Mark Delivered
-                  </button>
-                  <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm font-semibold" disabled={saving || !dueAmount} onClick={() => startPartial(order)} type="button">
-                    <CreditCard size={16} />
-                    Partial Payment
-                  </button>
-                  <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm font-semibold" disabled={saving || !dueAmount} onClick={() => startPartial(order, "Advance")} type="button">
-                    <CreditCard size={16} />
-                    Advance
-                  </button>
-                  <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm font-semibold" disabled={saving || !dueAmount} onClick={() => updateOrder(order, { paymentStatus: "PAID", paymentMethod: "Cash" })} type="button">
-                    <CreditCard size={16} />
-                    Full Payment
-                  </button>
-                </div>
+                <OrderWorkflowChecklist
+                  dueAmount={dueAmount}
+                  onDelivered={() => updateOrder(order, { status: "COMPLETED" })}
+                  onPayment={() => startPayment(order)}
+                  order={order}
+                  saving={saving}
+                />
               </article>
               );
             })}
@@ -178,14 +175,23 @@ export default function CustomerOrdersPage() {
         </section>
       </div>
 
-      <Modal open={Boolean(partialOrder)} title="Record partial payment" description="Add payment amount and type for this order." onClose={() => setPartialOrder(null)}>
-        {partialOrder ? (
-          <form className="grid gap-4" onSubmit={recordPartial}>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={due(partialOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required type="number" value={paymentForm.amount} /></label>
-            <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
+      <Modal open={Boolean(paymentOrder)} title="Record payment" description="Add payment type, method, reference, and amount." onClose={() => setPaymentOrder(null)}>
+        {paymentOrder ? (
+          <form className="grid gap-4" onSubmit={recordPayment}>
+            <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => {
+              const type = event.target.value;
+              setPaymentForm((current) => ({
+                ...current,
+                type,
+                amount: type === "Full" ? String(due(paymentOrder) || "") : "",
+                method: type === "Advance" ? "Advance" : current.method === "Advance" ? "Cash" : current.method
+              }));
+            }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={due(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type === "Full"} required type="number" value={paymentForm.amount} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPartialOrder(null)} type="button">Cancel</button>
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPaymentOrder(null)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
             </div>
           </form>

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Route, Truck } from "lucide-react";
-import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../components/payment-history";
 import { AppShell } from "../../components/shell";
 import { LoadingSpinner } from "../../components/loading-spinner";
@@ -98,19 +97,7 @@ export default function VehicleOverviewPage() {
             </button>
           </div>
           {loading ? <LoadingSpinner label="Loading overview" /> : null}
-          <div className="grid gap-3 p-4 md:grid-cols-2">
-            <Link className="focus-ring rounded-lg border border-line bg-panel2 p-4" href={`/${tenantSlug}/vehicle/routes`}>
-              <Route className="text-mint" size={22} />
-              <h2 className="mt-3 font-semibold">Today&apos;s Routes</h2>
-              <p className="mt-1 text-sm text-muted">Mark delivery and payment status for assigned route orders.</p>
-            </Link>
-            <Link className="focus-ring rounded-lg border border-line bg-panel2 p-4" href={`/${tenantSlug}/vehicle/truck-loading`}>
-              <Truck className="text-mint" size={22} />
-              <h2 className="mt-3 font-semibold">Truck Loading</h2>
-              <p className="mt-1 text-sm text-muted">View product quantities grouped for this vehicle&apos;s routes.</p>
-            </Link>
-          </div>
-          <div className="border-t border-line p-4">
+          <div className="p-4">
             <p className="text-sm font-semibold">Assigned route names</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {routes.map((route) => <span className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm" key={route}>{route}</span>)}

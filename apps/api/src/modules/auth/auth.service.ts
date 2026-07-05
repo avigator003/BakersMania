@@ -8,6 +8,34 @@ function normalizePhone(value: string) {
   return value.replace(/[^\d+]/g, "");
 }
 
+function loginIdentifiers(identifier: string) {
+  if (identifier.includes("@")) return [identifier.toLowerCase()];
+
+  const normalized = normalizePhone(identifier);
+  const digits = normalized.replace(/\D/g, "");
+  const variants = new Set([normalized, digits]);
+
+  if (digits.length === 10) {
+    variants.add(`+91${digits}`);
+    variants.add(`91${digits}`);
+  }
+
+  if (digits.length === 12 && digits.startsWith("91")) {
+    variants.add(`+${digits}`);
+    variants.add(digits.slice(2));
+  }
+
+  return Array.from(variants).filter(Boolean);
+}
+
+function hasDesiredAccess(user: Awaited<ReturnType<typeof authRepository.findUsersWithAccess>>[number], actorType: LoginInput["desiredActor"]) {
+  if (!actorType) return true;
+  if (actorType === "bakery_user") return user.memberships.some((item) => item.active);
+  if (actorType === "customer") return user.customers.length > 0;
+  if (actorType === "vehicle") return user.vehicles.some((item) => item.active);
+  return false;
+}
+
 export const authService = {
   async login(input: LoginInput) {
     const identifier = input.email.trim();
@@ -19,14 +47,21 @@ export const authService = {
       };
     }
 
-    const users = await authRepository.findUsersWithAccess(identifier.includes("@") ? identifier : normalizePhone(identifier));
-    let user = null;
+    const users = await authRepository.findUsersWithAccess(loginIdentifiers(identifier));
+    const passwordMatches = [];
     for (const candidate of users) {
       if (await bcrypt.compare(input.password, candidate.passwordHash)) {
-        user = candidate;
-        break;
+        passwordMatches.push(candidate);
       }
     }
+
+    const user =
+      passwordMatches.find((candidate) => hasDesiredAccess(candidate, input.desiredActor)) ||
+      passwordMatches.find((candidate) => candidate.memberships.some((item) => item.active)) ||
+      passwordMatches.find((candidate) => candidate.customers.length > 0) ||
+      passwordMatches.find((candidate) => candidate.vehicles.some((item) => item.active)) ||
+      null;
+
     if (!user) {
       throw new HttpError(401, "Invalid email or password");
     }
