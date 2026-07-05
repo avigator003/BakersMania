@@ -5,7 +5,7 @@ import { Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls, usePagination } from "../../../components/pagination";
+import { PaginationControls } from "../../../components/pagination";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -34,6 +34,20 @@ type Expense = {
   notes?: string | null;
   spentAt: string;
   route?: Route | null;
+};
+
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+type ExpenseSummary = {
+  total: number;
+  paid: number;
+  pending: number;
+  rent: number;
 };
 
 const today = new Date();
@@ -75,6 +89,11 @@ export default function BakeryExpensesPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pageCount, setPageCount] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totals, setTotals] = useState<ExpenseSummary>({ total: 0, paid: 0, pending: 0, rent: 0 });
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
 
@@ -86,29 +105,6 @@ export default function BakeryExpensesPage() {
     description: route.vehicle?.name || route.vehicle?.number || undefined
   })), [routes]);
 
-  const filteredExpenses = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return expenses;
-    return expenses.filter((expense) =>
-      [expense.category, expense.route?.name, expense.notes]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [expenses, search]);
-  const expensesPage = usePagination(filteredExpenses, 25);
-
-  const totals = useMemo(() => {
-    return expenses.reduce(
-      (summary, expense) => ({
-        total: summary.total + Number(expense.amount || 0),
-        paid: summary.paid + (expense.status === "PAID" ? Number(expense.amount || 0) : 0),
-        pending: summary.pending + (expense.status === "PENDING" ? Number(expense.amount || 0) : 0),
-        rent: summary.rent + (expense.type === "RENT" ? Number(expense.amount || 0) : 0)
-      }),
-      { total: 0, paid: 0, pending: 0, rent: 0 }
-    );
-  }, [expenses]);
-
   async function loadData() {
     if (!apiBase) {
       toast.error("Bakery slug missing", "Please sign in again.");
@@ -119,13 +115,21 @@ export default function BakeryExpensesPage() {
     try {
       const params = new URLSearchParams();
       params.set("month", month);
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
       if (typeFilter !== "all") params.set("type", typeFilter);
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (search.trim()) params.set("search", search.trim());
       const [expenseData, routeData] = await Promise.all([
-        authFetch<{ expenses: Expense[] }>(`${apiBase}/finance/expenses?${params.toString()}`),
-        authFetch<{ routes: Route[] }>(`${apiBase}/routes`)
+        authFetch<{ expenses: Expense[]; pagination?: PaginationMeta; summary?: ExpenseSummary }>(`${apiBase}/finance/expenses?${params.toString()}`),
+        authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
       setExpenses(expenseData.expenses);
+      setTotal(expenseData.pagination?.total ?? expenseData.expenses.length);
+      setPageCount(expenseData.pagination?.pageCount ?? 1);
+      setPage(expenseData.pagination?.page ?? page);
+      setPageSize(expenseData.pagination?.pageSize ?? pageSize);
+      setTotals(expenseData.summary ?? { total: 0, paid: 0, pending: 0, rent: 0 });
       setRoutes(routeData.routes);
     } catch (error) {
       toast.error("Could not load expenses", error instanceof Error ? error.message : "Please check API and login.");
@@ -136,7 +140,7 @@ export default function BakeryExpensesPage() {
 
   useEffect(() => {
     loadData();
-  }, [month, typeFilter, statusFilter]);
+  }, [month, typeFilter, statusFilter, page, pageSize, search]);
 
   async function createExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -200,15 +204,23 @@ export default function BakeryExpensesPage() {
           <div className="grid gap-3 border-b border-line p-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
             <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Search size={16} className="text-muted" />
-              <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search route, name, note" value={search} />
+              <input
+                className="w-full bg-transparent text-sm outline-none"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search route, name, note"
+                value={search}
+              />
             </label>
-            <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setMonth(event.target.value)} type="month" value={month} />
-            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}>
+            <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setMonth(event.target.value); setPage(1); }} type="month" value={month} />
+            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }} value={typeFilter}>
               <option value="all">All types</option>
               <option value="RENT">Rent</option>
               <option value="MISCELLANEOUS">Miscellaneous</option>
             </select>
-            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
+            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} value={statusFilter}>
               <option value="all">All status</option>
               <option value="PENDING">Pending</option>
               <option value="PAID">Paid</option>
@@ -218,7 +230,12 @@ export default function BakeryExpensesPage() {
 
           {loading ? <LoadingSpinner label="Loading expenses" /> : null}
           <PaginationControls
-            {...expensesPage}
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            setPage={setPage}
+            setPageSize={setPageSize}
+            total={total}
             summary={[
               { label: "Month total", value: formatAmount(totals.total) },
               { label: "Paid", value: formatAmount(totals.paid) },
@@ -228,7 +245,7 @@ export default function BakeryExpensesPage() {
           />
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {expensesPage.pageItems.map((expense) => (
+            {expenses.map((expense) => (
               <article key={expense.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -254,7 +271,7 @@ export default function BakeryExpensesPage() {
                 {expense.notes ? <p className="mt-3 text-xs text-muted">{expense.notes}</p> : null}
               </article>
             ))}
-            {!loading && !filteredExpenses.length ? (
+            {!loading && !expenses.length ? (
               <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No expenses found for this filter.</p>
             ) : null}
           </div>
@@ -273,7 +290,7 @@ export default function BakeryExpensesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {expensesPage.pageItems.map((expense) => (
+              {expenses.map((expense) => (
                   <tr key={expense.id}>
                     <td className="px-4 py-3">{formatDate(expense.spentAt)}</td>
                     <td className="px-4 py-3">{expense.type === "RENT" ? "Rent" : "Miscellaneous"}</td>
@@ -305,7 +322,7 @@ export default function BakeryExpensesPage() {
                     <td className="px-4 py-3 text-muted">{expense.notes || "-"}</td>
                   </tr>
                 ))}
-                {!loading && !filteredExpenses.length ? (
+                {!loading && !expenses.length ? (
                   <tr>
                     <td className="px-4 py-8 text-center text-muted" colSpan={7}>No expenses found for this filter.</td>
                   </tr>

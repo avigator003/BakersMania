@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Eye, IndianRupee, Pencil, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls, usePagination } from "../../../components/pagination";
+import { PaginationControls } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -50,6 +50,13 @@ type CustomerPrice = {
   customer: Customer;
 };
 
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
 const initialProductForm = {
   name: "",
   categoryId: "",
@@ -85,20 +92,13 @@ export default function BakeryProductsPage() {
   const [productForm, setProductForm] = useState(initialProductForm);
   const [editForm, setEditForm] = useState(initialPriceForm);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pageCount, setPageCount] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
-
-  const filteredProducts = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return products;
-    return products.filter((product) =>
-      [product.name, product.category, product.description]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [products, search]);
-  const productsPage = usePagination(filteredProducts, 25);
 
   async function loadData() {
     if (!apiBase) {
@@ -109,12 +109,20 @@ export default function BakeryProductsPage() {
 
     setLoading(true);
     try {
+      const productParams = new URLSearchParams();
+      productParams.set("page", String(page));
+      productParams.set("pageSize", String(pageSize));
+      if (search.trim()) productParams.set("search", search.trim());
       const [categoryData, productData] = await Promise.all([
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products`)
+        authFetch<{ products: Product[]; pagination?: PaginationMeta }>(`${apiBase}/catalog/products?${productParams.toString()}`)
       ]);
       setCategories(categoryData.categories);
       setProducts(productData.products);
+      setTotal(productData.pagination?.total ?? productData.products.length);
+      setPageCount(productData.pagination?.pageCount ?? 1);
+      setPage(productData.pagination?.page ?? page);
+      setPageSize(productData.pagination?.pageSize ?? pageSize);
     } catch (error) {
       toast.error("Could not load products", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -124,7 +132,7 @@ export default function BakeryProductsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page, pageSize, search]);
 
   async function createProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -219,7 +227,10 @@ export default function BakeryProductsPage() {
               <Search size={16} className="text-muted" />
               <input
                 className="w-full bg-transparent text-sm outline-none"
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search product or category"
                 value={search}
               />
@@ -227,10 +238,10 @@ export default function BakeryProductsPage() {
           </div>
 
           {loading ? <LoadingSpinner label="Loading products" /> : null}
-          <PaginationControls {...productsPage} />
+          <PaginationControls page={page} pageCount={pageCount} pageSize={pageSize} setPage={setPage} setPageSize={setPageSize} total={total} />
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {productsPage.pageItems.map((product) => (
+            {products.map((product) => (
               <article key={product.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -264,7 +275,7 @@ export default function BakeryProductsPage() {
                 </div>
               </article>
             ))}
-            {!loading && !filteredProducts.length ? (
+            {!loading && !products.length ? (
               <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No products found.</p>
             ) : null}
           </div>
@@ -282,7 +293,7 @@ export default function BakeryProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {productsPage.pageItems.map((product) => (
+              {products.map((product) => (
                   <tr key={product.id} className="align-top">
                     <td className="px-4 py-3">
                       <span className="block font-semibold">{product.name}</span>
@@ -311,7 +322,7 @@ export default function BakeryProductsPage() {
                     </td>
                   </tr>
                 ))}
-                {!loading && !filteredProducts.length ? (
+                {!loading && !products.length ? (
                   <tr>
                     <td className="px-4 py-6 text-center text-sm text-muted" colSpan={6}>No products found.</td>
                   </tr>

@@ -5,7 +5,7 @@ import { Eye, Pencil, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls, usePagination } from "../../../components/pagination";
+import { PaginationControls } from "../../../components/pagination";
 import { PhotoPicker } from "../../../components/photo-picker";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
@@ -41,6 +41,13 @@ type CustomerLedger = {
   summary: { orderTotal: number; paidTotal: number; dueBalance: number; creditLimit: number | null; creditExceeded: boolean };
   entries: { id: string; type: string; date: string; description: string; debit: number; credit: number; invoiceNumber?: string | null }[];
   productPrices: { id: string; price: string | number; product: { name: string } }[];
+};
+
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
 };
 
 const stateCityMap: Record<string, string[]> = {
@@ -97,22 +104,15 @@ export default function BakeryCustomersPage() {
   const [ledger, setLedger] = useState<CustomerLedger | null>(null);
   const [customerForm, setCustomerForm] = useState(initialCustomerForm);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pageCount, setPageCount] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
   const cities = stateCityMap[customerForm.state] || [];
   const routeOptions = useMemo(() => routes.filter((route) => route.active).map((route) => ({ value: route.id, label: route.name })), [routes]);
-
-  const filteredCustomers = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return customers;
-    return customers.filter((customer) =>
-      [customer.name, customer.phone, customer.aadhaarNumber, customer.city, customer.state, customer.route?.name]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [customers, search]);
-  const customersPage = usePagination(filteredCustomers, 25);
 
   async function loadData() {
     if (!apiBase) {
@@ -123,11 +123,19 @@ export default function BakeryCustomersPage() {
 
     setLoading(true);
     try {
+      const customerParams = new URLSearchParams();
+      customerParams.set("page", String(page));
+      customerParams.set("pageSize", String(pageSize));
+      if (search.trim()) customerParams.set("search", search.trim());
       const [customerData, routeData] = await Promise.all([
-        authFetch<{ customers: Customer[] }>(`${apiBase}/customers`),
-        authFetch<{ routes: Route[] }>(`${apiBase}/routes`)
+        authFetch<{ customers: Customer[]; pagination?: PaginationMeta }>(`${apiBase}/customers?${customerParams.toString()}`),
+        authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
       setCustomers(customerData.customers);
+      setTotal(customerData.pagination?.total ?? customerData.customers.length);
+      setPageCount(customerData.pagination?.pageCount ?? 1);
+      setPage(customerData.pagination?.page ?? page);
+      setPageSize(customerData.pagination?.pageSize ?? pageSize);
       setRoutes(routeData.routes);
     } catch (error) {
       toast.error("Could not load customers", error instanceof Error ? error.message : "Please check API and login.");
@@ -138,7 +146,7 @@ export default function BakeryCustomersPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page, pageSize, search]);
 
   async function createCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -246,7 +254,10 @@ export default function BakeryCustomersPage() {
               <Search size={16} className="text-muted" />
               <input
                 className="w-full bg-transparent text-sm outline-none"
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search by name, phone, Aadhaar, city, or route"
                 value={search}
               />
@@ -255,7 +266,12 @@ export default function BakeryCustomersPage() {
 
           {loading ? <LoadingSpinner label="Loading customers" /> : null}
           <PaginationControls
-            {...customersPage}
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            setPage={setPage}
+            setPageSize={setPageSize}
+            total={total}
             summary={[
               { label: "Routes", value: routes.length },
               { label: "Aadhaar", value: customers.filter((customer) => customer.aadhaarNumber).length },
@@ -264,7 +280,7 @@ export default function BakeryCustomersPage() {
           />
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {customersPage.pageItems.map((customer) => (
+            {customers.map((customer) => (
               <article key={customer.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -292,7 +308,7 @@ export default function BakeryCustomersPage() {
                 </div>
               </article>
             ))}
-            {!loading && !filteredCustomers.length ? (
+            {!loading && !customers.length ? (
               <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No customers found.</p>
             ) : null}
           </div>
@@ -312,7 +328,7 @@ export default function BakeryCustomersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {customersPage.pageItems.map((customer) => (
+              {customers.map((customer) => (
                   <tr key={customer.id} className="align-top">
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-3">
@@ -346,7 +362,7 @@ export default function BakeryCustomersPage() {
                     <td className="px-4 py-3">{formatDate(customer.createdAt)}</td>
                   </tr>
                 ))}
-                {!loading && !filteredCustomers.length ? (
+                {!loading && !customers.length ? (
                   <tr>
                     <td className="px-4 py-6 text-center text-sm text-muted" colSpan={8}>No customers found.</td>
                   </tr>

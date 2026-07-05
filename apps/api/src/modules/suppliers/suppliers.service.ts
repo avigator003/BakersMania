@@ -1,5 +1,6 @@
 import { HttpError } from "../../utils/http.js";
 import { suppliersRepository } from "./suppliers.repository.js";
+import type { PurchaseListFilters } from "./suppliers.repository.js";
 import type { PurchaseInput, PurchasePaymentInput, SupplierInput } from "./suppliers.schemas.js";
 
 export const suppliersService = {
@@ -11,7 +12,7 @@ export const suppliersService = {
     return suppliersRepository.create(tenantId, input);
   },
 
-  listPurchases(tenantId: string, filters: { month?: string; status?: string; supplierId?: string }) {
+  listPurchases(tenantId: string, filters: PurchaseListFilters) {
     return suppliersRepository.listPurchases(tenantId, filters);
   },
 

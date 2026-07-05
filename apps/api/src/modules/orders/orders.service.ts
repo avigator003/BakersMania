@@ -10,6 +10,9 @@ type OrderFilters = {
   routeId?: string;
   customerIds?: string[];
   routeIds?: string[];
+  search?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 async function vehicleRouteIds(tenantId: string, auth: AccessTokenPayload | undefined) {
@@ -82,7 +85,7 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
 export const ordersService = {
   listOrders(tenantId: string, auth: AccessTokenPayload | undefined, filters: OrderFilters = {}) {
     if (auth?.actorType === "customer") {
-      return ordersRepository.listForCustomer(tenantId, auth.customerId!);
+      return ordersRepository.listForCustomer(tenantId, auth.customerId!, filters);
     }
 
     if (auth?.actorType === "vehicle") {
@@ -237,8 +240,11 @@ export const ordersService = {
   },
 
   async routeStatement(tenantId: string, auth: AccessTokenPayload | undefined, filters: { startDate: string; endDate: string; routeId?: string; routeIds?: string[] }) {
-    const routeIds = await vehicleRouteIds(tenantId, auth);
-    const orders = await ordersRepository.listForRange(tenantId, { ...filters, routeIds: routeIds || undefined });
+    const assignedRouteIds = await vehicleRouteIds(tenantId, auth);
+    const orders = await ordersRepository.listForRange(tenantId, {
+      ...filters,
+      routeIds: assignedRouteIds || filters.routeIds
+    });
     const customers = new Map<string, { customerId: string; customerName: string; routeName: string; orderTotal: number; paidTotal: number; dueTotal: number; orderCount: number }>();
     orders.forEach((order) => {
       const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);

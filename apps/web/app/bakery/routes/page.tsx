@@ -5,7 +5,7 @@ import { Eye, MapPinned, Pencil, Plus, RefreshCw, Truck } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls, usePagination } from "../../../components/pagination";
+import { PaginationControls } from "../../../components/pagination";
 import { PhotoPicker } from "../../../components/photo-picker";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -35,6 +35,13 @@ type Route = {
 };
 
 type Tab = "routes" | "vehicles";
+
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
 
 const initialRouteForm = {
   name: "",
@@ -82,11 +89,17 @@ export default function BakeryRoutesPage() {
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [routesPage, setRoutesPage] = useState(1);
+  const [routesPageSize, setRoutesPageSize] = useState(25);
+  const [routesPageCount, setRoutesPageCount] = useState(1);
+  const [routesTotal, setRoutesTotal] = useState(0);
+  const [vehiclesPage, setVehiclesPage] = useState(1);
+  const [vehiclesPageSize, setVehiclesPageSize] = useState(25);
+  const [vehiclesPageCount, setVehiclesPageCount] = useState(1);
+  const [vehiclesTotal, setVehiclesTotal] = useState(0);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
-  const routesPage = usePagination(routes, 25);
-  const vehiclesPage = usePagination(vehicles, 25);
 
   async function loadData() {
     if (!apiBase) {
@@ -97,12 +110,26 @@ export default function BakeryRoutesPage() {
 
     setLoading(true);
     try {
+      const routeParams = new URLSearchParams();
+      routeParams.set("page", String(routesPage));
+      routeParams.set("pageSize", String(routesPageSize));
+      const vehicleParams = new URLSearchParams();
+      vehicleParams.set("page", String(vehiclesPage));
+      vehicleParams.set("pageSize", String(vehiclesPageSize));
       const [routeData, vehicleData] = await Promise.all([
-        authFetch<{ routes: Route[] }>(`${apiBase}/routes`),
-        authFetch<{ vehicles: Vehicle[] }>(`${apiBase}/routes/vehicles`)
+        authFetch<{ routes: Route[]; pagination?: PaginationMeta }>(`${apiBase}/routes?${routeParams.toString()}`),
+        authFetch<{ vehicles: Vehicle[]; pagination?: PaginationMeta }>(`${apiBase}/routes/vehicles?${vehicleParams.toString()}`)
       ]);
       setRoutes(routeData.routes);
+      setRoutesTotal(routeData.pagination?.total ?? routeData.routes.length);
+      setRoutesPageCount(routeData.pagination?.pageCount ?? 1);
+      setRoutesPage(routeData.pagination?.page ?? routesPage);
+      setRoutesPageSize(routeData.pagination?.pageSize ?? routesPageSize);
       setVehicles(vehicleData.vehicles);
+      setVehiclesTotal(vehicleData.pagination?.total ?? vehicleData.vehicles.length);
+      setVehiclesPageCount(vehicleData.pagination?.pageCount ?? 1);
+      setVehiclesPage(vehicleData.pagination?.page ?? vehiclesPage);
+      setVehiclesPageSize(vehicleData.pagination?.pageSize ?? vehiclesPageSize);
     } catch (error) {
       toast.error("Could not load routes", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -112,7 +139,7 @@ export default function BakeryRoutesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [routesPage, routesPageSize, vehiclesPage, vehiclesPageSize]);
 
   async function createRoute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -275,15 +302,20 @@ export default function BakeryRoutesPage() {
           {activeTab === "routes" ? (
             <>
             <PaginationControls
-              {...routesPage}
+              page={routesPage}
+              pageCount={routesPageCount}
+              pageSize={routesPageSize}
+              setPage={setRoutesPage}
+              setPageSize={setRoutesPageSize}
+              total={routesTotal}
               summary={[
                 { label: "Active routes", value: routes.filter((route) => route.active).length },
-                { label: "Vehicles", value: vehicles.length },
+                { label: "Vehicles", value: vehiclesTotal },
                 { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
               ]}
             />
             <div className="grid gap-3 p-3 sm:hidden">
-              {routesPage.pageItems.map((route) => (
+              {routes.map((route) => (
                 <article key={route.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -317,7 +349,7 @@ export default function BakeryRoutesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {routesPage.pageItems.map((route) => (
+                  {routes.map((route) => (
                     <tr key={route.id}>
                       <td className="px-4 py-3 font-semibold">{route.name}</td>
                       <td className="px-4 py-3">
@@ -351,15 +383,20 @@ export default function BakeryRoutesPage() {
           ) : (
             <>
             <PaginationControls
-              {...vehiclesPage}
+              page={vehiclesPage}
+              pageCount={vehiclesPageCount}
+              pageSize={vehiclesPageSize}
+              setPage={setVehiclesPage}
+              setPageSize={setVehiclesPageSize}
+              total={vehiclesTotal}
               summary={[
-                { label: "Routes", value: routes.length },
+                { label: "Routes", value: routesTotal },
                 { label: "Active routes", value: routes.filter((route) => route.active).length },
                 { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
               ]}
             />
             <div className="grid gap-3 p-3 sm:hidden">
-              {vehiclesPage.pageItems.map((vehicle) => (
+              {vehicles.map((vehicle) => (
                 <article key={vehicle.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -401,7 +438,7 @@ export default function BakeryRoutesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {vehiclesPage.pageItems.map((vehicle) => (
+                  {vehicles.map((vehicle) => (
                     <tr key={vehicle.id} className="align-top">
                       <td className="px-4 py-3">
                         <span className="block font-semibold">{vehicle.name}</span>

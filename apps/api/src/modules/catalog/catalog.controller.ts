@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { numberQueryParam } from "../../utils/pagination.js";
 import { catalogService } from "./catalog.service.js";
 
 export const catalogController = {
@@ -12,7 +13,13 @@ export const catalogController = {
   },
 
   async listProducts(req: Request, res: Response) {
-    res.json({ products: await catalogService.listProducts(req.tenant!.id, req.auth?.actorType === "bakery_user") });
+    const result = await catalogService.listProducts(req.tenant!.id, {
+      includeInactive: req.auth?.actorType === "bakery_user",
+      page: numberQueryParam(req.query.page),
+      pageSize: numberQueryParam(req.query.pageSize),
+      search: req.query.search ? String(req.query.search) : undefined
+    });
+    res.json(result);
   },
 
   async getProduct(req: Request, res: Response) {
@@ -20,7 +27,10 @@ export const catalogController = {
   },
 
   async listPriceHistory(req: Request, res: Response) {
-    res.json({ history: await catalogService.listPriceHistory(req.tenant!.id, req.params.productId) });
+    res.json(await catalogService.listPriceHistory(req.tenant!.id, req.params.productId, {
+      page: numberQueryParam(req.query.page),
+      pageSize: numberQueryParam(req.query.pageSize)
+    }));
   },
 
   async createProduct(req: Request, res: Response) {

@@ -5,7 +5,7 @@ import { Copy, Download, Eye, FileDown, Pencil, Plus, RefreshCw, Search, Trash2 
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls, usePagination } from "../../../components/pagination";
+import { PaginationControls } from "../../../components/pagination";
 import { PaymentHistory, paymentDue, paymentTotal, resolvedPaymentStatus } from "../../../components/payment-history";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
@@ -48,6 +48,15 @@ type RouteStatement = {
   routeId?: string;
   totals: { customers: number; orders: number; orderTotal: number; paidTotal: number; dueTotal: number };
   rows: { customerId: string; customerName: string; routeName: string; orderTotal: number; paidTotal: number; dueTotal: number; orderCount: number }[];
+};
+type PaginatedOrdersResponse = {
+  orders: Order[];
+  pagination?: {
+    total: number;
+    page: number;
+    pageSize: number;
+    pageCount: number;
+  };
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -150,6 +159,10 @@ export default function BakeryOrdersPage() {
   const [endDate, setEndDate] = useState(today);
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [ordersTotal, setOrdersTotal] = useState(0);
+  const [ordersPageCount, setOrdersPageCount] = useState(1);
   const [form, setForm] = useState<OrderFormState>(emptyOrderForm);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [repeatForm, setRepeatForm] = useState({
@@ -171,17 +184,6 @@ export default function BakeryOrdersPage() {
     value: route.id,
     label: route.name
   })), [routes]);
-
-  const filteredOrders = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return orders;
-    return orders.filter((order) =>
-      [order.customer.name, order.customer.phone, order.route?.name, order.customer.route?.name, order.source, order.status]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [orders, search]);
-  const ordersPage = usePagination(filteredOrders, 25);
 
   const orderTotals = useMemo(() => {
     return {
@@ -211,13 +213,20 @@ export default function BakeryOrdersPage() {
       if (endDate) orderParams.set("endDate", endDate);
       if (customerFilter.length) orderParams.set("customerIds", customerFilter.join(","));
       if (routeFilter.length) orderParams.set("routeIds", routeFilter.join(","));
+      if (search.trim()) orderParams.set("search", search.trim());
+      orderParams.set("page", String(page));
+      orderParams.set("pageSize", String(pageSize));
       const [orderData, customerData, productData, routeData] = await Promise.all([
-        authFetch<{ orders: Order[] }>(`${apiBase}/orders?${orderParams.toString()}`),
-        authFetch<{ customers: Customer[] }>(`${apiBase}/customers`),
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products`),
-        authFetch<{ routes: Route[] }>(`${apiBase}/routes`)
+        authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${orderParams.toString()}`),
+        authFetch<{ customers: Customer[] }>(`${apiBase}/customers?pageSize=100`),
+        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=100`),
+        authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
       setOrders(orderData.orders);
+      setOrdersTotal(orderData.pagination?.total ?? orderData.orders.length);
+      setOrdersPageCount(orderData.pagination?.pageCount ?? 1);
+      setPage(orderData.pagination?.page ?? page);
+      setPageSize(orderData.pagination?.pageSize ?? pageSize);
       setCustomers(customerData.customers);
       setProducts(productData.products);
       setRoutes(routeData.routes);
@@ -230,7 +239,11 @@ export default function BakeryOrdersPage() {
 
   useEffect(() => {
     loadData();
-  }, [startDate, endDate, customerFilter, routeFilter]);
+  }, [startDate, endDate, customerFilter, routeFilter, search, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [startDate, endDate, customerFilter, routeFilter, search]);
 
   function updateFormItem(
     setter: typeof setForm,
@@ -564,16 +577,21 @@ export default function BakeryOrdersPage() {
               </div>
               {loading ? <LoadingSpinner label="Loading orders" /> : null}
               <PaginationControls
-                {...ordersPage}
+                page={page}
+                pageCount={ordersPageCount}
+                pageSize={pageSize}
+                setPage={setPage}
+                setPageSize={setPageSize}
                 summary={[
                   { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
                   { label: "Total", value: formatAmount(orderTotals.amount) },
                   { label: "Due", value: formatAmount(orderTotals.due) },
                   { label: "Today due", value: formatAmount(orderTotals.todaysDue) }
                 ]}
+                total={ordersTotal}
               />
               <div className="grid gap-3 p-3 sm:hidden">
-                {ordersPage.pageItems.map((order) => {
+                {orders.map((order) => {
                   const paid = orderPaid(order);
                   const due = orderDue(order);
                   const todaysDue = isCarryForwardDue(order) ? due : 0;
@@ -638,7 +656,7 @@ export default function BakeryOrdersPage() {
                     </article>
                   );
                 })}
-                {!loading && !filteredOrders.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No orders found.</p> : null}
+                {!loading && !orders.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No orders found.</p> : null}
               </div>
 
               <div className="hidden max-h-[680px] w-full max-w-full overflow-auto sm:block">
@@ -657,7 +675,7 @@ export default function BakeryOrdersPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {ordersPage.pageItems.map((order) => {
+                    {orders.map((order) => {
                       const paid = orderPaid(order);
                       const due = orderDue(order);
                       const todaysDue = isCarryForwardDue(order) ? due : 0;
@@ -714,7 +732,7 @@ export default function BakeryOrdersPage() {
                       </tr>
                       );
                     })}
-                    {!loading && !filteredOrders.length ? <tr><td className="px-4 py-8 text-center text-muted" colSpan={9}>No orders found.</td></tr> : null}
+                    {!loading && !orders.length ? <tr><td className="px-4 py-8 text-center text-muted" colSpan={9}>No orders found.</td></tr> : null}
                   </tbody>
                 </table>
               </div>

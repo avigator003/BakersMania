@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { CalendarCheck, Download, IndianRupee, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls, usePagination } from "../../../components/pagination";
+import { PaginationControls } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 import { downloadLabourAttendanceWorkbook, downloadLabourOverviewWorkbook, fetchLabourYearExport } from "../../../lib/labour-export";
@@ -63,6 +63,14 @@ type LabourDashboard = {
   todayAttendance: Attendance[];
   recentAttendance: Attendance[];
   recentPayments: SalaryPayment[];
+  pagination?: PaginationMeta;
+};
+
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
 };
 
 type StatusFilter = "active" | "inactive" | "all";
@@ -112,26 +120,13 @@ export default function LabourManagementPage() {
   const [updatingLabourId, setUpdatingLabourId] = useState<string | null>(null);
   const [exportYear, setExportYear] = useState(String(new Date().getFullYear()));
   const [exporting, setExporting] = useState<"overview" | "attendance" | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pageCount, setPageCount] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiPath = tenantSlug ? `/t/${tenantSlug}/staff` : "";
-
-  const filteredLabours = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return (data?.labours || []).filter((labour) => {
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" && labour.active) ||
-        (statusFilter === "inactive" && !labour.active);
-      const matchesSearch =
-        !query ||
-        [labour.name, labour.phone, labour.skill, labour.role]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(query));
-      return matchesStatus && matchesSearch;
-    });
-  }, [data, search, statusFilter]);
-  const laboursPage = usePagination(filteredLabours, 25);
 
   async function loadLabour() {
     if (!apiPath) {
@@ -142,8 +137,17 @@ export default function LabourManagementPage() {
 
     setLoading(true);
     try {
-      const response = await authFetch<LabourDashboard>(`${apiPath}/labour`);
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+      params.set("status", statusFilter);
+      if (search.trim()) params.set("search", search.trim());
+      const response = await authFetch<LabourDashboard>(`${apiPath}/labour?${params.toString()}`);
       setData(response);
+      setTotal(response.pagination?.total ?? response.labours.length);
+      setPageCount(response.pagination?.pageCount ?? 1);
+      setPage(response.pagination?.page ?? page);
+      setPageSize(response.pagination?.pageSize ?? pageSize);
     } catch (error) {
       toast.error("Could not load labour management", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -153,7 +157,7 @@ export default function LabourManagementPage() {
 
   useEffect(() => {
     loadLabour();
-  }, []);
+  }, [page, pageSize, search, statusFilter]);
 
   async function createLabour(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -288,7 +292,7 @@ export default function LabourManagementPage() {
               <Search size={16} className="text-muted" />
               <input
                 className="w-full bg-transparent text-sm outline-none"
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                 placeholder="Search labour by name, phone, skill, or role"
                 value={search}
               />
@@ -302,7 +306,7 @@ export default function LabourManagementPage() {
                 <button
                   className={`focus-ring rounded px-3 py-1.5 ${statusFilter === value ? "bg-mint text-white" : "text-muted hover:text-ink"}`}
                   key={value}
-                  onClick={() => setStatusFilter(value as StatusFilter)}
+                  onClick={() => { setStatusFilter(value as StatusFilter); setPage(1); }}
                   type="button"
                 >
                   {label}
@@ -311,7 +315,12 @@ export default function LabourManagementPage() {
             </div>
           </div>
           <PaginationControls
-            {...laboursPage}
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            setPage={setPage}
+            setPageSize={setPageSize}
+            total={total}
             summary={[
               { label: "Active", value: data?.stats.activeLabour ?? 0 },
               { label: "Present", value: data?.stats.presentToday ?? 0 },
@@ -322,7 +331,7 @@ export default function LabourManagementPage() {
           />
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {laboursPage.pageItems.map((labour) => {
+            {(data?.labours || []).map((labour) => {
               const latestAttendance = labour.attendance[0];
               const latestPayment = labour.salaryPayments[0];
               return (
@@ -368,7 +377,7 @@ export default function LabourManagementPage() {
                 </article>
               );
             })}
-            {!loading && !filteredLabours.length ? (
+            {!loading && !(data?.labours || []).length ? (
               <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No labour matched your search.</p>
             ) : null}
           </div>
@@ -387,7 +396,7 @@ export default function LabourManagementPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {laboursPage.pageItems.map((labour) => {
+                {(data?.labours || []).map((labour) => {
                   const latestAttendance = labour.attendance[0];
                   const latestPayment = labour.salaryPayments[0];
                   return (
@@ -433,7 +442,7 @@ export default function LabourManagementPage() {
                     </tr>
                   );
                 })}
-                {!loading && !filteredLabours.length ? (
+                {!loading && !(data?.labours || []).length ? (
                   <tr>
                     <td className="px-4 py-6 text-center text-sm text-muted" colSpan={7}>
                       No labour matched your search.

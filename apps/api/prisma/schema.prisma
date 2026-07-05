@@ -128,6 +128,8 @@ model User {
   vehicles     Vehicle[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  @@index([phone])
 }
 
 model Membership {
@@ -195,6 +197,8 @@ model Customer {
   @@index([tenantId])
   @@index([tenantId, phone])
   @@index([tenantId, routeId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, routeId, createdAt])
 }
 
 model ProductCategory {
@@ -235,6 +239,8 @@ model Product {
   @@unique([tenantId, name])
   @@index([tenantId, active])
   @@index([tenantId, categoryId])
+  @@index([tenantId, active, name])
+  @@index([tenantId, categoryId, active])
 }
 
 model CustomerProductPrice {
@@ -253,6 +259,7 @@ model CustomerProductPrice {
   @@unique([tenantId, productId, customerId])
   @@index([tenantId, customerId])
   @@index([tenantId, productId])
+  @@index([tenantId, customerId, productId])
 }
 
 model CustomerProductPriceHistory {
@@ -269,6 +276,8 @@ model CustomerProductPriceHistory {
 
   @@index([tenantId, productId])
   @@index([tenantId, customerId])
+  @@index([tenantId, productId, changedAt])
+  @@index([tenantId, customerId, changedAt])
 }
 
 model Order {
@@ -297,6 +306,14 @@ model Order {
 
   @@index([tenantId, status])
   @@index([tenantId, customerId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, dueAt])
+  @@index([tenantId, routeId, createdAt])
+  @@index([tenantId, routeId, dueAt])
+  @@index([tenantId, customerId, createdAt])
+  @@index([tenantId, customerId, dueAt])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, paymentStatus, createdAt])
 }
 
 model OrderItem {
@@ -310,6 +327,9 @@ model OrderItem {
   lineTotal   Decimal @db.Decimal(12, 2)
   order       Order   @relation(fields: [orderId], references: [id])
   product     Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model Invoice {
@@ -327,6 +347,8 @@ model Invoice {
   updatedAt     DateTime      @updatedAt
 
   @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, paymentStatus])
 }
 
 model Payment {
@@ -342,6 +364,9 @@ model Payment {
   invoice   Invoice? @relation(fields: [invoiceId], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, paidAt])
+  @@index([tenantId, orderId])
+  @@index([tenantId, invoiceId])
 }
 
 model InventoryItem {
@@ -362,6 +387,7 @@ model InventoryItem {
 
   @@index([tenantId])
   @@index([tenantId, category])
+  @@index([tenantId, category, name])
 }
 
 model InventoryLedger {
@@ -381,6 +407,7 @@ model InventoryLedger {
 
   @@index([tenantId, happenedAt])
   @@index([tenantId, itemId])
+  @@index([tenantId, itemId, happenedAt])
 }
 
 model Supplier {
@@ -397,6 +424,7 @@ model Supplier {
   updatedAt DateTime   @updatedAt
 
   @@index([tenantId])
+  @@index([tenantId, name])
 }
 
 model Purchase {
@@ -421,6 +449,8 @@ model Purchase {
   @@index([tenantId, purchasedAt])
   @@index([tenantId, supplierId])
   @@index([tenantId, itemId])
+  @@index([tenantId, paymentStatus, purchasedAt])
+  @@index([tenantId, supplierId, purchasedAt])
 }
 
 model PurchasePayment {
@@ -471,6 +501,9 @@ model Expense {
   @@index([tenantId, recurring])
   @@index([tenantId, recurringRootId])
   @@index([tenantId, periodMonth])
+  @@index([tenantId, periodMonth, status])
+  @@index([tenantId, periodMonth, type])
+  @@index([tenantId, type, status, spentAt])
 }
 
 model Attendance {
@@ -488,6 +521,7 @@ model Attendance {
 
   @@index([tenantId, workDate])
   @@index([tenantId, labourId])
+  @@index([tenantId, labourId, workDate])
 }
 
 model SalaryPayment {
@@ -510,6 +544,8 @@ model SalaryPayment {
 
   @@index([tenantId, paidAt])
   @@index([tenantId, labourId])
+  @@index([tenantId, labourId, paidAt])
+  @@index([tenantId, period])
 }
 
 model Vehicle {
@@ -537,6 +573,8 @@ model Vehicle {
 
   @@index([tenantId])
   @@index([tenantId, userId])
+  @@index([tenantId, active])
+  @@index([tenantId, driverPhone])
 }
 
 model Route {
@@ -554,6 +592,8 @@ model Route {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+  @@index([tenantId, active])
+  @@index([tenantId, vehicleId])
 }
 
 model Subscription {

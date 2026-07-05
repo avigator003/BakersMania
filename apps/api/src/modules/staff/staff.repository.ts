@@ -1,23 +1,49 @@
 import { prisma } from "../../db/prisma.js";
+import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
 import type { AttendanceInput, LabourInput, LabourUpdateInput, SalaryPaymentInput } from "./staff.schemas.js";
 
+export type LabourDashboardFilters = PaginationInput & {
+  search?: string;
+  status?: string;
+};
+
 export const staffRepository = {
-  listLabourDashboard(tenantId: string, attendanceDate?: Date) {
+  async listLabourDashboard(tenantId: string, attendanceDate?: Date, filters: LabourDashboardFilters = {}) {
     const day = attendanceDate || new Date();
     day.setHours(0, 0, 0, 0);
     const nextDay = new Date(day);
     nextDay.setDate(nextDay.getDate() + 1);
     const monthStart = new Date(day.getFullYear(), day.getMonth(), 1);
+    const { page, pageSize, skip } = pagination(filters);
+    const search = filters.search?.trim();
+    const labourWhere = {
+      tenantId,
+      ...(filters.status === "active" ? { active: true } : filters.status === "inactive" ? { active: false } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { phone: { contains: search, mode: "insensitive" as const } },
+              { skill: { contains: search, mode: "insensitive" as const } }
+            ]
+          }
+        : {})
+    };
 
-    return Promise.all([
+    const [labours, total, totalLabour, activeLabour, todayAttendance, paymentsThisMonth, recentAttendance, recentPayments] = await Promise.all([
       prisma.labour.findMany({
-        where: { tenantId },
+        where: labourWhere,
         orderBy: [{ active: "desc" }, { createdAt: "desc" }],
         include: {
           attendance: { orderBy: { workDate: "desc" }, take: 5 },
           salaryPayments: { orderBy: { paidAt: "desc" }, take: 5 }
-        }
+        },
+        skip,
+        take: pageSize
       }),
+      prisma.labour.count({ where: labourWhere }),
+      prisma.labour.count({ where: { tenantId } }),
+      prisma.labour.count({ where: { tenantId, active: true } }),
       prisma.attendance.findMany({
         where: { tenantId, workDate: { gte: day, lt: nextDay } },
         include: { labour: true },
@@ -41,6 +67,16 @@ export const staffRepository = {
         take: 30
       })
     ]);
+    return {
+      labours,
+      pagination: paginationMeta(total, page, pageSize),
+      totalLabour,
+      activeLabour,
+      todayAttendance,
+      paymentsThisMonth,
+      recentAttendance,
+      recentPayments
+    };
   },
 
   createLabour(tenantId: string, input: LabourInput) {

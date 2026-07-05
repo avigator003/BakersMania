@@ -1,21 +1,50 @@
 import { prisma } from "../../db/prisma.js";
+import { Prisma } from "@prisma/client";
+import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
 import type { CustomerInput, CustomerUpdateInput } from "./customers.schemas.js";
+
+export type CustomerListFilters = PaginationInput & {
+  search?: string;
+};
 
 export const customersRepository = {
   findRoute(tenantId: string, routeId: string) {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },
 
-  listByTenant(tenantId: string) {
-    return prisma.customer.findMany({
-      where: { tenantId },
-      include: { route: true },
-      orderBy: { createdAt: "desc" },
-      take: 100
-    });
+  async listByTenant(tenantId: string, filters: CustomerListFilters = {}) {
+    const { page, pageSize, skip } = pagination(filters);
+    const search = filters.search?.trim();
+    const where = {
+      tenantId,
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { phone: { contains: search, mode: "insensitive" as const } },
+              { aadhaarNumber: { contains: search, mode: "insensitive" as const } },
+              { city: { contains: search, mode: "insensitive" as const } },
+              { state: { contains: search, mode: "insensitive" as const } },
+              { route: { name: { contains: search, mode: "insensitive" as const } } }
+            ]
+          }
+        : {})
+    };
+    const [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        where,
+        include: { route: true },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize
+      }),
+      prisma.customer.count({ where })
+    ]);
+    return { customers, pagination: paginationMeta(total, page, pageSize) };
   },
 
-  async financialSummaryByCustomer(tenantId: string) {
+  async financialSummaryByCustomer(tenantId: string, customerIds?: string[]) {
+    if (customerIds && !customerIds.length) return new Map<string, { orderTotal: number; paidTotal: number }>();
     const rows = await prisma.$queryRaw<Array<{ customerId: string; orderTotal: unknown; paidTotal: unknown }>>`
       SELECT
         o."customerId" AS "customerId",
@@ -23,12 +52,15 @@ export const customersRepository = {
         COALESCE(SUM(payment_totals."paidTotal"), 0) AS "paidTotal"
       FROM "Order" o
       LEFT JOIN (
-        SELECT "orderId", SUM(amount) AS "paidTotal"
-        FROM "Payment"
-        WHERE "tenantId" = ${tenantId} AND "orderId" IS NOT NULL
-        GROUP BY "orderId"
+        SELECT p."orderId", SUM(p.amount) AS "paidTotal"
+        FROM "Payment" p
+        JOIN "Order" po ON po.id = p."orderId"
+        WHERE p."tenantId" = ${tenantId} AND p."orderId" IS NOT NULL
+          ${customerIds?.length ? Prisma.sql`AND po."customerId" IN (${Prisma.join(customerIds)})` : Prisma.empty}
+        GROUP BY p."orderId"
       ) payment_totals ON payment_totals."orderId" = o.id
       WHERE o."tenantId" = ${tenantId}
+        ${customerIds?.length ? Prisma.sql`AND o."customerId" IN (${Prisma.join(customerIds)})` : Prisma.empty}
       GROUP BY o."customerId"
     `;
     return new Map(rows.map((row) => [

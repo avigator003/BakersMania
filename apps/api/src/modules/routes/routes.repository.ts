@@ -1,12 +1,42 @@
 import { prisma } from "../../db/prisma.js";
+import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
 import type { RouteInput, VehicleInput } from "./routes.schemas.js";
 
+export type RouteListFilters = PaginationInput & {
+  search?: string;
+};
+
+export type VehicleListFilters = PaginationInput & {
+  search?: string;
+};
+
 export const bakeryRoutesRepository = {
-  listVehicles(tenantId: string) {
-    return prisma.vehicle.findMany({
-      where: { tenantId },
-      orderBy: [{ active: "desc" }, { createdAt: "desc" }]
-    });
+  async listVehicles(tenantId: string, filters: VehicleListFilters = {}) {
+    const { page, pageSize, skip } = pagination(filters);
+    const search = filters.search?.trim();
+    const where = {
+      tenantId,
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { number: { contains: search, mode: "insensitive" as const } },
+              { driverName: { contains: search, mode: "insensitive" as const } },
+              { driverPhone: { contains: search, mode: "insensitive" as const } }
+            ]
+          }
+        : {})
+    };
+    const [vehicles, total] = await Promise.all([
+      prisma.vehicle.findMany({
+        where,
+        orderBy: [{ active: "desc" }, { createdAt: "desc" }],
+        skip,
+        take: pageSize
+      }),
+      prisma.vehicle.count({ where })
+    ]);
+    return { vehicles, pagination: paginationMeta(total, page, pageSize) };
   },
 
   findVehicle(tenantId: string, vehicleId: string) {
@@ -56,11 +86,32 @@ export const bakeryRoutesRepository = {
     });
   },
 
-  list(tenantId: string) {
-    return prisma.route.findMany({
-      where: { tenantId },
-      include: { vehicle: true }
-    });
+  async list(tenantId: string, filters: RouteListFilters = {}) {
+    const { page, pageSize, skip } = pagination(filters);
+    const search = filters.search?.trim();
+    const where = {
+      tenantId,
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { vehicle: { name: { contains: search, mode: "insensitive" as const } } },
+              { vehicle: { number: { contains: search, mode: "insensitive" as const } } }
+            ]
+          }
+        : {})
+    };
+    const [routes, total] = await Promise.all([
+      prisma.route.findMany({
+        where,
+        include: { vehicle: true },
+        orderBy: [{ active: "desc" }, { name: "asc" }],
+        skip,
+        take: pageSize
+      }),
+      prisma.route.count({ where })
+    ]);
+    return { routes, pagination: paginationMeta(total, page, pageSize) };
   },
 
   create(tenantId: string, input: RouteInput) {

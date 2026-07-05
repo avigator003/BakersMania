@@ -1,12 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, Eye, History, PackagePlus, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls, usePagination } from "../../../components/pagination";
+import { PaginationControls } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -50,6 +50,25 @@ type RawMaterial = {
   reorderAt: string | number;
   unitPrice?: string | number | null;
   ledger?: RawMaterialLedger[];
+};
+
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+type StockSummary = {
+  stock: number;
+  required: number;
+  short: number;
+};
+
+type MaterialSummary = {
+  stock: number;
+  value: number;
+  low: number;
 };
 
 const today = new Date();
@@ -106,61 +125,21 @@ export default function BakeryInventoryPage() {
   const [adjustForm, setAdjustForm] = useState({ type: "BUY" as "BUY" | "USE", quantity: "", unitPrice: "", note: "", happenedAt: initialDate });
   const [ledgerMaterial, setLedgerMaterial] = useState<RawMaterial | null>(null);
   const [ledger, setLedger] = useState<RawMaterialLedger[]>([]);
+  const [productPage, setProductPage] = useState(1);
+  const [productPageSize, setProductPageSize] = useState(25);
+  const [productPageCount, setProductPageCount] = useState(1);
+  const [productTotal, setProductTotal] = useState(0);
+  const [materialPage, setMaterialPage] = useState(1);
+  const [materialPageSize, setMaterialPageSize] = useState(25);
+  const [materialPageCount, setMaterialPageCount] = useState(1);
+  const [materialTotal, setMaterialTotal] = useState(0);
+  const [stockSummary, setStockSummary] = useState<StockSummary>({ stock: 0, required: 0, short: 0 });
+  const [materialSummary, setMaterialSummary] = useState<MaterialSummary>({ stock: 0, value: 0, low: 0 });
+  const [materialCategories, setMaterialCategories] = useState<string[]>([]);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
   const routeBase = tenantSlug ? `/${tenantSlug}` : "";
-
-  const filteredProducts = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return products;
-    return products.filter((product) =>
-      [product.name, product.categoryRef?.name, product.category]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [products, search]);
-
-  const materialCategories = useMemo(() => {
-    return Array.from(new Set(materials.map((material) => material.category).filter(Boolean))).sort();
-  }, [materials]);
-
-  const filteredMaterials = useMemo(() => {
-    const query = materialSearch.trim().toLowerCase();
-    return materials.filter((material) => {
-      const matchesCategory = materialCategory === "all" || material.category === materialCategory;
-      const matchesSearch =
-        !query ||
-        [material.name, material.category, material.description]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(query));
-      return matchesCategory && matchesSearch;
-    });
-  }, [materials, materialCategory, materialSearch]);
-  const productsPage = usePagination(filteredProducts, 25);
-  const materialsPage = usePagination(filteredMaterials, 25);
-
-  const totals = useMemo(() => {
-    return products.reduce(
-      (summary, product) => ({
-        stock: summary.stock + product.stockOnHand,
-        required: summary.required + product.requiredQuantity,
-        short: summary.short + (product.stockStatus === "SHORT" || product.stockStatus === "OUT" ? 1 : 0)
-      }),
-      { stock: 0, required: 0, short: 0 }
-    );
-  }, [products]);
-
-  const materialTotals = useMemo(() => {
-    return materials.reduce(
-      (summary, material) => ({
-        stock: summary.stock + Number(material.stockOnHand || 0),
-        value: summary.value + Number(material.stockOnHand || 0) * Number(material.unitPrice || 0),
-        low: summary.low + (Number(material.reorderAt || 0) > 0 && Number(material.stockOnHand || 0) <= Number(material.reorderAt || 0) ? 1 : 0)
-      }),
-      { stock: 0, value: 0, low: 0 }
-    );
-  }, [materials]);
 
   async function loadData() {
     if (!apiBase) {
@@ -174,14 +153,33 @@ export default function BakeryInventoryPage() {
       const params = new URLSearchParams();
       if (categoryId !== "all") params.set("categoryId", categoryId);
       params.set(filterMode, filterMode === "date" ? date : month);
+      params.set("page", String(productPage));
+      params.set("pageSize", String(productPageSize));
+      if (search.trim()) params.set("search", search.trim());
+      const materialParams = new URLSearchParams();
+      materialParams.set("page", String(materialPage));
+      materialParams.set("pageSize", String(materialPageSize));
+      if (materialSearch.trim()) materialParams.set("search", materialSearch.trim());
+      if (materialCategory !== "all") materialParams.set("category", materialCategory);
       const [categoryData, stockData, materialData] = await Promise.all([
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
-        authFetch<{ products: ProductStock[] }>(`${apiBase}/inventory/product-stock?${params.toString()}`),
-        authFetch<{ items: RawMaterial[] }>(`${apiBase}/inventory/items`)
+        authFetch<{ products: ProductStock[]; pagination?: PaginationMeta; summary?: StockSummary }>(`${apiBase}/inventory/product-stock?${params.toString()}`),
+        authFetch<{ items: RawMaterial[]; pagination?: PaginationMeta; summary?: MaterialSummary; categories?: string[] }>(`${apiBase}/inventory/items?${materialParams.toString()}`)
       ]);
       setCategories(categoryData.categories);
       setProducts(stockData.products);
+      setProductTotal(stockData.pagination?.total ?? stockData.products.length);
+      setProductPageCount(stockData.pagination?.pageCount ?? 1);
+      setProductPage(stockData.pagination?.page ?? productPage);
+      setProductPageSize(stockData.pagination?.pageSize ?? productPageSize);
+      setStockSummary(stockData.summary ?? { stock: 0, required: 0, short: 0 });
       setMaterials(materialData.items);
+      setMaterialTotal(materialData.pagination?.total ?? materialData.items.length);
+      setMaterialPageCount(materialData.pagination?.pageCount ?? 1);
+      setMaterialPage(materialData.pagination?.page ?? materialPage);
+      setMaterialPageSize(materialData.pagination?.pageSize ?? materialPageSize);
+      setMaterialSummary(materialData.summary ?? { stock: 0, value: 0, low: 0 });
+      setMaterialCategories(materialData.categories || []);
     } catch (error) {
       toast.error("Could not load inventory", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -191,7 +189,7 @@ export default function BakeryInventoryPage() {
 
   useEffect(() => {
     loadData();
-  }, [categoryId, filterMode, date, month]);
+  }, [categoryId, filterMode, date, month, productPage, productPageSize, search, materialPage, materialPageSize, materialSearch, materialCategory]);
 
   function openStockModal(product: ProductStock) {
     setStockProduct(product);
@@ -321,20 +319,20 @@ export default function BakeryInventoryPage() {
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
               <div className="flex min-w-0 flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-end">
                 <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap">
-                  <select className="min-w-0 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setCategoryId(event.target.value)} value={categoryId}>
+                  <select className="min-w-0 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setCategoryId(event.target.value); setProductPage(1); }} value={categoryId}>
                     <option value="all">All categories</option>
                     {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                   </select>
-                  <select className="min-w-0 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setFilterMode(event.target.value as "date" | "month")} value={filterMode}>
+                  <select className="min-w-0 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setFilterMode(event.target.value as "date" | "month"); setProductPage(1); }} value={filterMode}>
                     <option value="month">Month</option>
                     <option value="date">Date</option>
                   </select>
                   <label className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
                     <CalendarDays size={16} className="text-muted" />
                     {filterMode === "month" ? (
-                      <input className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" onChange={(event) => setMonth(event.target.value)} type="month" value={month} />
+                      <input className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" onChange={(event) => { setMonth(event.target.value); setProductPage(1); }} type="month" value={month} />
                     ) : (
-                      <input className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+                      <input className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" onChange={(event) => { setDate(event.target.value); setProductPage(1); }} type="date" value={date} />
                     )}
                   </label>
                   <button className="focus-ring grid h-10 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-10" onClick={loadData} title="Refresh stock" type="button">
@@ -346,22 +344,27 @@ export default function BakeryInventoryPage() {
               <div className="border-b border-line p-3">
                 <label className="flex max-w-md items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
                   <Search size={16} className="text-muted" />
-                  <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search product or category" value={search} />
+                  <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => { setSearch(event.target.value); setProductPage(1); }} placeholder="Search product or category" value={search} />
                 </label>
               </div>
 
               {loading ? <LoadingSpinner label="Loading stock" /> : null}
               <PaginationControls
-                {...productsPage}
+                page={productPage}
+                pageCount={productPageCount}
+                pageSize={productPageSize}
+                setPage={setProductPage}
+                setPageSize={setProductPageSize}
+                total={productTotal}
                 summary={[
-                  { label: "Stock", value: formatNumber(totals.stock) },
-                  { label: "Required", value: formatNumber(totals.required) },
-                  { label: "Short", value: totals.short }
+                  { label: "Stock", value: formatNumber(stockSummary.stock) },
+                  { label: "Required", value: formatNumber(stockSummary.required) },
+                  { label: "Short", value: stockSummary.short }
                 ]}
               />
 
               <div className="grid gap-3 p-3 sm:hidden">
-                {productsPage.pageItems.map((product) => (
+                {products.map((product) => (
                   <article key={product.id} className="rounded-lg border border-line bg-panel2 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -394,7 +397,7 @@ export default function BakeryInventoryPage() {
                     </button>
                   </article>
                 ))}
-                {!loading && !filteredProducts.length ? (
+                {!loading && !products.length ? (
                   <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No products found for this filter.</p>
                 ) : null}
               </div>
@@ -413,7 +416,7 @@ export default function BakeryInventoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {productsPage.pageItems.map((product) => (
+                    {products.map((product) => (
                       <tr key={product.id}>
                         <td className="px-4 py-3">
                           <span className="block font-semibold">{product.name}</span>
@@ -436,7 +439,7 @@ export default function BakeryInventoryPage() {
                         </td>
                       </tr>
                     ))}
-                    {!loading && !filteredProducts.length ? (
+                    {!loading && !products.length ? (
                       <tr>
                         <td className="px-4 py-8 text-center text-muted" colSpan={7}>No products found for this filter.</td>
                       </tr>
@@ -467,9 +470,9 @@ export default function BakeryInventoryPage() {
               <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-between">
                 <label className="flex max-w-md flex-1 items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
                   <Search size={16} className="text-muted" />
-                  <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setMaterialSearch(event.target.value)} placeholder="Search material or category" value={materialSearch} />
+                  <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => { setMaterialSearch(event.target.value); setMaterialPage(1); }} placeholder="Search material or category" value={materialSearch} />
                 </label>
-                <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setMaterialCategory(event.target.value)} value={materialCategory}>
+                <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setMaterialCategory(event.target.value); setMaterialPage(1); }} value={materialCategory}>
                   <option value="all">All categories</option>
                   {materialCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                 </select>
@@ -477,16 +480,21 @@ export default function BakeryInventoryPage() {
 
               {loading ? <LoadingSpinner label="Loading materials" /> : null}
               <PaginationControls
-                {...materialsPage}
+                page={materialPage}
+                pageCount={materialPageCount}
+                pageSize={materialPageSize}
+                setPage={setMaterialPage}
+                setPageSize={setMaterialPageSize}
+                total={materialTotal}
                 summary={[
-                  { label: "Quantity", value: formatNumber(materialTotals.stock) },
-                  { label: "Value", value: formatAmount(materialTotals.value) },
-                  { label: "Low", value: materialTotals.low }
+                  { label: "Quantity", value: formatNumber(materialSummary.stock) },
+                  { label: "Value", value: formatAmount(materialSummary.value) },
+                  { label: "Low", value: materialSummary.low }
                 ]}
               />
 
               <div className="grid gap-3 p-3 sm:hidden">
-                {materialsPage.pageItems.map((material) => {
+                {materials.map((material) => {
                   const last = material.ledger?.[0];
                   const value = Number(material.stockOnHand || 0) * Number(material.unitPrice || 0);
                   return (
@@ -533,7 +541,7 @@ export default function BakeryInventoryPage() {
                     </article>
                   );
                 })}
-                {!loading && !filteredMaterials.length ? (
+                {!loading && !materials.length ? (
                   <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No raw materials found.</p>
                 ) : null}
               </div>
@@ -552,7 +560,7 @@ export default function BakeryInventoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {materialsPage.pageItems.map((material) => {
+                    {materials.map((material) => {
                       const last = material.ledger?.[0];
                       const value = Number(material.stockOnHand || 0) * Number(material.unitPrice || 0);
                       return (
@@ -591,7 +599,7 @@ export default function BakeryInventoryPage() {
                         </tr>
                       );
                     })}
-                    {!loading && !filteredMaterials.length ? (
+                    {!loading && !materials.length ? (
                       <tr>
                         <td className="px-4 py-8 text-center text-muted" colSpan={7}>No raw materials found.</td>
                       </tr>

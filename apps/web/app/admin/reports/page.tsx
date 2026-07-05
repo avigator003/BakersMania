@@ -176,8 +176,8 @@ export default function AdminReportsPage() {
       const paths: Array<[string, string]> = [
         ["Health", "/health"],
         ["Server diagnostics", `/platform-admin/diagnostics?tenantSlug=${encodeURIComponent(tenantSlug)}`],
-        ["Customers", `/t/${tenantSlug}/customers`],
-        ["Products", `/t/${tenantSlug}/catalog/products`],
+        ["Customers", `/t/${tenantSlug}/customers?pageSize=100`],
+        ["Products", `/t/${tenantSlug}/catalog/products?pageSize=100`],
         ["Orders", `/t/${tenantSlug}/orders`]
       ];
       const results = [];

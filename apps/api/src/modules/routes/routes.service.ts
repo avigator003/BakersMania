@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { bakeryRoutesRepository } from "./routes.repository.js";
+import type { RouteListFilters, VehicleListFilters } from "./routes.repository.js";
 import type { RouteInput, VehicleInput } from "./routes.schemas.js";
 import { HttpError } from "../../utils/http.js";
 
@@ -12,8 +13,8 @@ function vehicleEmail(tenantId: string, phone: string) {
 }
 
 export const bakeryRoutesService = {
-  listVehicles(tenantId: string) {
-    return bakeryRoutesRepository.listVehicles(tenantId);
+  listVehicles(tenantId: string, filters: VehicleListFilters = {}) {
+    return bakeryRoutesRepository.listVehicles(tenantId, filters);
   },
 
   async createVehicle(tenantId: string, input: VehicleInput) {
@@ -51,8 +52,8 @@ export const bakeryRoutesService = {
     return bakeryRoutesRepository.updateVehicle(tenantId, vehicleId, { ...input, driverPhone: phone, userId: user.id });
   },
 
-  list(tenantId: string) {
-    return bakeryRoutesRepository.list(tenantId);
+  list(tenantId: string, filters: RouteListFilters = {}) {
+    return bakeryRoutesRepository.list(tenantId, filters);
   },
 
   async create(tenantId: string, input: RouteInput) {

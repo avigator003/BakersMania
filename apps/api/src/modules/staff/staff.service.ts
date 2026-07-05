@@ -1,4 +1,5 @@
 import { staffRepository } from "./staff.repository.js";
+import type { LabourDashboardFilters } from "./staff.repository.js";
 import type { AttendanceInput, LabourInput, LabourUpdateInput, SalaryPaymentInput } from "./staff.schemas.js";
 
 function monthRange(month?: string) {
@@ -36,13 +37,13 @@ function emptyPaymentCounts() {
 }
 
 export const staffService = {
-  async listLabourDashboard(tenantId: string, attendanceDate?: Date) {
-    const [labours, todayAttendance, paymentsThisMonth, recentAttendance, recentPayments] =
-      await staffRepository.listLabourDashboard(tenantId, attendanceDate);
+  async listLabourDashboard(tenantId: string, attendanceDate?: Date, filters: LabourDashboardFilters = {}) {
+    const dashboard = await staffRepository.listLabourDashboard(tenantId, attendanceDate, filters);
+    const { labours, todayAttendance, paymentsThisMonth, recentAttendance, recentPayments } = dashboard;
 
     const stats = {
-      totalLabour: labours.length,
-      activeLabour: labours.filter((labour) => labour.active).length,
+      totalLabour: dashboard.totalLabour,
+      activeLabour: dashboard.activeLabour,
       presentToday: todayAttendance.filter((attendance) => attendance.status === "PRESENT").length,
       absentToday: todayAttendance.filter((attendance) => attendance.status === "ABSENT").length,
       paymentThisMonth: paymentsThisMonth.reduce((sum, payment) => sum + Number(payment.amount), 0),
@@ -54,7 +55,7 @@ export const staffService = {
         .reduce((sum, payment) => sum + Number(payment.amount), 0)
     };
 
-    return { stats, labours, todayAttendance, recentAttendance, recentPayments };
+    return { stats, labours, todayAttendance, recentAttendance, recentPayments, pagination: dashboard.pagination };
   },
 
   createLabour(tenantId: string, input: LabourInput) {

@@ -6,17 +6,33 @@ function listParam(value: unknown) {
   return String(value).split(",").map((item) => item.trim()).filter((item) => item && item !== "all");
 }
 
+function numberParam(value: unknown) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export const ordersController = {
   async list(req: Request, res: Response) {
+    const result = await ordersService.listOrders(req.tenant!.id, req.auth, {
+      startDate: req.query.startDate ? String(req.query.startDate) : undefined,
+      endDate: req.query.endDate ? String(req.query.endDate) : undefined,
+      customerId: req.query.customerId ? String(req.query.customerId) : undefined,
+      routeId: req.query.routeId ? String(req.query.routeId) : undefined,
+      customerIds: listParam(req.query.customerIds),
+      routeIds: listParam(req.query.routeIds),
+      search: req.query.search ? String(req.query.search) : undefined,
+      page: numberParam(req.query.page),
+      pageSize: numberParam(req.query.pageSize)
+    });
     res.json({
-      orders: await ordersService.listOrders(req.tenant!.id, req.auth, {
-        startDate: req.query.startDate ? String(req.query.startDate) : undefined,
-        endDate: req.query.endDate ? String(req.query.endDate) : undefined,
-        customerId: req.query.customerId ? String(req.query.customerId) : undefined,
-        routeId: req.query.routeId ? String(req.query.routeId) : undefined,
-        customerIds: listParam(req.query.customerIds),
-        routeIds: listParam(req.query.routeIds)
-      })
+      orders: result.items,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+        pageCount: result.pageCount
+      }
     });
   },
 

@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { CreditCard, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
 import { LoadingSpinner } from "../../../../components/loading-spinner";
 import { Modal } from "../../../../components/modal";
-import { PaginationControls, usePagination } from "../../../../components/pagination";
+import { PaginationControls } from "../../../../components/pagination";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
@@ -48,6 +48,19 @@ type Purchase = {
   supplier: Supplier;
   item?: RawMaterial | null;
   payments: PurchasePayment[];
+};
+
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+type PurchaseSummary = {
+  amount: number;
+  paid: number;
+  due: number;
 };
 
 const today = new Date();
@@ -103,31 +116,14 @@ export default function RawMaterialSellersPage() {
   const [purchaseForm, setPurchaseForm] = useState(initialPurchaseForm);
   const [payPurchase, setPayPurchase] = useState<Purchase | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: "", paymentType: "PARTIAL", method: "Cash", reference: "", note: "", paidAt: initialDate });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pageCount, setPageCount] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totals, setTotals] = useState<PurchaseSummary>({ amount: 0, paid: 0, due: 0 });
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
-
-  const filteredPurchases = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return purchases;
-    return purchases.filter((purchase) =>
-      [purchase.supplier.name, purchase.item?.name, purchase.item?.category, purchase.notes]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    );
-  }, [purchases, search]);
-  const purchasesPage = usePagination(filteredPurchases, 25);
-
-  const totals = useMemo(() => {
-    return purchases.reduce(
-      (summary, purchase) => ({
-        amount: summary.amount + Number(purchase.amount || 0),
-        paid: summary.paid + Number(purchase.paidAmount || 0),
-        due: summary.due + Math.max(Number(purchase.amount || 0) - Number(purchase.paidAmount || 0), 0)
-      }),
-      { amount: 0, paid: 0, due: 0 }
-    );
-  }, [purchases]);
 
   async function loadData() {
     if (!apiBase) {
@@ -139,16 +135,24 @@ export default function RawMaterialSellersPage() {
     try {
       const params = new URLSearchParams();
       params.set("month", month);
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
       if (status !== "all") params.set("status", status);
       if (supplierFilter !== "all") params.set("supplierId", supplierFilter);
+      if (search.trim()) params.set("search", search.trim());
       const [supplierData, materialData, purchaseData] = await Promise.all([
         authFetch<{ suppliers: Supplier[] }>(`${apiBase}/suppliers`),
-        authFetch<{ items: RawMaterial[] }>(`${apiBase}/inventory/items`),
-        authFetch<{ purchases: Purchase[] }>(`${apiBase}/suppliers/purchases?${params.toString()}`)
+        authFetch<{ items: RawMaterial[] }>(`${apiBase}/inventory/items?pageSize=100`),
+        authFetch<{ purchases: Purchase[]; pagination?: PaginationMeta; summary?: PurchaseSummary }>(`${apiBase}/suppliers/purchases?${params.toString()}`)
       ]);
       setSuppliers(supplierData.suppliers);
       setMaterials(materialData.items);
       setPurchases(purchaseData.purchases);
+      setTotal(purchaseData.pagination?.total ?? purchaseData.purchases.length);
+      setPageCount(purchaseData.pagination?.pageCount ?? 1);
+      setPage(purchaseData.pagination?.page ?? page);
+      setPageSize(purchaseData.pagination?.pageSize ?? pageSize);
+      setTotals(purchaseData.summary ?? { amount: 0, paid: 0, due: 0 });
     } catch (error) {
       toast.error("Could not load seller payments", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -158,7 +162,7 @@ export default function RawMaterialSellersPage() {
 
   useEffect(() => {
     loadData();
-  }, [month, status, supplierFilter]);
+  }, [month, status, supplierFilter, page, pageSize, search]);
 
   async function createSupplier(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -271,16 +275,16 @@ export default function RawMaterialSellersPage() {
           <div className="grid gap-3 border-b border-line p-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
             <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Search size={16} className="text-muted" />
-              <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search seller, material, note" value={search} />
+              <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search seller, material, note" value={search} />
             </label>
-            <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setMonth(event.target.value)} type="month" value={month} />
-            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setStatus(event.target.value)} value={status}>
+            <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setMonth(event.target.value); setPage(1); }} type="month" value={month} />
+            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setStatus(event.target.value); setPage(1); }} value={status}>
               <option value="all">All status</option>
               <option value="UNPAID">Unpaid</option>
               <option value="PARTIAL">Partial</option>
               <option value="PAID">Paid</option>
             </select>
-            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setSupplierFilter(event.target.value)} value={supplierFilter}>
+            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setSupplierFilter(event.target.value); setPage(1); }} value={supplierFilter}>
               <option value="all">All sellers</option>
               {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
             </select>
@@ -288,7 +292,12 @@ export default function RawMaterialSellersPage() {
 
           {loading ? <LoadingSpinner label="Loading seller purchases" /> : null}
           <PaginationControls
-            {...purchasesPage}
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            setPage={setPage}
+            setPageSize={setPageSize}
+            total={total}
             summary={[
               { label: "Sellers", value: suppliers.length },
               { label: "Month total", value: formatAmount(totals.amount) },
@@ -297,7 +306,7 @@ export default function RawMaterialSellersPage() {
           />
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {purchasesPage.pageItems.map((purchase) => {
+            {purchases.map((purchase) => {
               const due = Math.max(Number(purchase.amount || 0) - Number(purchase.paidAmount || 0), 0);
               return (
                 <article key={purchase.id} className="rounded-lg border border-line bg-panel2 p-3">
@@ -334,7 +343,7 @@ export default function RawMaterialSellersPage() {
                 </article>
               );
             })}
-            {!loading && !filteredPurchases.length ? (
+            {!loading && !purchases.length ? (
               <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No purchases found for this filter.</p>
             ) : null}
           </div>
@@ -355,7 +364,7 @@ export default function RawMaterialSellersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {purchasesPage.pageItems.map((purchase) => {
+                {purchases.map((purchase) => {
                   const due = Math.max(Number(purchase.amount || 0) - Number(purchase.paidAmount || 0), 0);
                   return (
                     <tr key={purchase.id}>
@@ -386,7 +395,7 @@ export default function RawMaterialSellersPage() {
                     </tr>
                   );
                 })}
-                {!loading && !filteredPurchases.length ? (
+                {!loading && !purchases.length ? (
                   <tr>
                     <td className="px-4 py-8 text-center text-muted" colSpan={9}>No purchases found for this filter.</td>
                   </tr>

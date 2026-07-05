@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { PaymentStatus } from "@prisma/client";
+import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
 import type { PurchaseInput, PurchasePaymentInput, SupplierInput } from "./suppliers.schemas.js";
 
 function resolveMonthRange(month?: string) {
@@ -9,6 +10,13 @@ function resolveMonthRange(month?: string) {
   end.setUTCMonth(end.getUTCMonth() + 1);
   return { gte: start, lt: end };
 }
+
+export type PurchaseListFilters = PaginationInput & {
+  month?: string;
+  status?: string;
+  supplierId?: string;
+  search?: string;
+};
 
 export const suppliersRepository = {
   list(tenantId: string) {
@@ -42,22 +50,49 @@ export const suppliersRepository = {
     return prisma.purchase.findFirst({ where: { id: purchaseId, tenantId } });
   },
 
-  listPurchases(tenantId: string, filters: { month?: string; status?: string; supplierId?: string }) {
+  async listPurchases(tenantId: string, filters: PurchaseListFilters) {
     const purchasedAt = resolveMonthRange(filters.month);
-    return prisma.purchase.findMany({
-      where: {
-        tenantId,
-        ...(Object.keys(purchasedAt).length ? { purchasedAt } : {}),
-        ...(filters.status && filters.status !== "all" ? { paymentStatus: filters.status as PaymentStatus } : {}),
-        ...(filters.supplierId && filters.supplierId !== "all" ? { supplierId: filters.supplierId } : {})
-      },
-      include: {
-        supplier: true,
-        item: true,
-        payments: { orderBy: { paidAt: "desc" } }
-      },
-      orderBy: { purchasedAt: "desc" }
-    });
+    const { page, pageSize, skip } = pagination(filters);
+    const search = filters.search?.trim();
+    const where = {
+      tenantId,
+      ...(Object.keys(purchasedAt).length ? { purchasedAt } : {}),
+      ...(filters.status && filters.status !== "all" ? { paymentStatus: filters.status as PaymentStatus } : {}),
+      ...(filters.supplierId && filters.supplierId !== "all" ? { supplierId: filters.supplierId } : {}),
+      ...(search
+        ? {
+            OR: [
+              { notes: { contains: search, mode: "insensitive" as const } },
+              { supplier: { name: { contains: search, mode: "insensitive" as const } } },
+              { item: { name: { contains: search, mode: "insensitive" as const } } },
+              { item: { category: { contains: search, mode: "insensitive" as const } } }
+            ]
+          }
+        : {})
+    };
+    const [purchases, total, amountAgg, paidAgg] = await Promise.all([
+      prisma.purchase.findMany({
+        where,
+        include: {
+          supplier: true,
+          item: true,
+          payments: { orderBy: { paidAt: "desc" } }
+        },
+        orderBy: { purchasedAt: "desc" },
+        skip,
+        take: pageSize
+      }),
+      prisma.purchase.count({ where }),
+      prisma.purchase.aggregate({ where, _sum: { amount: true } }),
+      prisma.purchase.aggregate({ where, _sum: { paidAmount: true } })
+    ]);
+    const amount = Number(amountAgg._sum.amount || 0);
+    const paid = Number(paidAgg._sum.paidAmount || 0);
+    return {
+      purchases,
+      pagination: paginationMeta(total, page, pageSize),
+      summary: { amount, paid, due: Math.max(amount - paid, 0) }
+    };
   },
 
   createPurchase(tenantId: string, input: PurchaseInput) {

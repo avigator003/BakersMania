@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { IndianRupee, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../../../components/shell";
 import { LoadingSpinner } from "../../../../../components/loading-spinner";
-import { PaginationControls, usePagination } from "../../../../../components/pagination";
+import { PaginationControls } from "../../../../../components/pagination";
 import { SearchableSelect } from "../../../../../components/searchable-select";
 import { useToast } from "../../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../../lib/api";
@@ -51,6 +51,13 @@ type PriceRow = {
   customerIds: string[];
 };
 
+type PaginationMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
 function formatAmount(value?: string | number | null) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
@@ -66,6 +73,10 @@ export default function ProductPriceAssignmentPage() {
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(25);
+  const [historyPageCount, setHistoryPageCount] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
@@ -83,8 +94,6 @@ export default function ProductPriceAssignmentPage() {
   const validRows = useMemo(() => {
     return priceRows.filter((row) => Number(row.price) > 0 && row.customerIds.length);
   }, [priceRows]);
-  const historyPage = usePagination(history, 25);
-
   async function loadData() {
     if (!apiBase || !params.productId) {
       toast.error("Bakery slug missing", "Please sign in again.");
@@ -96,12 +105,16 @@ export default function ProductPriceAssignmentPage() {
     try {
       const [productData, customerData] = await Promise.all([
         authFetch<{ product: Product }>(`${apiBase}/catalog/products/${params.productId}`),
-        authFetch<{ customers: Customer[] }>(`${apiBase}/customers`)
+        authFetch<{ customers: Customer[] }>(`${apiBase}/customers?pageSize=100`)
       ]);
-      const historyData = await authFetch<{ history: PriceHistory[] }>(`${apiBase}/catalog/products/${params.productId}/price-history`);
+      const historyData = await authFetch<{ history: PriceHistory[]; pagination?: PaginationMeta }>(`${apiBase}/catalog/products/${params.productId}/price-history?page=${historyPage}&pageSize=${historyPageSize}`);
       setProduct(productData.product);
       setCustomers(customerData.customers);
       setHistory(historyData.history);
+      setHistoryTotal(historyData.pagination?.total ?? historyData.history.length);
+      setHistoryPageCount(historyData.pagination?.pageCount ?? 1);
+      setHistoryPage(historyData.pagination?.page ?? historyPage);
+      setHistoryPageSize(historyData.pagination?.pageSize ?? historyPageSize);
     } catch (error) {
       toast.error("Could not load price assignment", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -111,7 +124,7 @@ export default function ProductPriceAssignmentPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [historyPage, historyPageSize]);
 
   function addRow() {
     setPriceRows((current) => [...current, { id: `row-${Date.now()}`, price: "", customerIds: [] }]);
@@ -311,9 +324,9 @@ export default function ProductPriceAssignmentPage() {
             <p className="text-sm font-semibold uppercase text-mint">Price History</p>
             <h2 className="mt-1 text-lg font-semibold">Recent customer price changes</h2>
           </div>
-          <PaginationControls {...historyPage} />
+          <PaginationControls page={historyPage} pageCount={historyPageCount} pageSize={historyPageSize} setPage={setHistoryPage} setPageSize={setHistoryPageSize} total={historyTotal} />
           <div className="grid gap-3 p-3 sm:hidden">
-            {historyPage.pageItems.map((item) => (
+            {history.map((item) => (
               <article key={item.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -341,7 +354,7 @@ export default function ProductPriceAssignmentPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {historyPage.pageItems.map((item) => (
+                {history.map((item) => (
                   <tr key={item.id}>
                     <td className="px-4 py-3 font-semibold">{item.customer.name}</td>
                     <td className="px-4 py-3 text-muted">{item.customer.route?.name || "No route"}</td>

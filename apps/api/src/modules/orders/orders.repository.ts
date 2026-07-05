@@ -1,4 +1,4 @@
-import type { OrderStatus, PaymentStatus, Prisma } from "@prisma/client";
+import { OrderSource, OrderStatus, PaymentStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import type { CreateOrderInput } from "./orders.schemas.js";
 
@@ -9,6 +9,9 @@ type OrderListFilters = {
   routeId?: string;
   customerIds?: string[];
   routeIds?: string[];
+  search?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
@@ -17,6 +20,108 @@ function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
       { routeId: { in: routeIds } },
       { routeId: null, customer: { routeId: { in: routeIds } } }
     ]
+  };
+}
+
+function pagination(filters: OrderListFilters) {
+  const pageSize = Math.min(Math.max(Number(filters.pageSize) || 100, 1), 100);
+  const page = Math.max(Number(filters.page) || 1, 1);
+  return { page, pageSize, skip: (page - 1) * pageSize };
+}
+
+function dateRangeFilter(filters: OrderListFilters) {
+  if (!filters.startDate && !filters.endDate) return null;
+  const dateRange: { gte?: Date; lt?: Date } = {};
+  if (filters.startDate) {
+    dateRange.gte = new Date(`${filters.startDate}T00:00:00.000Z`);
+  }
+  if (filters.endDate) {
+    const end = new Date(`${filters.endDate}T00:00:00.000Z`);
+    end.setUTCDate(end.getUTCDate() + 1);
+    dateRange.lt = end;
+  }
+  return {
+    OR: [
+      { dueAt: dateRange },
+      { dueAt: null, createdAt: dateRange }
+    ]
+  } satisfies Prisma.OrderWhereInput;
+}
+
+function searchFilter(search?: string) {
+  const query = search?.trim();
+  if (!query) return null;
+  const upperQuery = query.toUpperCase();
+  const enumFilters: Prisma.OrderWhereInput[] = [];
+  if (Object.values(OrderSource).includes(upperQuery as OrderSource)) {
+    enumFilters.push({ source: upperQuery as OrderSource });
+  }
+  if (Object.values(OrderStatus).includes(upperQuery as OrderStatus)) {
+    enumFilters.push({ status: upperQuery as OrderStatus });
+  }
+  if (Object.values(PaymentStatus).includes(upperQuery as PaymentStatus)) {
+    enumFilters.push({ paymentStatus: upperQuery as PaymentStatus });
+  }
+  return {
+    OR: [
+      ...enumFilters,
+      { customer: { name: { contains: query, mode: "insensitive" } } },
+      { customer: { phone: { contains: query, mode: "insensitive" } } },
+      { customer: { route: { name: { contains: query, mode: "insensitive" } } } },
+      { route: { name: { contains: query, mode: "insensitive" } } }
+    ]
+  } satisfies Prisma.OrderWhereInput;
+}
+
+function buildOrderWhere(tenantId: string, filters: OrderListFilters = {}, baseFilters: Prisma.OrderWhereInput[] = []) {
+  const where: Prisma.OrderWhereInput = { tenantId };
+  const andFilters: Prisma.OrderWhereInput[] = [...baseFilters];
+
+  if (filters.customerId && filters.customerId !== "all") {
+    andFilters.push({ customerId: filters.customerId });
+  }
+  if (filters.customerIds?.length) {
+    andFilters.push({ customerId: { in: filters.customerIds } });
+  }
+
+  if (filters.routeId && filters.routeId !== "all") {
+    andFilters.push({ OR: [{ routeId: filters.routeId }, { routeId: null, customer: { routeId: filters.routeId } }] });
+  }
+  if (filters.routeIds?.length) {
+    andFilters.push(routeScope(filters.routeIds));
+  }
+
+  const dateFilter = dateRangeFilter(filters);
+  if (dateFilter) andFilters.push(dateFilter);
+
+  const textFilter = searchFilter(filters.search);
+  if (textFilter) andFilters.push(textFilter);
+
+  if (andFilters.length) {
+    where.AND = andFilters;
+  }
+  return where;
+}
+
+async function paginatedOrders(where: Prisma.OrderWhereInput, filters: OrderListFilters, orderBy: Prisma.OrderOrderByWithRelationInput | Prisma.OrderOrderByWithRelationInput[]) {
+  const { page, pageSize, skip } = pagination(filters);
+  const [items, total] = await prisma.$transaction([
+    prisma.order.findMany({
+      where,
+      include: { customer: { include: { route: true } }, route: true, items: true, invoice: true, payments: true },
+      orderBy,
+      skip,
+      take: pageSize
+    }),
+    prisma.order.count({ where })
+  ]);
+
+  return {
+    items,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(total / pageSize))
   };
 }
 
@@ -31,62 +136,11 @@ type CalculatedOrderItem = {
 
 export const ordersRepository = {
   listForStaff(tenantId: string, filters: OrderListFilters = {}) {
-    const where: Prisma.OrderWhereInput = { tenantId };
-    const andFilters: Prisma.OrderWhereInput[] = [];
-
-    if (filters.customerId && filters.customerId !== "all") {
-      andFilters.push({ customerId: filters.customerId });
-    }
-    if (filters.customerIds?.length) {
-      andFilters.push({ customerId: { in: filters.customerIds } });
-    }
-
-    if (filters.routeId && filters.routeId !== "all") {
-      andFilters.push({
-        OR: [{ routeId: filters.routeId }, { routeId: null, customer: { routeId: filters.routeId } }]
-      });
-    }
-    if (filters.routeIds?.length) {
-      andFilters.push(routeScope(filters.routeIds));
-    }
-
-    if (filters.startDate || filters.endDate) {
-      const dateRange: { gte?: Date; lt?: Date } = {};
-      if (filters.startDate) {
-        dateRange.gte = new Date(`${filters.startDate}T00:00:00.000Z`);
-      }
-      if (filters.endDate) {
-        const end = new Date(`${filters.endDate}T00:00:00.000Z`);
-        end.setUTCDate(end.getUTCDate() + 1);
-        dateRange.lt = end;
-      }
-      andFilters.push({
-        OR: [
-          { dueAt: dateRange },
-          { dueAt: null, createdAt: dateRange }
-        ]
-      });
-    }
-
-    if (andFilters.length) {
-      where.AND = andFilters;
-    }
-
-    return prisma.order.findMany({
-      where,
-      include: { customer: { include: { route: true } }, route: true, items: true, invoice: true, payments: true },
-      orderBy: { createdAt: "desc" },
-      take: 100
-    });
+    return paginatedOrders(buildOrderWhere(tenantId, filters), filters, { createdAt: "desc" });
   },
 
-  listForCustomer(tenantId: string, customerId: string) {
-    return prisma.order.findMany({
-      where: { tenantId, customerId },
-      include: { customer: { include: { route: true } }, route: true, items: true, invoice: true, payments: true },
-      orderBy: { createdAt: "desc" },
-      take: 100
-    });
+  listForCustomer(tenantId: string, customerId: string, filters: OrderListFilters = {}) {
+    return paginatedOrders(buildOrderWhere(tenantId, filters, [{ customerId }]), filters, { createdAt: "desc" });
   },
 
   findVehicleRoutes(tenantId: string, vehicleId: string) {
@@ -97,37 +151,7 @@ export const ordersRepository = {
   },
 
   listForVehicle(tenantId: string, routeIds: string[], filters: OrderListFilters = {}) {
-    const where: Prisma.OrderWhereInput = { tenantId };
-    const andFilters: Prisma.OrderWhereInput[] = [routeScope(routeIds)];
-
-    if (filters.startDate || filters.endDate) {
-      const dateRange: { gte?: Date; lt?: Date } = {};
-      if (filters.startDate) dateRange.gte = new Date(`${filters.startDate}T00:00:00.000Z`);
-      if (filters.endDate) {
-        const end = new Date(`${filters.endDate}T00:00:00.000Z`);
-        end.setUTCDate(end.getUTCDate() + 1);
-        dateRange.lt = end;
-      }
-      andFilters.push({ OR: [{ dueAt: dateRange }, { dueAt: null, createdAt: dateRange }] });
-    }
-
-    if (filters.routeId && filters.routeId !== "all") {
-      andFilters.push({ OR: [{ routeId: filters.routeId }, { routeId: null, customer: { routeId: filters.routeId } }] });
-    }
-    if (filters.routeIds?.length) {
-      andFilters.push(routeScope(filters.routeIds));
-    }
-    if (filters.customerIds?.length) {
-      andFilters.push({ customerId: { in: filters.customerIds } });
-    }
-
-    where.AND = andFilters;
-    return prisma.order.findMany({
-      where,
-      include: { customer: { include: { route: true } }, route: true, items: true, invoice: true, payments: true },
-      orderBy: { createdAt: "asc" },
-      take: 100
-    });
+    return paginatedOrders(buildOrderWhere(tenantId, filters, [routeScope(routeIds)]), filters, { createdAt: "asc" });
   },
 
   findCustomer(tenantId: string, customerId: string) {

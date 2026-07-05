@@ -1,9 +1,10 @@
 import { HttpError } from "../../utils/http.js";
 import { financeRepository } from "./finance.repository.js";
+import type { ExpenseListFilters } from "./finance.repository.js";
 import type { ExpenseInput, ExpenseStatusInput } from "./finance.schemas.js";
 
 export const financeService = {
-  listExpenses(tenantId: string, filters: { month?: string; type?: string; status?: string }) {
+  listExpenses(tenantId: string, filters: ExpenseListFilters) {
     return financeRepository.listExpenses(tenantId, filters);
   },
 

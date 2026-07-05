@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { HttpError } from "../../utils/http.js";
 import { customersRepository } from "./customers.repository.js";
+import type { CustomerListFilters } from "./customers.repository.js";
 import type { CustomerInput, CustomerUpdateInput } from "./customers.schemas.js";
 
 function normalizePhone(value?: string | null) {
@@ -12,7 +13,7 @@ function customerEmail(tenantId: string, phone: string, email?: string) {
 }
 
 function withBalance(
-  customer: Awaited<ReturnType<typeof customersRepository.listByTenant>>[number],
+  customer: Awaited<ReturnType<typeof customersRepository.listByTenant>>["customers"][number],
   summary?: { orderTotal: number; paidTotal: number }
 ) {
   const orderTotal = summary?.orderTotal || 0;
@@ -29,12 +30,13 @@ function withBalance(
 }
 
 export const customersService = {
-  async listCustomers(tenantId: string) {
-    const [customers, summaries] = await Promise.all([
-      customersRepository.listByTenant(tenantId),
-      customersRepository.financialSummaryByCustomer(tenantId)
-    ]);
-    return customers.map((customer) => withBalance(customer, summaries.get(customer.id)));
+  async listCustomers(tenantId: string, filters: CustomerListFilters = {}) {
+    const result = await customersRepository.listByTenant(tenantId, filters);
+    const summaries = await customersRepository.financialSummaryByCustomer(tenantId, result.customers.map((customer) => customer.id));
+    return {
+      customers: result.customers.map((customer) => withBalance(customer, summaries.get(customer.id))),
+      pagination: result.pagination
+    };
   },
 
   async createCustomer(actorType: string | undefined, tenantId: string, input: CustomerInput) {

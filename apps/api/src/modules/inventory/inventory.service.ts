@@ -1,10 +1,11 @@
 import { inventoryRepository } from "./inventory.repository.js";
+import type { InventoryItemFilters, ProductStockFilters } from "./inventory.repository.js";
 import { HttpError } from "../../utils/http.js";
 import type { InventoryItemInput, InventoryLedgerInput, ProductStockAdjustmentInput } from "./inventory.schemas.js";
 
 export const inventoryService = {
-  listItems(tenantId: string) {
-    return inventoryRepository.listItems(tenantId);
+  listItems(tenantId: string, filters: InventoryItemFilters = {}) {
+    return inventoryRepository.listItems(tenantId, filters);
   },
 
   createItem(tenantId: string, input: InventoryItemInput) {
@@ -30,7 +31,7 @@ export const inventoryService = {
     return inventoryRepository.adjustItem(tenantId, input);
   },
 
-  listProductStock(tenantId: string, filters: { categoryId?: string; date?: string; month?: string }) {
+  listProductStock(tenantId: string, filters: ProductStockFilters) {
     return inventoryRepository.listProductStock(tenantId, filters);
   },
 

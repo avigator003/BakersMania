@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
 import type { ExpenseInput, ExpenseStatusInput } from "./finance.schemas.js";
 
 function monthFromDate(date = new Date()) {
@@ -12,6 +13,13 @@ function resolveMonthRange(month?: string) {
   end.setUTCMonth(end.getUTCMonth() + 1);
   return { gte: start, lt: end };
 }
+
+export type ExpenseListFilters = PaginationInput & {
+  month?: string;
+  type?: string;
+  status?: string;
+  search?: string;
+};
 
 export const financeRepository = {
   async carryRecurringExpenses(tenantId: string, month: string) {
@@ -57,21 +65,58 @@ export const financeRepository = {
     );
   },
 
-  async listExpenses(tenantId: string, filters: { month?: string; type?: string; status?: string } = {}) {
+  async listExpenses(tenantId: string, filters: ExpenseListFilters = {}) {
     const periodMonth = filters.month || monthFromDate();
     await this.carryRecurringExpenses(tenantId, periodMonth);
+    const { page, pageSize, skip } = pagination(filters);
     const spentAt = resolveMonthRange(filters.month);
-    return prisma.expense.findMany({
-      where: {
-        tenantId,
-        periodMonth,
-        ...(Object.keys(spentAt).length ? { spentAt } : {}),
-        ...(filters.type && filters.type !== "all" ? { type: filters.type } : {}),
-        ...(filters.status && filters.status !== "all" ? { status: filters.status } : {})
-      },
-      include: { route: { include: { vehicle: true } } },
-      orderBy: { spentAt: "desc" }
-    });
+    const search = filters.search?.trim();
+    const where = {
+      tenantId,
+      periodMonth,
+      ...(Object.keys(spentAt).length ? { spentAt } : {}),
+      ...(filters.type && filters.type !== "all" ? { type: filters.type } : {}),
+      ...(filters.status && filters.status !== "all" ? { status: filters.status } : {}),
+      ...(search
+        ? {
+            OR: [
+              { category: { contains: search, mode: "insensitive" as const } },
+              { notes: { contains: search, mode: "insensitive" as const } },
+              { route: { name: { contains: search, mode: "insensitive" as const } } }
+            ]
+          }
+        : {})
+    };
+    const [expenses, total, totals] = await Promise.all([
+      prisma.expense.findMany({
+        where,
+        include: { route: { include: { vehicle: true } } },
+        orderBy: { spentAt: "desc" },
+        skip,
+        take: pageSize
+      }),
+      prisma.expense.count({ where }),
+      prisma.expense.groupBy({
+        by: ["status", "type"],
+        where,
+        _sum: { amount: true }
+      })
+    ]);
+    return {
+      expenses,
+      pagination: paginationMeta(total, page, pageSize),
+      summary: totals.reduce(
+        (summary, row) => {
+          const amount = Number(row._sum.amount || 0);
+          summary.total += amount;
+          if (row.status === "PAID") summary.paid += amount;
+          if (row.status === "PENDING") summary.pending += amount;
+          if (row.type === "RENT") summary.rent += amount;
+          return summary;
+        },
+        { total: 0, paid: 0, pending: 0, rent: 0 }
+      )
+    };
   },
 
   createExpense(tenantId: string, input: ExpenseInput) {

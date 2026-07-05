@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { numberQueryParam } from "../../utils/pagination.js";
 import { suppliersService } from "./suppliers.service.js";
 
 export const suppliersController = {
@@ -12,13 +13,14 @@ export const suppliersController = {
   },
 
   async listPurchases(req: Request, res: Response) {
-    res.json({
-      purchases: await suppliersService.listPurchases(req.tenant!.id, {
-        month: req.query.month ? String(req.query.month) : undefined,
-        status: req.query.status ? String(req.query.status) : undefined,
-        supplierId: req.query.supplierId ? String(req.query.supplierId) : undefined
-      })
-    });
+    res.json(await suppliersService.listPurchases(req.tenant!.id, {
+      month: req.query.month ? String(req.query.month) : undefined,
+      status: req.query.status ? String(req.query.status) : undefined,
+      supplierId: req.query.supplierId ? String(req.query.supplierId) : undefined,
+      search: req.query.search ? String(req.query.search) : undefined,
+      page: numberQueryParam(req.query.page),
+      pageSize: numberQueryParam(req.query.pageSize)
+    }));
   },
 
   async createPurchase(req: Request, res: Response) {

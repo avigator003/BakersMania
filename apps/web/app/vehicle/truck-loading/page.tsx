@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -30,6 +31,8 @@ export default function VehicleTruckLoadingPage() {
   const toast = useToast();
   const [date, setDate] = useState(today);
   const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
+  const [productFilter, setProductFilter] = useState<string[]>([]);
+  const [routeFilter, setRouteFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
@@ -52,17 +55,49 @@ export default function VehicleTruckLoadingPage() {
     loadData();
   }, [date]);
 
-  const totalQuantity = useMemo(() => truckLoading?.routes.reduce((sum, route) => sum + route.total, 0) || 0, [truckLoading]);
+  const productOptions = useMemo(() => (truckLoading?.products || []).map((product) => ({
+    value: product.id,
+    label: product.name,
+    description: product.category
+  })), [truckLoading]);
+
+  const routeOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
+    value: route.id,
+    label: route.name
+  })), [truckLoading]);
+
+  const visibleProducts = useMemo(() => {
+    const products = truckLoading?.products || [];
+    return productFilter.length ? products.filter((product) => productFilter.includes(product.id)) : products;
+  }, [productFilter, truckLoading]);
+
+  const visibleRoutes = useMemo(() => {
+    const routes = truckLoading?.routes || [];
+    return routeFilter.length ? routes.filter((route) => routeFilter.includes(route.id)) : routes;
+  }, [routeFilter, truckLoading]);
+
+  function routeTotal(route: TruckLoading["routes"][number]) {
+    return visibleProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0);
+  }
+
+  const productTotals = useMemo(() => {
+    return Object.fromEntries(visibleProducts.map((product) => [
+      product.id,
+      visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0)
+    ]));
+  }, [visibleProducts, visibleRoutes]);
+
+  const totalQuantity = useMemo(() => visibleRoutes.reduce((sum, route) => sum + routeTotal(route), 0), [visibleProducts, visibleRoutes]);
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const header = ["Route Name", ...truckLoading.products.map((product) => product.name), "Total"];
-    const rows = truckLoading.routes.map((route) => [
+    const header = ["Route Name", ...visibleProducts.map((product) => product.name), "Total"];
+    const rows = visibleRoutes.map((route) => [
       route.name,
-      ...truckLoading.products.map((product) => route.quantities[product.id] || ""),
-      route.total || ""
+      ...visibleProducts.map((product) => route.quantities[product.id] || ""),
+      routeTotal(route) || ""
     ]);
-    const totalRow = ["Total", ...truckLoading.products.map((product) => truckLoading.totals[product.id] || ""), totalQuantity || ""];
+    const totalRow = ["Total", ...visibleProducts.map((product) => productTotals[product.id] || ""), totalQuantity || ""];
     const csv = [header, ...rows, totalRow].map((row) => row.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -79,17 +114,18 @@ export default function VehicleTruckLoadingPage() {
         <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold">Truck Loading</h1>
-            <p className="mt-1 text-sm text-muted">Product quantities are limited to this vehicle&apos;s assigned routes.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm text-muted">
-              <span>Routes: <span className="font-semibold text-ink">{truckLoading?.routes.length || 0}</span></span>
-              <span>Products: <span className="font-semibold text-ink">{truckLoading?.products.length || 0}</span></span>
+              <span>Routes: <span className="font-semibold text-ink">{visibleRoutes.length}</span></span>
+              <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
               <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
               <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
             </div>
+            <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
+            <SearchableSelect className="min-w-52" multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
             <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
-            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!truckLoading?.routes.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
+            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!visibleRoutes.length || !visibleProducts.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
         </div>
@@ -101,7 +137,7 @@ export default function VehicleTruckLoadingPage() {
             <thead className="sticky top-0 z-20 text-xs uppercase text-muted">
               <tr>
                 <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Route Name</th>
-                {truckLoading?.products.map((product) => (
+                {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
                     <span className="mt-1 block text-[11px] normal-case text-muted">{product.category}</span>
@@ -111,10 +147,10 @@ export default function VehicleTruckLoadingPage() {
               </tr>
             </thead>
             <tbody>
-              {truckLoading?.routes.map((route, index) => (
+              {visibleRoutes.map((route, index) => (
                 <tr className={index % 2 ? "bg-panel2/30" : "bg-panel"} key={route.id}>
                   <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.name}</td>
-                  {truckLoading.products.map((product) => {
+                  {visibleProducts.map((product) => {
                     const quantity = route.quantities[product.id] || 0;
                     return (
                       <td className={`border-b border-r border-line px-3 py-3 ${quantity ? "font-semibold text-ink" : "text-muted"}`} key={product.id}>
@@ -122,19 +158,19 @@ export default function VehicleTruckLoadingPage() {
                       </td>
                     );
                   })}
-                  <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 font-bold text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatQty(route.total) || "-"}</td>
+                  <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 font-bold text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatQty(routeTotal(route)) || "-"}</td>
                 </tr>
               ))}
-              {truckLoading && truckLoading.products.length ? (
+              {truckLoading && visibleProducts.length ? (
                 <tr className="bg-mint/10 font-bold">
                   <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
-                  {truckLoading.products.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(truckLoading.totals[product.id]) || "-"}</td>)}
+                  {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(productTotals[product.id]) || "-"}</td>)}
                   <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatQty(totalQuantity) || "-"}</td>
                 </tr>
               ) : null}
-              {!loading && (!truckLoading || !truckLoading.routes.length) ? (
+              {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-muted" colSpan={(truckLoading?.products.length || 0) + 2}>No truck loading data for this date.</td>
+                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 2}>No truck loading data for this date.</td>
                 </tr>
               ) : null}
             </tbody>

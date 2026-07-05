@@ -1,9 +1,15 @@
 import type { Request, Response } from "express";
+import { numberQueryParam } from "../../utils/pagination.js";
 import { customersService } from "./customers.service.js";
 
 export const customersController = {
   async list(req: Request, res: Response) {
-    res.json({ customers: await customersService.listCustomers(req.tenant!.id) });
+    const result = await customersService.listCustomers(req.tenant!.id, {
+      page: numberQueryParam(req.query.page),
+      pageSize: numberQueryParam(req.query.pageSize),
+      search: req.query.search ? String(req.query.search) : undefined
+    });
+    res.json(result);
   },
 
   async create(req: Request, res: Response) {

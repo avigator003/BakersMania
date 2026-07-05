@@ -1,11 +1,17 @@
 import type { Request, Response } from "express";
 import { HttpError } from "../../utils/http.js";
+import { numberQueryParam } from "../../utils/pagination.js";
 import { staffService } from "./staff.service.js";
 
 export const staffController = {
   async listLabourDashboard(req: Request, res: Response) {
     const attendanceDate = typeof req.query.date === "string" && req.query.date ? new Date(req.query.date) : undefined;
-    res.json(await staffService.listLabourDashboard(req.tenant!.id, attendanceDate));
+    res.json(await staffService.listLabourDashboard(req.tenant!.id, attendanceDate, {
+      page: numberQueryParam(req.query.page),
+      pageSize: numberQueryParam(req.query.pageSize),
+      search: req.query.search ? String(req.query.search) : undefined,
+      status: req.query.status ? String(req.query.status) : undefined
+    }));
   },
 
   async createLabour(req: Request, res: Response) {

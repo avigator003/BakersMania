@@ -1,9 +1,15 @@
 import type { Request, Response } from "express";
+import { numberQueryParam } from "../../utils/pagination.js";
 import { inventoryService } from "./inventory.service.js";
 
 export const inventoryController = {
   async listItems(req: Request, res: Response) {
-    res.json({ items: await inventoryService.listItems(req.tenant!.id) });
+    res.json(await inventoryService.listItems(req.tenant!.id, {
+      page: numberQueryParam(req.query.page),
+      pageSize: numberQueryParam(req.query.pageSize),
+      search: req.query.search ? String(req.query.search) : undefined,
+      category: req.query.category ? String(req.query.category) : undefined
+    }));
   },
 
   async createItem(req: Request, res: Response) {
@@ -21,13 +27,14 @@ export const inventoryController = {
   },
 
   async productStock(req: Request, res: Response) {
-    res.json({
-      products: await inventoryService.listProductStock(req.tenant!.id, {
-        categoryId: req.query.categoryId ? String(req.query.categoryId) : undefined,
-        date: req.query.date ? String(req.query.date) : undefined,
-        month: req.query.month ? String(req.query.month) : undefined
-      })
-    });
+    res.json(await inventoryService.listProductStock(req.tenant!.id, {
+      categoryId: req.query.categoryId ? String(req.query.categoryId) : undefined,
+      date: req.query.date ? String(req.query.date) : undefined,
+      month: req.query.month ? String(req.query.month) : undefined,
+      search: req.query.search ? String(req.query.search) : undefined,
+      page: numberQueryParam(req.query.page),
+      pageSize: numberQueryParam(req.query.pageSize)
+    }));
   },
 
   async adjustProductStock(req: Request, res: Response) {

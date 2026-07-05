@@ -31,7 +31,7 @@ export default function CustomerPage() {
     if (!apiBase) return;
     setLoading(true);
     try {
-      const data = await apiFetch<{ products: Product[] }>(`${apiBase}/catalog/products`);
+      const data = await apiFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=100`);
       setProducts(data.products.filter((product) => product.active !== false));
     } catch (error) {
       toast.error("Could not load products", error instanceof Error ? error.message : "Please check the bakery catalog.");

@@ -1,4 +1,5 @@
 import { catalogRepository } from "./catalog.repository.js";
+import type { PriceHistoryFilters, ProductListFilters } from "./catalog.repository.js";
 import type { CategoryInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
 import { HttpError } from "../../utils/http.js";
 
@@ -11,8 +12,8 @@ export const catalogService = {
     return catalogRepository.createCategory(tenantId, input);
   },
 
-  listProducts(tenantId: string, includeManagementDetails = false) {
-    return catalogRepository.listProducts(tenantId, includeManagementDetails);
+  listProducts(tenantId: string, filters: ProductListFilters = {}) {
+    return catalogRepository.listProducts(tenantId, filters);
   },
 
   async getProduct(tenantId: string, productId: string) {
@@ -23,12 +24,12 @@ export const catalogService = {
     return product;
   },
 
-  async listPriceHistory(tenantId: string, productId: string) {
+  async listPriceHistory(tenantId: string, productId: string, filters: PriceHistoryFilters = {}) {
     const product = await catalogRepository.findProduct(tenantId, productId);
     if (!product) {
       throw new HttpError(404, "Product not found");
     }
-    return catalogRepository.listPriceHistory(tenantId, productId);
+    return catalogRepository.listPriceHistory(tenantId, productId, filters);
   },
 
   async createProduct(tenantId: string, input: ProductInput) {

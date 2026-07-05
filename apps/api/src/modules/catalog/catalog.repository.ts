@@ -1,5 +1,13 @@
 import { prisma } from "../../db/prisma.js";
+import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
 import type { CategoryInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
+
+export type ProductListFilters = PaginationInput & {
+  includeInactive?: boolean;
+  search?: string;
+};
+
+export type PriceHistoryFilters = PaginationInput;
 
 export const catalogRepository = {
   findCategory(tenantId: string, categoryId: string) {
@@ -23,13 +31,20 @@ export const catalogRepository = {
     });
   },
 
-  listPriceHistory(tenantId: string, productId: string) {
-    return prisma.customerProductPriceHistory.findMany({
-      where: { tenantId, productId },
-      include: { customer: { include: { route: true } }, product: true },
-      orderBy: { changedAt: "desc" },
-      take: 100
-    });
+  async listPriceHistory(tenantId: string, productId: string, filters: PriceHistoryFilters = {}) {
+    const { page, pageSize, skip } = pagination(filters);
+    const where = { tenantId, productId };
+    const [history, total] = await Promise.all([
+      prisma.customerProductPriceHistory.findMany({
+        where,
+        include: { customer: { include: { route: true } }, product: true },
+        orderBy: { changedAt: "desc" },
+        skip,
+        take: pageSize
+      }),
+      prisma.customerProductPriceHistory.count({ where })
+    ]);
+    return { history, pagination: paginationMeta(total, page, pageSize) };
   },
 
   findCustomer(tenantId: string, customerId: string) {
@@ -48,14 +63,34 @@ export const catalogRepository = {
     return prisma.productCategory.create({ data: { ...input, tenantId } });
   },
 
-  listProducts(tenantId: string, includeInactive = false) {
-    return prisma.product.findMany({
-      where: { tenantId, ...(includeInactive ? {} : { active: true }) },
-      orderBy: [{ active: "desc" }, { name: "asc" }],
-      include: {
-        categoryRef: true
-      }
-    });
+  async listProducts(tenantId: string, filters: ProductListFilters = {}) {
+    const { page, pageSize, skip } = pagination(filters);
+    const search = filters.search?.trim();
+    const where = {
+      tenantId,
+      ...(filters.includeInactive ? {} : { active: true }),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { category: { contains: search, mode: "insensitive" as const } },
+              { description: { contains: search, mode: "insensitive" as const } },
+              { categoryRef: { name: { contains: search, mode: "insensitive" as const } } }
+            ]
+          }
+        : {})
+    };
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        orderBy: [{ active: "desc" }, { name: "asc" }],
+        include: { categoryRef: true },
+        skip,
+        take: pageSize
+      }),
+      prisma.product.count({ where })
+    ]);
+    return { products, pagination: paginationMeta(total, page, pageSize) };
   },
 
   async createProduct(tenantId: string, input: ProductInput) {

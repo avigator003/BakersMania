@@ -2,67 +2,46 @@ import { reportsRepository } from "./reports.repository.js";
 
 export const reportsService = {
   async getDashboard(tenantId: string) {
-    const [
+    const data = await reportsRepository.getDashboardData(tenantId);
+    const {
       activeOrders,
-      stockItems,
+      lowRawMaterials,
       products,
       customers,
       activeLabours,
       todayAttendance,
-      expenses,
-      purchases,
+      expenseGroups,
+      rawMaterialExpenses,
       sellerPayments,
       customerPayments,
-      materialLedger,
-      monthlyOrders
-    ] =
-      await reportsRepository.getDashboardData(tenantId);
+      materialLedgerGroups,
+      salesRows,
+      ordersDue,
+      pendingPaymentsAmount
+    } = data;
 
     const openOrders = activeOrders.filter((order) => order.status !== "CANCELED");
-    const lowRawMaterials = stockItems.filter((item) => Number(item.stockOnHand) <= Number(item.reorderAt)).length;
     const lowProducts = products.filter((product) => Number(product.stockOnHand) < 100).length;
-    const pendingPaymentsAmount = openOrders.reduce((sum, order) => {
-      const paid = order.payments.reduce((paymentSum, payment) => paymentSum + Number(payment.amount || 0), 0);
-      return sum + Math.max(Number(order.grandTotal || 0) - paid, 0);
-    }, 0);
     const presentLabours = new Set(
       todayAttendance
         .filter((attendance) => ["PRESENT", "HALF_DAY"].includes(attendance.status))
         .map((attendance) => attendance.labourId)
         .filter(Boolean)
     ).size;
-    const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-    const paidExpenses = expenses
-      .filter((expense) => expense.status === "PAID")
-      .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-    const pendingExpenses = expenses
-      .filter((expense) => expense.status === "PENDING")
-      .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-    const rentTotal = expenses
-      .filter((expense) => expense.type === "RENT")
-      .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-    const sellerPaymentTotal = sellerPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    const customerPaymentTotal = customerPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    const rawMaterialExpenseTotal = purchases.reduce((sum, purchase) => sum + Number(purchase.amount || 0), 0);
-    const materialBuyQuantity = materialLedger
-      .filter((entry) => entry.type === "BUY")
-      .reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
-    const materialUseQuantity = materialLedger
-      .filter((entry) => entry.type === "USE")
-      .reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
-    const materialBuyAmount = materialLedger
-      .filter((entry) => entry.type === "BUY")
-      .reduce((sum, entry) => sum + Number(entry.totalAmount || 0), 0);
+    const expenseTotal = expenseGroups.reduce((sum, row) => sum + Number(row._sum.amount || 0), 0);
+    const paidExpenses = expenseGroups.filter((row) => row.status === "PAID").reduce((sum, row) => sum + Number(row._sum.amount || 0), 0);
+    const pendingExpenses = expenseGroups.filter((row) => row.status === "PENDING").reduce((sum, row) => sum + Number(row._sum.amount || 0), 0);
+    const rentTotal = expenseGroups.filter((row) => row.type === "RENT").reduce((sum, row) => sum + Number(row._sum.amount || 0), 0);
+    const materialBuyRow = materialLedgerGroups.find((row) => row.type === "BUY");
+    const materialUseRow = materialLedgerGroups.find((row) => row.type === "USE");
+    const materialBuyQuantity = Number(materialBuyRow?._sum.quantity || 0);
+    const materialUseQuantity = Number(materialUseRow?._sum.quantity || 0);
+    const materialBuyAmount = Number(materialBuyRow?._sum.totalAmount || 0);
     const now = new Date();
     const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
     const salesByDay = new Map<number, { sales: number; orders: number }>();
-    monthlyOrders.forEach((order) => {
-      const orderDate = order.dueAt || order.createdAt;
-      const day = orderDate.getUTCDate();
-      const current = salesByDay.get(day) || { sales: 0, orders: 0 };
-      current.sales += Number(order.grandTotal || 0);
-      current.orders += 1;
-      salesByDay.set(day, current);
+    salesRows.forEach((row) => {
+      salesByDay.set(row.day, { sales: Number(row.sales || 0), orders: Number(row.orders || 0) });
     });
     const salesChart = Array.from({ length: daysInMonth }, (_, index) => {
       const day = index + 1;
@@ -93,7 +72,7 @@ export const reportsService = {
     });
 
     return {
-      ordersDue: openOrders.length,
+      ordersDue,
       pendingPaymentsAmount,
       lowStock: lowRawMaterials + lowProducts,
       customers,
@@ -107,9 +86,9 @@ export const reportsService = {
         paidExpenses,
         pendingExpenses,
         rents: rentTotal,
-        sellerPayments: sellerPaymentTotal,
-        customerPayments: customerPaymentTotal,
-        rawMaterialExpenses: rawMaterialExpenseTotal
+        sellerPayments,
+        customerPayments,
+        rawMaterialExpenses
       },
       stockMovement: {
         boughtQuantity: materialBuyQuantity,
