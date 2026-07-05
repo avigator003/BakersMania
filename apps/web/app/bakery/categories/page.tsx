@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Layers3, Plus, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -93,7 +94,7 @@ export default function BakeryCategoriesPage() {
             </div>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading categories...</p> : null}
+          {loading ? <LoadingSpinner label="Loading categories" /> : null}
 
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
             {categories.map((category) => (

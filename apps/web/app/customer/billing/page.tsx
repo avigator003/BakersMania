@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -77,7 +78,7 @@ export default function CustomerBillingPage() {
             </div>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadOrders} title="Refresh billing" type="button"><RefreshCw size={16} /></button>
           </div>
-          {loading ? <p className="p-4 text-sm text-muted">Loading billing...</p> : null}
+          {loading ? <LoadingSpinner label="Loading billing" /> : null}
           <div className="hidden max-h-[680px] overflow-auto sm:block">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Eye, IndianRupee, Pencil, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
@@ -199,13 +200,9 @@ export default function BakeryProductsPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Product categories, catalog, and customer-specific pricing" surface="bakery">
-      <div className="grid gap-6">
+      <div className="grid gap-4">
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold">Product Management</h1>
-              <p className="mt-1 text-sm text-muted">Create categories, products, and special prices for selected customers and their routes.</p>
-            </div>
+          <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-end">
             <div className="grid gap-2 sm:flex sm:flex-wrap">
               <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" onClick={() => setProductOpen(true)}>
                 <Plus size={16} />
@@ -217,7 +214,7 @@ export default function BakeryProductsPage() {
             </div>
           </div>
 
-          <div className="border-b border-line p-4">
+          <div className="border-b border-line p-3">
             <label className="flex max-w-md items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Search size={16} className="text-muted" />
               <input
@@ -229,7 +226,7 @@ export default function BakeryProductsPage() {
             </label>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading products...</p> : null}
+          {loading ? <LoadingSpinner label="Loading products" /> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
             {productsPage.pageItems.map((product) => (

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, Eye, History, PackagePlus, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
@@ -297,7 +298,7 @@ export default function BakeryInventoryPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Product stock, raw materials, and movement ledger" surface="bakery">
-      <div className="grid gap-6">
+      <div className="grid gap-4">
         <div className="flex flex-wrap gap-2">
           <button
             className={`focus-ring rounded-md border px-4 py-2 text-sm font-semibold ${activeTab === "products" ? "border-mint bg-mint text-white" : "border-line bg-panel"}`}
@@ -318,11 +319,7 @@ export default function BakeryInventoryPage() {
         {activeTab === "products" ? (
           <>
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
-              <div className="flex min-w-0 flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase text-mint">Stock Management</p>
-                  <h1 className="mt-1 text-xl font-semibold">Product stock and order requirement</h1>
-                </div>
+              <div className="flex min-w-0 flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-end">
                 <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap">
                   <select className="min-w-0 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setCategoryId(event.target.value)} value={categoryId}>
                     <option value="all">All categories</option>
@@ -346,14 +343,14 @@ export default function BakeryInventoryPage() {
                 </div>
               </div>
 
-              <div className="border-b border-line p-4">
+              <div className="border-b border-line p-3">
                 <label className="flex max-w-md items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search product or category" value={search} />
                 </label>
               </div>
 
-              {loading ? <p className="p-4 text-sm text-muted">Loading stock...</p> : null}
+              {loading ? <LoadingSpinner label="Loading stock" /> : null}
 
               <div className="grid gap-3 p-3 sm:hidden">
                 {productsPage.pageItems.map((product) => (
@@ -452,11 +449,7 @@ export default function BakeryInventoryPage() {
         ) : (
           <>
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
-              <div className="flex min-w-0 flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase text-mint">Raw Material Management</p>
-                  <h1 className="mt-1 text-xl font-semibold">Materials, purchases, usage, and ledger</h1>
-                </div>
+              <div className="flex min-w-0 flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-end">
                 <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap">
                   <Link className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" href={`${routeBase}/bakery/inventory/sellers`}>
                     Seller Payments
@@ -471,7 +464,7 @@ export default function BakeryInventoryPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-between">
                 <label className="flex max-w-md flex-1 items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setMaterialSearch(event.target.value)} placeholder="Search material or category" value={materialSearch} />
@@ -482,7 +475,7 @@ export default function BakeryInventoryPage() {
                 </select>
               </div>
 
-              {loading ? <p className="p-4 text-sm text-muted">Loading materials...</p> : null}
+              {loading ? <LoadingSpinner label="Loading materials" /> : null}
 
               <div className="grid gap-3 p-3 sm:hidden">
                 {materialsPage.pageItems.map((material) => {

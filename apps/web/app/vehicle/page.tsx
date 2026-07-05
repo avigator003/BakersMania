@@ -5,6 +5,7 @@ import { RefreshCw, Route, Truck } from "lucide-react";
 import Link from "next/link";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../components/payment-history";
 import { AppShell } from "../../components/shell";
+import { LoadingSpinner } from "../../components/loading-spinner";
 import { useToast } from "../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../lib/api";
 
@@ -96,7 +97,7 @@ export default function VehicleOverviewPage() {
               <RefreshCw size={16} />
             </button>
           </div>
-          {loading ? <p className="p-4 text-sm text-muted">Loading overview...</p> : null}
+          {loading ? <LoadingSpinner label="Loading overview" /> : null}
           <div className="grid gap-3 p-4 md:grid-cols-2">
             <Link className="focus-ring rounded-lg border border-line bg-panel2 p-4" href={`/${tenantSlug}/vehicle/routes`}>
               <Route className="text-mint" size={22} />

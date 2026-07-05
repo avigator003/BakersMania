@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Edit3, Eye, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { ConfirmModal, Modal } from "../../../components/modal";
 import { StatusDropdown } from "../../../components/status-dropdown";
 import { useToast } from "../../../components/toast-provider";
@@ -290,7 +291,7 @@ export default function AdminTenantsPage() {
             </div>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading tenants...</p> : null}
+          {loading ? <LoadingSpinner label="Loading tenants" /> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
             {tenants.map((tenant) => (

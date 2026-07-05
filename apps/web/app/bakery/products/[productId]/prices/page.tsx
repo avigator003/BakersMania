@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { IndianRupee, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { AppShell } from "../../../../../components/shell";
+import { LoadingSpinner } from "../../../../../components/loading-spinner";
 import { PaginationControls, usePagination } from "../../../../../components/pagination";
 import { useToast } from "../../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../../lib/api";
@@ -252,7 +253,7 @@ export default function ProductPriceAssignmentPage() {
             </div>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading customers...</p> : null}
+          {loading ? <LoadingSpinner label="Loading customers" /> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
             {priceRows.map((row, index) => {

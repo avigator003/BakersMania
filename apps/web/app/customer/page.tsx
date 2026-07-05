@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, ShoppingCart, Trash2 } from "lucide-react";
 import { AppShell } from "../../components/shell";
+import { LoadingSpinner } from "../../components/loading-spinner";
 import { useToast } from "../../components/toast-provider";
 import { apiFetch, authFetch, getStoredTenantSlug } from "../../lib/api";
 
@@ -99,7 +100,7 @@ export default function CustomerPage() {
             </div>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadProducts} title="Refresh products" type="button"><RefreshCw size={16} /></button>
           </div>
-          {loading ? <p className="p-4 text-sm text-muted">Loading products...</p> : null}
+          {loading ? <LoadingSpinner label="Loading products" /> : null}
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {products.map((product) => (
               <article className="rounded-lg border border-line bg-panel2 p-4" key={product.id}>

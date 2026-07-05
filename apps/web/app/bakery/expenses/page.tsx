@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
@@ -176,13 +177,9 @@ export default function BakeryExpensesPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Rent and miscellaneous expense tracking" surface="bakery">
-      <div className="grid gap-6">
+      <div className="grid gap-4">
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase text-mint">Expense Management</p>
-              <h1 className="mt-1 text-xl font-semibold">Rent and miscellaneous expenses</h1>
-            </div>
+          <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-end">
             <div className="grid gap-2 sm:flex sm:flex-wrap">
               <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" onClick={() => setExpenseOpen(true)} type="button">
                 <Plus size={16} />
@@ -194,7 +191,7 @@ export default function BakeryExpensesPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 border-b border-line p-4 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
+          <div className="grid gap-3 border-b border-line p-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
             <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Search size={16} className="text-muted" />
               <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search route, name, note" value={search} />
@@ -213,7 +210,7 @@ export default function BakeryExpensesPage() {
             </select>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading expenses...</p> : null}
+          {loading ? <LoadingSpinner label="Loading expenses" /> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
             {expensesPage.pageItems.map((expense) => (

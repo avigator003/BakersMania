@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Boxes, CreditCard, IndianRupee, PackageSearch, RefreshCw, TrendingDown, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppShell } from "../../components/shell";
+import { LoadingSpinner } from "../../components/loading-spinner";
 import { useToast } from "../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../lib/api";
 
@@ -178,7 +179,7 @@ export default function BakeryPage() {
                   </div>
                 );
               })}
-              {loading ? <p className="p-4 text-sm text-muted">Loading sales chart...</p> : null}
+              {loading ? <LoadingSpinner label="Loading sales chart" /> : null}
             </div>
           </div>
         </section>
@@ -191,7 +192,7 @@ export default function BakeryPage() {
             </div>
             <span className="rounded-md border border-line bg-panel2 px-3 py-1.5 text-xs font-semibold text-muted">Live API</span>
           </div>
-          {loading ? <p className="p-4 text-sm text-muted">Loading dashboard...</p> : null}
+          {loading ? <LoadingSpinner label="Loading dashboard" /> : null}
           <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
             {financeCards.map(([label, value, Icon]) => (
               <article key={label} className="rounded-lg border border-line bg-panel2 p-3">

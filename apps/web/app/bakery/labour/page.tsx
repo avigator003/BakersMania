@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Download, IndianRupee, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
@@ -232,13 +233,9 @@ export default function LabourManagementPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Labour attendance, advances, partial payments, and salary records" surface="bakery">
-      <div className="grid gap-6">
+      <div className="grid gap-4">
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold">Labour Management</h1>
-              <p className="mt-1 text-sm text-muted">Create labour, mark attendance, and record advance, partial, or full payments.</p>
-            </div>
+          <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-end">
             <div className="grid gap-2 sm:flex sm:flex-wrap">
               <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold">
                 <span className="text-muted">Year</span>
@@ -285,8 +282,8 @@ export default function LabourManagementPage() {
             </div>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading labour...</p> : null}
-          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+          {loading ? <LoadingSpinner label="Loading labour" /> : null}
+          <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-between">
             <label className="flex max-w-md flex-1 items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
               <Search size={16} className="text-muted" />
               <input

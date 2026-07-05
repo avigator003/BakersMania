@@ -34,6 +34,7 @@ import {
 const bakeryNav = [
   { href: "/bakery", label: "Dashboard", icon: Home },
   { href: "/bakery/orders", label: "Orders", icon: ClipboardList },
+  { href: "/bakery/truck-loading", label: "Truck Loading", icon: Truck },
   { href: "/bakery/customers", label: "Customers", icon: Users },
   { href: "/bakery/products", label: "Products", icon: Boxes },
   { href: "/bakery/labour", label: "Labour", icon: Users },
@@ -222,6 +223,7 @@ export function AppShell({
       billing: "Billing",
       reports: "Reports",
       orders: "Orders",
+      "truck-loading": "Truck Loading",
       customers: "Customers",
       categories: "Categories",
       products: "Products",
@@ -319,7 +321,7 @@ export function AppShell({
       </aside>
 
       <header className="sticky top-0 z-20 max-w-full border-b border-line bg-white/90 backdrop-blur lg:ml-72">
-        <div className="flex min-h-16 min-w-0 items-center justify-between px-4 sm:px-6">
+        <div className="flex min-h-14 min-w-0 items-center justify-between px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line lg:hidden"
@@ -334,7 +336,7 @@ export function AppShell({
             </span>
             <span className="min-w-0">
               <span className="block truncate text-base font-semibold sm:text-xl">{shellTitle}</span>
-              <span className="block truncate text-xs text-muted sm:text-sm">{subtitle}</span>
+              <span className="block truncate text-xs text-muted sm:hidden">{subtitle}</span>
             </span>
           </div>
           <div className="hidden items-center gap-3 sm:flex">
@@ -405,8 +407,8 @@ export function AppShell({
           </aside>
         </div>
       ) : null}
-      <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-6 sm:px-6 lg:ml-72">
-        <nav className="mb-4 flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted" aria-label="Breadcrumb">
+      <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-4 sm:px-6 lg:ml-72">
+        <nav className="mb-3 flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted" aria-label="Breadcrumb">
           {breadcrumbs.map((item, index) => {
             const last = index === breadcrumbs.length - 1;
             return (

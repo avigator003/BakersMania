@@ -47,5 +47,17 @@ export const platformAdminController = {
 
   async overview(_req: Request, res: Response) {
     res.json(await platformAdminService.getOverview());
+  },
+
+  async diagnostics(req: Request, res: Response) {
+    const tenantSlug = typeof req.query.tenantSlug === "string" && req.query.tenantSlug.trim()
+      ? req.query.tenantSlug.trim()
+      : undefined;
+    res.json(await platformAdminService.getDiagnostics(tenantSlug));
+  },
+
+  async requestMetrics(req: Request, res: Response) {
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
+    res.json(platformAdminService.getRequestMetrics(Number.isFinite(limit) ? limit : undefined));
   }
 };

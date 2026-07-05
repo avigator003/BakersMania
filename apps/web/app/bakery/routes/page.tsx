@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { MapPinned, Plus, RefreshCw, Truck } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { PhotoPicker } from "../../../components/photo-picker";
@@ -153,13 +154,9 @@ export default function BakeryRoutesPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Route and vehicle management" surface="bakery">
-      <div className="grid gap-6">
+      <div className="grid gap-4">
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold">Route & Vehicle Management</h1>
-              <p className="mt-1 text-sm text-muted">Create vehicles with document expiry details, then assign vehicles to delivery routes.</p>
-            </div>
+          <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-end">
             <div className="grid gap-2 sm:flex sm:flex-wrap">
               <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => setVehicleOpen(true)}>
                 <Truck size={16} />
@@ -175,7 +172,7 @@ export default function BakeryRoutesPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 border-b border-line p-4">
+          <div className="flex gap-2 border-b border-line p-3">
             {[
               ["routes", "Routes"],
               ["vehicles", "Vehicles"]
@@ -191,7 +188,7 @@ export default function BakeryRoutesPage() {
             ))}
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading route data...</p> : null}
+          {loading ? <LoadingSpinner label="Loading route data" /> : null}
 
           {activeTab === "routes" ? (
             <>

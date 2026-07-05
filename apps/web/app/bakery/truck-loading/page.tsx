@@ -7,6 +7,7 @@ import { LoadingSpinner } from "../../../components/loading-spinner";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
+type Category = { id: string; name: string };
 type TruckLoading = {
   date: string;
   orderCount: number;
@@ -26,9 +27,11 @@ function csvCell(value: string | number | null | undefined) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
-export default function VehicleTruckLoadingPage() {
+export default function BakeryTruckLoadingPage() {
   const toast = useToast();
   const [date, setDate] = useState(today);
+  const [categoryId, setCategoryId] = useState("all");
+  const [categories, setCategories] = useState<Category[]>([]);
   const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
   const [loading, setLoading] = useState(true);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
@@ -39,10 +42,15 @@ export default function VehicleTruckLoadingPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ date });
-      const data = await authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`);
-      setTruckLoading(data.truckLoading);
+      if (categoryId !== "all") params.set("categoryId", categoryId);
+      const [truckData, categoryData] = await Promise.all([
+        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`),
+        authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`)
+      ]);
+      setTruckLoading(truckData.truckLoading);
+      setCategories(categoryData.categories);
     } catch (error) {
-      toast.error("Could not load truck loading", error instanceof Error ? error.message : "Please sign in again.");
+      toast.error("Could not load truck sheet", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
       setLoading(false);
     }
@@ -50,7 +58,7 @@ export default function VehicleTruckLoadingPage() {
 
   useEffect(() => {
     loadData();
-  }, [date]);
+  }, [date, categoryId]);
 
   const totalQuantity = useMemo(() => truckLoading?.routes.reduce((sum, route) => sum + route.total, 0) || 0, [truckLoading]);
 
@@ -62,35 +70,35 @@ export default function VehicleTruckLoadingPage() {
       ...truckLoading.products.map((product) => route.quantities[product.id] || ""),
       route.total || ""
     ]);
-    const totalRow = ["Total", ...truckLoading.products.map((product) => truckLoading.totals[product.id] || ""), totalQuantity || ""];
+    const totalRow = ["Product Total", ...truckLoading.products.map((product) => truckLoading.totals[product.id] || ""), totalQuantity || ""];
     const csv = [header, ...rows, totalRow].map((row) => row.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `vehicle-truck-loading-${truckLoading.date}.csv`;
+    link.download = `truck-loading-${truckLoading.date}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
 
   return (
-    <AppShell title="Vehicle Workspace" subtitle="Truck loading for assigned routes" surface="vehicle">
+    <AppShell title="Bakery CRM" subtitle="Truck loading by route and product" surface="bakery">
       <section className="rounded-lg border border-line bg-panel shadow-subtle">
-        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">Truck Loading</h1>
-            <p className="mt-1 text-sm text-muted">Product quantities are limited to this vehicle&apos;s assigned routes.</p>
+        <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+            <span>Routes: <span className="font-semibold text-ink">{truckLoading?.routes.length || 0}</span></span>
+            <span>Products: <span className="font-semibold text-ink">{truckLoading?.products.length || 0}</span></span>
+            <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
+            <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
           </div>
           <div className="flex flex-wrap gap-2">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm text-muted">
-              <span>Routes: <span className="font-semibold text-ink">{truckLoading?.routes.length || 0}</span></span>
-              <span>Products: <span className="font-semibold text-ink">{truckLoading?.products.length || 0}</span></span>
-              <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
-              <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
-            </div>
+            <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setCategoryId(event.target.value)} value={categoryId}>
+              <option value="all">All categories</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
             <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
             <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!truckLoading?.routes.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
-            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
+            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh loading" type="button"><RefreshCw size={16} /></button>
           </div>
         </div>
 

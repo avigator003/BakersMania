@@ -1,4 +1,6 @@
 import bcrypt from "bcryptjs";
+import { performance } from "node:perf_hooks";
+import { getRecentRequestMetrics } from "../../observability/request-metrics.js";
 import { HttpError } from "../../utils/http.js";
 import { platformAdminRepository } from "./platform-admin.repository.js";
 import type { OnboardTenantInput, UpdateBillingInput, UpdateTenantInput } from "./platform-admin.schemas.js";
@@ -23,6 +25,21 @@ function recurrenceMonths(recurrence: OnboardTenantInput["recurrence"], customMo
   if (recurrence === "YEARLY") return 12;
   if (recurrence === "CUSTOM") return customMonths;
   return 1;
+}
+
+async function measure<T>(label: string, run: () => Promise<T>) {
+  const start = performance.now();
+  try {
+    const value = await run();
+    return { label, ok: true, durationMs: Math.round(performance.now() - start), value };
+  } catch (error) {
+    return {
+      label,
+      ok: false,
+      durationMs: Math.round(performance.now() - start),
+      error: error instanceof Error ? error.message : "Unknown error"
+    };
+  }
 }
 
 export const platformAdminService = {
@@ -76,5 +93,51 @@ export const platformAdminService = {
   async getOverview() {
     const [tenantCount, orderCount, customerCount] = await platformAdminRepository.getOverviewCounts();
     return { tenantCount, orderCount, customerCount };
+  },
+
+  async getDiagnostics(tenantSlug?: string) {
+    const startedAt = new Date();
+    const uptimeSeconds = Math.round(process.uptime());
+    const dbPing = await measure("db ping: select 1", () => platformAdminRepository.dbPing());
+    const platformCounts = await measure("platform counts", async () => {
+      const [tenantCount, orderCount, customerCount] = await platformAdminRepository.getOverviewCounts();
+      return { tenantCount, orderCount, customerCount };
+    });
+
+    let tenant:
+      | {
+          lookup: Awaited<ReturnType<typeof measure>>;
+          counts?: Awaited<ReturnType<typeof measure>>;
+        }
+      | null = null;
+
+    if (tenantSlug) {
+      const lookup = await measure("tenant lookup", () => platformAdminRepository.findTenantForDiagnostics(tenantSlug));
+      tenant = { lookup };
+      if (lookup.ok && lookup.value) {
+        const tenantId = lookup.value.id;
+        tenant.counts = await measure("tenant row counts", async () => {
+          const [customerCount, orderCount, productCount, routeCount, vehicleCount, expenseCount] =
+            await platformAdminRepository.getTenantDiagnosticsCounts(tenantId);
+          return { customerCount, orderCount, productCount, routeCount, vehicleCount, expenseCount };
+        });
+      }
+    }
+
+    return {
+      generatedAt: startedAt.toISOString(),
+      nodeEnv: process.env.NODE_ENV || "unknown",
+      uptimeSeconds,
+      tenantSlug: tenantSlug || null,
+      checks: {
+        dbPing,
+        platformCounts,
+        tenant
+      }
+    };
+  },
+
+  getRequestMetrics(limit?: number) {
+    return { metrics: getRecentRequestMetrics(limit) };
   }
 };

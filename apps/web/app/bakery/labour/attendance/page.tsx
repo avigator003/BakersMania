@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
+import { LoadingSpinner } from "../../../../components/loading-spinner";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 import { downloadLabourAttendanceWorkbook, fetchLabourYearExport } from "../../../../lib/labour-export";
@@ -166,14 +167,9 @@ export default function LabourAttendancePage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Daily labour attendance sheet" surface="bakery">
-      <div className="grid gap-6">
-        <section className="rounded-lg border border-line bg-panel p-5 shadow-subtle">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase text-mint">Labour Attendance</p>
-              <h1 className="mt-2 text-2xl font-bold">Daily Attendance Sheet</h1>
-              <p className="mt-2 text-sm text-muted">Mark all active labourers together. Existing marks stay visible when you reopen the date.</p>
-            </div>
+      <div className="grid gap-4">
+        <section className="rounded-lg border border-line bg-panel p-3 shadow-subtle">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-end">
             <div className="flex flex-wrap items-end gap-2">
               <label className="grid gap-1">
                 <span className="text-xs font-semibold text-muted">Export year</span>
@@ -231,7 +227,7 @@ export default function LabourAttendancePage() {
             </div>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading attendance...</p> : null}
+          {loading ? <LoadingSpinner label="Loading attendance" /> : null}
 
           <div className="divide-y divide-line">
             {visibleLabours.map((labour) => {

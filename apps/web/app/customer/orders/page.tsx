@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CreditCard, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
@@ -119,7 +120,7 @@ export default function CustomerOrdersPage() {
             </div>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadOrders} title="Refresh orders" type="button"><RefreshCw size={16} /></button>
           </div>
-          {loading ? <p className="p-4 text-sm text-muted">Loading orders...</p> : null}
+          {loading ? <LoadingSpinner label="Loading orders" /> : null}
           <div className="grid gap-3 p-3">
             {orders.map((order) => {
               const dueAmount = due(order);

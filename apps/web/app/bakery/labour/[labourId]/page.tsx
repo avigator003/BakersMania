@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarDays, IndianRupee, RefreshCw, UserRound } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
+import { LoadingSpinner } from "../../../../components/loading-spinner";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
@@ -204,7 +205,7 @@ export default function LabourDetailPage() {
               <h2 className="font-semibold">Attendance Log</h2>
             </div>
             <div className="divide-y divide-line">
-              {loading ? <p className="p-4 text-sm text-muted">Loading attendance...</p> : null}
+              {loading ? <LoadingSpinner label="Loading attendance" /> : null}
               {detail?.attendance.map((item) => (
                 <div key={item.id} className="flex items-center justify-between gap-3 p-4 text-sm">
                   <div>
@@ -223,7 +224,7 @@ export default function LabourDetailPage() {
               <h2 className="font-semibold">Payment Log</h2>
             </div>
             <div className="divide-y divide-line">
-              {loading ? <p className="p-4 text-sm text-muted">Loading payments...</p> : null}
+              {loading ? <LoadingSpinner label="Loading payments" /> : null}
               {detail?.payments.map((payment) => (
                 <div key={payment.id} className="flex items-center justify-between gap-3 p-4 text-sm">
                   <div>

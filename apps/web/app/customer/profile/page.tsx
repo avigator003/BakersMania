@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { RefreshCw, Save } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -89,7 +90,7 @@ export default function CustomerProfilePage() {
             </div>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadProfile} title="Refresh profile" type="button"><RefreshCw size={16} /></button>
           </div>
-          {loading ? <p className="p-4 text-sm text-muted">Loading profile...</p> : null}
+          {loading ? <LoadingSpinner label="Loading profile" /> : null}
           <div className="grid gap-4 p-4 sm:grid-cols-2">
             {[
               ["name", "Name"],

@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Copy, Download, Eye, FileDown, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls, usePagination } from "../../../components/pagination";
 import { PaymentHistory, paymentDue, paymentTotal, resolvedPaymentStatus } from "../../../components/payment-history";
@@ -39,13 +40,6 @@ type OrderFormState = {
   dueAt: string;
   notes: string;
   items: { id: string; productId: string; quantity: string }[];
-};
-type TruckLoading = {
-  date: string;
-  orderCount: number;
-  products: { id: string; name: string; category: string }[];
-  routes: { id: string; name: string; quantities: Record<string, number>; total: number }[];
-  totals: Record<string, number>;
 };
 type RouteStatement = {
   startDate: string;
@@ -138,13 +132,10 @@ function downloadFile(content: string, type: string, fileName: string) {
 
 export default function BakeryOrdersPage() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<"orders" | "truck">("orders");
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
@@ -158,8 +149,6 @@ export default function BakeryOrdersPage() {
   const [endDate, setEndDate] = useState(today);
   const [customerFilter, setCustomerFilter] = useState("all");
   const [routeFilter, setRouteFilter] = useState("all");
-  const [truckDate, setTruckDate] = useState(today);
-  const [truckCategory, setTruckCategory] = useState("all");
   const [form, setForm] = useState<OrderFormState>(emptyOrderForm);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [repeatForm, setRepeatForm] = useState({
@@ -197,17 +186,6 @@ export default function BakeryOrdersPage() {
     return order.route?.name || order.customer.route?.name || "No route";
   }
 
-  const truckTotals = useMemo(() => {
-    const totalQuantity = truckLoading?.routes.reduce((sum, route) => sum + route.total, 0) || 0;
-    const activeProducts = truckLoading?.products.filter((product) => Number(truckLoading.totals[product.id] || 0) > 0).length || 0;
-    return {
-      routes: truckLoading?.routes.length || 0,
-      products: activeProducts,
-      quantity: totalQuantity,
-      orders: truckLoading?.orderCount || 0
-    };
-  }, [truckLoading]);
-
   async function loadData() {
     if (!apiBase) {
       toast.error("Bakery slug missing", "Please sign in again.");
@@ -221,23 +199,16 @@ export default function BakeryOrdersPage() {
       if (endDate) orderParams.set("endDate", endDate);
       if (customerFilter !== "all") orderParams.set("customerId", customerFilter);
       if (routeFilter !== "all") orderParams.set("routeId", routeFilter);
-      const truckParams = new URLSearchParams();
-      truckParams.set("date", truckDate);
-      if (truckCategory !== "all") truckParams.set("categoryId", truckCategory);
-      const [orderData, customerData, productData, categoryData, routeData, truckData] = await Promise.all([
+      const [orderData, customerData, productData, routeData] = await Promise.all([
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${orderParams.toString()}`),
         authFetch<{ customers: Customer[] }>(`${apiBase}/customers`),
         authFetch<{ products: Product[] }>(`${apiBase}/catalog/products`),
-        authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
-        authFetch<{ routes: Route[] }>(`${apiBase}/routes`),
-        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${truckParams.toString()}`)
+        authFetch<{ routes: Route[] }>(`${apiBase}/routes`)
       ]);
       setOrders(orderData.orders);
       setCustomers(customerData.customers);
       setProducts(productData.products);
-      setCategories(categoryData.categories);
       setRoutes(routeData.routes);
-      setTruckLoading(truckData.truckLoading);
     } catch (error) {
       toast.error("Could not load orders", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -247,7 +218,7 @@ export default function BakeryOrdersPage() {
 
   useEffect(() => {
     loadData();
-  }, [truckDate, truckCategory, startDate, endDate, customerFilter, routeFilter]);
+  }, [startDate, endDate, customerFilter, routeFilter]);
 
   function updateFormItem(
     setter: typeof setForm,
@@ -557,41 +528,11 @@ export default function BakeryOrdersPage() {
     }
   }
 
-  function exportTruckLoading() {
-    if (!truckLoading) return;
-    const header = ["Route Name", ...truckLoading.products.map((product) => product.name), "Total"];
-    const rows = truckLoading.routes.map((route) => [
-      route.name,
-      ...truckLoading.products.map((product) => route.quantities[product.id] || ""),
-      route.total || ""
-    ]);
-    const totalRow = ["Total", ...truckLoading.products.map((product) => truckLoading.totals[product.id] || ""), ""];
-    const csv = [header, ...rows, totalRow].map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `truck-loading-${truckLoading.date}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   return (
     <AppShell title="Bakery CRM" subtitle="Orders, product quantities, and truck loading" surface="bakery">
-      <div className="grid min-w-0 gap-6">
-        <div className="flex flex-wrap gap-2">
-          <button className={`focus-ring rounded-md border px-4 py-2 text-sm font-semibold ${activeTab === "orders" ? "border-mint bg-mint text-white" : "border-line bg-panel"}`} onClick={() => setActiveTab("orders")} type="button">Orders</button>
-          <button className={`focus-ring rounded-md border px-4 py-2 text-sm font-semibold ${activeTab === "truck" ? "border-mint bg-mint text-white" : "border-line bg-panel"}`} onClick={() => setActiveTab("truck")} type="button">Truck Loading</button>
-        </div>
-
-        {activeTab === "orders" ? (
-          <>
+      <div className="grid min-w-0 gap-4">
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
-              <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase text-mint">Order Management</p>
-                  <h1 className="mt-1 text-xl font-semibold">Customer orders with product quantities</h1>
-                </div>
+              <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-end">
                 <div className="grid gap-2 sm:flex sm:flex-wrap">
                   <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => setRepeatOpen(true)} type="button"><Copy size={16} /> Repeat Orders</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={exportRouteStatement} type="button"><Download size={16} /> Route Statement</button>
@@ -599,7 +540,7 @@ export default function BakeryOrdersPage() {
                   <button className="focus-ring grid h-10 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-10" onClick={loadData} title="Refresh orders" type="button"><RefreshCw size={16} /></button>
                 </div>
               </div>
-              <div className="grid gap-3 border-b border-line p-4 lg:grid-cols-[1.3fr_170px_170px_1fr_1fr]">
+              <div className="grid gap-3 border-b border-line p-3 lg:grid-cols-[1.3fr_170px_170px_1fr_1fr]">
                 <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, route, status" value={search} />
@@ -615,7 +556,7 @@ export default function BakeryOrdersPage() {
                   {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
                 </select>
               </div>
-              {loading ? <p className="p-4 text-sm text-muted">Loading orders...</p> : null}
+              {loading ? <LoadingSpinner label="Loading orders" /> : null}
               <div className="grid gap-3 p-3 sm:hidden">
                 {ordersPage.pageItems.map((order) => {
                   const paid = orderPaid(order);
@@ -706,8 +647,7 @@ export default function BakeryOrdersPage() {
                       const due = orderDue(order);
                       const todaysDue = isCarryForwardDue(order) ? due : 0;
                       return (
-                      <Fragment key={order.id}>
-                      <tr className="align-top">
+                      <tr className="align-top" key={order.id}>
                         <td className="px-4 py-3">
                           <div className="flex min-w-64 items-start gap-3">
                             <div className="flex gap-1.5 pt-0.5">
@@ -744,22 +684,19 @@ export default function BakeryOrdersPage() {
                           </select>
                         </td>
                         <td className="px-4 py-3">
-                          <select
-                            className={`focus-ring rounded-md border px-2 py-1 text-xs font-semibold outline-none ${paymentStatusClass(paymentStatus(order))}`}
-                            disabled={saving}
-                            onChange={(event) => handlePaymentStatusChange(order, event.target.value)}
-                            value={paymentStatus(order)}
-                          >
-                            {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                          </select>
+                          <div className="grid gap-2">
+                            <select
+                              className={`focus-ring rounded-md border px-2 py-1 text-xs font-semibold outline-none ${paymentStatusClass(paymentStatus(order))}`}
+                              disabled={saving}
+                              onChange={(event) => handlePaymentStatusChange(order, event.target.value)}
+                              value={paymentStatus(order)}
+                            >
+                              {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                            </select>
+                            <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                          </div>
                         </td>
                       </tr>
-                      <tr className="bg-panel2/30">
-                        <td className="px-4 py-3" colSpan={9}>
-                          <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
-                        </td>
-                      </tr>
-                      </Fragment>
                       );
                     })}
                     {!loading && !filteredOrders.length ? <tr><td className="px-4 py-8 text-center text-muted" colSpan={9}>No orders found.</td></tr> : null}
@@ -776,76 +713,6 @@ export default function BakeryOrdersPage() {
                 ]}
               />
             </section>
-          </>
-        ) : (
-          <div className="grid min-w-0 gap-6">
-            <section className="rounded-lg border border-line bg-panel shadow-subtle">
-              <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase text-mint">Truck Loading</p>
-                  <h1 className="mt-1 text-xl font-semibold">Route-wise product loading sheet</h1>
-                  <p className="mt-1 text-sm text-muted">Quantities are grouped from orders by route and product for the selected loading date.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setTruckCategory(event.target.value)} value={truckCategory}>
-                    <option value="all">All categories</option>
-                    {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                  </select>
-                  <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setTruckDate(event.target.value)} type="date" value={truckDate} />
-                  <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!truckLoading?.routes.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
-                  <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh loading" type="button"><RefreshCw size={16} /></button>
-                </div>
-              </div>
-
-              {loading ? <p className="p-4 text-sm text-muted">Loading truck sheet...</p> : null}
-
-              <div className="max-h-[700px] w-full max-w-full overflow-auto">
-                <table className="min-w-full border-separate border-spacing-0 text-center text-sm">
-                  <thead className="sticky top-0 z-20 text-xs uppercase text-muted">
-                    <tr>
-                      <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Route Name</th>
-                      {truckLoading?.products.map((product) => (
-                        <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
-                          <span className="block text-ink">{product.name}</span>
-                          <span className="mt-1 block text-[11px] normal-case text-muted">{product.category}</span>
-                        </th>
-                      ))}
-                      <th className="sticky right-0 z-40 min-w-24 border-b border-line bg-panel2 px-4 py-3 shadow-[-8px_0_12px_rgba(23,32,51,0.08)]">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {truckLoading?.routes.map((route, index) => (
-                      <tr className={index % 2 ? "bg-panel2/30" : "bg-panel"} key={route.id}>
-                        <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.name}</td>
-                        {truckLoading.products.map((product) => {
-                          const quantity = route.quantities[product.id] || 0;
-                          return (
-                            <td className={`border-b border-r border-line px-3 py-3 ${quantity ? "font-semibold text-ink" : "text-muted"}`} key={product.id}>
-                              {formatQty(quantity) || "-"}
-                            </td>
-                          );
-                        })}
-                        <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 font-bold text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatQty(route.total) || "-"}</td>
-                      </tr>
-                    ))}
-                    {truckLoading && truckLoading.products.length ? (
-                      <tr className="bg-mint/10 font-bold">
-                        <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
-                        {truckLoading.products.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(truckLoading.totals[product.id]) || "-"}</td>)}
-                        <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatQty(truckTotals.quantity) || "-"}</td>
-                      </tr>
-                    ) : null}
-                    {!loading && (!truckLoading || !truckLoading.routes.length) ? (
-                      <tr>
-                        <td className="px-4 py-10 text-center text-muted" colSpan={(truckLoading?.products.length || 0) + 2}>No truck loading data for this date.</td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        )}
       </div>
 
       <Modal open={repeatOpen} title="Repeat orders" description="Copy all active orders from one date into another date, optionally for one route only." onClose={() => setRepeatOpen(false)}>

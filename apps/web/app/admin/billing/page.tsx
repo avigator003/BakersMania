@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CreditCard, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { StatusDropdown } from "../../../components/status-dropdown";
 import { useToast } from "../../../components/toast-provider";
@@ -254,7 +255,7 @@ export default function AdminBillingPage() {
             </div>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading billing...</p> : null}
+          {loading ? <LoadingSpinner label="Loading billing" /> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
             {billing.map((row) => (

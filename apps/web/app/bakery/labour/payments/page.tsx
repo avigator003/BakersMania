@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { IndianRupee, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
+import { LoadingSpinner } from "../../../../components/loading-spinner";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
@@ -187,14 +188,9 @@ export default function LabourPaymentsPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Labour salary, advance, and partial payment sheet" surface="bakery">
-      <div className="grid gap-6">
-        <section className="rounded-lg border border-line bg-panel p-5 shadow-subtle">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase text-mint">Labour Payments</p>
-              <h1 className="mt-2 text-2xl font-bold">Monthly Payment Sheet</h1>
-              <p className="mt-2 text-sm text-muted">Enter amounts only for labourers getting paid now. Advance, partial, and full payments can be saved together.</p>
-            </div>
+      <div className="grid gap-4">
+        <section className="rounded-lg border border-line bg-panel p-3 shadow-subtle">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-end">
             <div className="flex flex-wrap items-end gap-2">
               <label className="grid gap-1">
                 <span className="text-xs font-semibold text-muted">Salary month</span>
@@ -255,7 +251,7 @@ export default function LabourPaymentsPage() {
             </div>
           </div>
 
-          {loading ? <p className="p-4 text-sm text-muted">Loading payment sheet...</p> : null}
+          {loading ? <LoadingSpinner label="Loading payment sheet" /> : null}
 
           <div className="divide-y divide-line">
             {visibleLabours.map((labour) => {

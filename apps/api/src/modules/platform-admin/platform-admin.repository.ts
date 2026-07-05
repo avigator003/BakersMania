@@ -186,5 +186,27 @@ export const platformAdminRepository = {
 
   getOverviewCounts() {
     return Promise.all([prisma.tenant.count(), prisma.order.count(), prisma.customer.count()]);
+  },
+
+  dbPing() {
+    return prisma.$queryRaw<Array<{ ok: number }>>`select 1 as ok`;
+  },
+
+  findTenantForDiagnostics(slug: string) {
+    return prisma.tenant.findUnique({
+      where: { slug },
+      select: { id: true, name: true, slug: true, status: true }
+    });
+  },
+
+  getTenantDiagnosticsCounts(tenantId: string) {
+    return Promise.all([
+      prisma.customer.count({ where: { tenantId } }),
+      prisma.order.count({ where: { tenantId } }),
+      prisma.product.count({ where: { tenantId } }),
+      prisma.route.count({ where: { tenantId } }),
+      prisma.vehicle.count({ where: { tenantId } }),
+      prisma.expense.count({ where: { tenantId } })
+    ]);
   }
 };

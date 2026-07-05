@@ -18,3 +18,5 @@ platformAdminRouter.patch("/tenants/:tenantId/suspend", asyncHandler(platformAdm
 platformAdminRouter.patch("/tenants/:tenantId/activate", asyncHandler(platformAdminController.activateTenant));
 platformAdminRouter.delete("/tenants/:tenantId", asyncHandler(platformAdminController.deleteTenant));
 platformAdminRouter.get("/reports/overview", asyncHandler(platformAdminController.overview));
+platformAdminRouter.get("/diagnostics", asyncHandler(platformAdminController.diagnostics));
+platformAdminRouter.get("/request-metrics", asyncHandler(platformAdminController.requestMetrics));

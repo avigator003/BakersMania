@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
@@ -140,7 +141,7 @@ export default function VehicleRoutesPage() {
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
             </div>
           </div>
-          {loading ? <p className="p-4 text-sm text-muted">Loading assigned orders...</p> : null}
+          {loading ? <LoadingSpinner label="Loading assigned orders" /> : null}
           <div className="grid gap-3 p-3">
             {orders.map((order) => {
               const due = orderDue(order);
