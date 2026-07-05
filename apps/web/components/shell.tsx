@@ -35,7 +35,6 @@ const bakeryNav = [
   { href: "/bakery", label: "Dashboard", icon: Home },
   { href: "/bakery/orders", label: "Orders", icon: ClipboardList },
   { href: "/bakery/customers", label: "Customers", icon: Users },
-  { href: "/bakery/categories", label: "Categories", icon: Boxes },
   { href: "/bakery/products", label: "Products", icon: Boxes },
   { href: "/bakery/labour", label: "Labour", icon: Users },
   { href: "/bakery/inventory", label: "Inventory", icon: Boxes },
@@ -56,7 +55,13 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [authState, setAuthState] = useState<"checking" | "allowed" | "denied">("checking");
+  const [authState, setAuthState] = useState<"checking" | "allowed" | "denied">(() => {
+    const token = getStoredToken();
+    const actorType = getStoredActorType();
+    return token && actorType === (surface === "admin" ? "platform_admin" : surface === "customer" ? "customer" : surface === "vehicle" ? "vehicle" : "bakery_user")
+      ? "allowed"
+      : "checking";
+  });
   const [workspaceName, setWorkspaceName] = useState(surface === "bakery" || surface === "customer" || surface === "vehicle" ? getStoredTenantName() || "" : "");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -109,6 +114,8 @@ export function AppShell({
         }
         return;
       }
+
+      if (!cancelled) setAuthState("allowed");
 
       if ((surface === "bakery" || surface === "customer" || surface === "vehicle") && sessionTenantSlug) {
         const surfaceSegment = surface;
@@ -258,10 +265,6 @@ export function AppShell({
     return (
       <div className="grid min-h-screen place-items-center bg-night px-4 text-ink">
         <PwaRegister />
-        <div className="rounded-lg border border-line bg-panel p-6 text-center shadow-subtle">
-          <p className="text-lg font-semibold">Checking access</p>
-          <p className="mt-2 text-sm text-muted">Please sign in with the correct account type.</p>
-        </div>
       </div>
     );
   }
@@ -403,7 +406,7 @@ export function AppShell({
         </div>
       ) : null}
       <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-6 sm:px-6 lg:ml-72">
-        <nav className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted" aria-label="Breadcrumb">
+        <nav className="mb-4 flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted" aria-label="Breadcrumb">
           {breadcrumbs.map((item, index) => {
             const last = index === breadcrumbs.length - 1;
             return (

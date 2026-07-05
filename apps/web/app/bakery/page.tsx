@@ -118,27 +118,19 @@ export default function BakeryPage() {
   return (
     <AppShell title="Bakery CRM" subtitle="Orders, customers, stock, staff, routes, and reports">
       <div className="grid min-w-0 max-w-full gap-5">
-        <section className="rounded-lg border border-line bg-sidebar p-5 text-white shadow-subtle">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase text-mint">Live Workspace</p>
-              <h1 className="mt-2 text-2xl font-bold">Dashboard</h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
-                Month overview for expenses, seller payments, customer payments, and stock risks.
-              </p>
-            </div>
-            <button
-              className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-md border border-white/10 bg-white/10 text-white"
-              onClick={loadDashboard}
-              title="Refresh dashboard"
-              type="button"
-            >
-              <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
-            </button>
-          </div>
+        <section className="flex min-w-0 items-center justify-between gap-3">
+          <h1 className="truncate text-xl font-semibold">Dashboard</h1>
+          <button
+            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-md border border-line bg-panel2"
+            onClick={loadDashboard}
+            title="Refresh dashboard"
+            type="button"
+          >
+            <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+          </button>
         </section>
 
-        <section className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,190px),1fr))] gap-3">
           {stats.map(([label, value, Icon]) => (
             <div key={String(label)} className="min-w-0 rounded-lg border border-line bg-panel p-3 shadow-subtle sm:p-4">
               <div className="flex items-center justify-between">
@@ -147,7 +139,7 @@ export default function BakeryPage() {
                   <Icon size={18} />
                 </span>
               </div>
-              <p className="mt-4 break-words text-xl font-bold sm:text-2xl">{loading ? "..." : String(value)}</p>
+              <p className="mt-4 break-words text-lg font-bold sm:text-xl xl:text-2xl">{loading ? "..." : String(value)}</p>
             </div>
           ))}
         </section>

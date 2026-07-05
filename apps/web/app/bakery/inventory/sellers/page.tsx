@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CreditCard, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
 import { Modal } from "../../../../components/modal";
+import { PaginationControls, usePagination } from "../../../../components/pagination";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
@@ -114,6 +115,7 @@ export default function RawMaterialSellersPage() {
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [purchases, search]);
+  const purchasesPage = usePagination(filteredPurchases, 25);
 
   const totals = useMemo(() => {
     return purchases.reduce(
@@ -304,7 +306,7 @@ export default function RawMaterialSellersPage() {
           {loading ? <p className="p-4 text-sm text-muted">Loading seller purchases...</p> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {filteredPurchases.map((purchase) => {
+            {purchasesPage.pageItems.map((purchase) => {
               const due = Math.max(Number(purchase.amount || 0) - Number(purchase.paidAmount || 0), 0);
               return (
                 <article key={purchase.id} className="rounded-lg border border-line bg-panel2 p-3">
@@ -362,7 +364,7 @@ export default function RawMaterialSellersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredPurchases.map((purchase) => {
+                {purchasesPage.pageItems.map((purchase) => {
                   const due = Math.max(Number(purchase.amount || 0) - Number(purchase.paidAmount || 0), 0);
                   return (
                     <tr key={purchase.id}>
@@ -401,6 +403,7 @@ export default function RawMaterialSellersPage() {
               </tbody>
             </table>
           </div>
+          <PaginationControls {...purchasesPage} />
         </section>
       </div>
 

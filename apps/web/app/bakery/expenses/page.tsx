@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -87,6 +88,7 @@ export default function BakeryExpensesPage() {
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [expenses, search]);
+  const expensesPage = usePagination(filteredExpenses, 25);
 
   const totals = useMemo(() => {
     return expenses.reduce(
@@ -228,7 +230,7 @@ export default function BakeryExpensesPage() {
           {loading ? <p className="p-4 text-sm text-muted">Loading expenses...</p> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {filteredExpenses.map((expense) => (
+            {expensesPage.pageItems.map((expense) => (
               <article key={expense.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -273,7 +275,7 @@ export default function BakeryExpensesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredExpenses.map((expense) => (
+                {expensesPage.pageItems.map((expense) => (
                   <tr key={expense.id}>
                     <td className="px-4 py-3">{formatDate(expense.spentAt)}</td>
                     <td className="px-4 py-3">{expense.type === "RENT" ? "Rent" : "Miscellaneous"}</td>
@@ -313,6 +315,7 @@ export default function BakeryExpensesPage() {
               </tbody>
             </table>
           </div>
+          <PaginationControls {...expensesPage} />
         </section>
       </div>
 

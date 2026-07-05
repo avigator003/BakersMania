@@ -19,8 +19,9 @@ function withBalance(customer: Awaited<ReturnType<typeof customersRepository.lis
   );
   const dueBalance = Math.max(orderTotal - paidTotal, 0);
   const creditLimit = customer.creditLimit === null || customer.creditLimit === undefined ? null : Number(customer.creditLimit);
+  const { orders: _orders, ...customerWithoutOrders } = customer;
   return {
-    ...customer,
+    ...customerWithoutOrders,
     orderTotal,
     paidTotal,
     dueBalance,

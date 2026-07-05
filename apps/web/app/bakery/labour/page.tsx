@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Download, IndianRupee, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 import { downloadLabourAttendanceWorkbook, downloadLabourOverviewWorkbook, fetchLabourYearExport } from "../../../lib/labour-export";
@@ -129,6 +130,7 @@ export default function LabourManagementPage() {
       return matchesStatus && matchesSearch;
     });
   }, [data, search, statusFilter]);
+  const laboursPage = usePagination(filteredLabours, 25);
 
   async function loadLabour() {
     if (!apiPath) {
@@ -329,7 +331,7 @@ export default function LabourManagementPage() {
           </div>
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {filteredLabours.map((labour) => {
+            {laboursPage.pageItems.map((labour) => {
               const latestAttendance = labour.attendance[0];
               const latestPayment = labour.salaryPayments[0];
               return (
@@ -394,7 +396,7 @@ export default function LabourManagementPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredLabours.map((labour) => {
+                {laboursPage.pageItems.map((labour) => {
                   const latestAttendance = labour.attendance[0];
                   const latestPayment = labour.salaryPayments[0];
                   return (
@@ -450,6 +452,7 @@ export default function LabourManagementPage() {
               </tbody>
             </table>
           </div>
+          <PaginationControls {...laboursPage} />
         </section>
 
         <Modal open={labourOpen} title="Add Labour" description="Create a bakery labour profile for attendance and payment tracking." onClose={() => setLabourOpen(false)}>

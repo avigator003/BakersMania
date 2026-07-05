@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { MapPinned, Plus, RefreshCw, Truck } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaginationControls, usePagination } from "../../../components/pagination";
 import { PhotoPicker } from "../../../components/photo-picker";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -75,6 +76,8 @@ export default function BakeryRoutesPage() {
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
+  const routesPage = usePagination(routes, 25);
+  const vehiclesPage = usePagination(vehicles, 25);
 
   async function loadData() {
     if (!apiBase) {
@@ -207,7 +210,7 @@ export default function BakeryRoutesPage() {
           {activeTab === "routes" ? (
             <>
             <div className="grid gap-3 p-3 sm:hidden">
-              {routes.map((route) => (
+              {routesPage.pageItems.map((route) => (
                 <article key={route.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -236,7 +239,7 @@ export default function BakeryRoutesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {routes.map((route) => (
+                  {routesPage.pageItems.map((route) => (
                     <tr key={route.id}>
                       <td className="px-4 py-3 font-semibold">{route.name}</td>
                       <td className="px-4 py-3">
@@ -260,11 +263,12 @@ export default function BakeryRoutesPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls {...routesPage} />
             </>
           ) : (
             <>
             <div className="grid gap-3 p-3 sm:hidden">
-              {vehicles.map((vehicle) => (
+              {vehiclesPage.pageItems.map((vehicle) => (
                 <article key={vehicle.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -301,7 +305,7 @@ export default function BakeryRoutesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {vehicles.map((vehicle) => (
+                  {vehiclesPage.pageItems.map((vehicle) => (
                     <tr key={vehicle.id} className="align-top">
                       <td className="px-4 py-3">
                         <span className="block font-semibold">{vehicle.name}</span>
@@ -330,6 +334,7 @@ export default function BakeryRoutesPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls {...vehiclesPage} />
             </>
           )}
         </section>

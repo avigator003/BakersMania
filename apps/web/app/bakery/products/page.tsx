@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Eye, IndianRupee, Pencil, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -38,7 +39,7 @@ type Product = {
   taxRate: string;
   active: boolean;
   categoryRef?: Category | null;
-  customerPrices: CustomerPrice[];
+  customerPrices?: CustomerPrice[];
 };
 
 type CustomerPrice = {
@@ -96,6 +97,7 @@ export default function BakeryProductsPage() {
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [products, search]);
+  const productsPage = usePagination(filteredProducts, 25);
 
   async function loadData() {
     if (!apiBase) {
@@ -184,23 +186,20 @@ export default function BakeryProductsPage() {
     });
   }
 
+  async function openProductDetails(product: Product) {
+    if (!apiBase) return;
+    setViewProduct(product);
+    try {
+      const data = await authFetch<{ product: Product }>(`${apiBase}/catalog/products/${product.id}`);
+      setViewProduct(data.product);
+    } catch (error) {
+      toast.error("Could not load product prices", error instanceof Error ? error.message : "Please try again.");
+    }
+  }
+
   return (
     <AppShell title="Bakery CRM" subtitle="Product categories, catalog, and customer-specific pricing" surface="bakery">
       <div className="grid gap-6">
-        <section className="summary-grid">
-          {[
-            ["Categories", categories.length],
-            ["Products", products.length],
-            ["Active products", products.filter((product) => product.active).length],
-            ["Customer prices", products.reduce((total, product) => total + product.customerPrices.length, 0)]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-line bg-panel p-4 shadow-subtle">
-              <p className="text-sm text-muted">{label}</p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -233,7 +232,7 @@ export default function BakeryProductsPage() {
           {loading ? <p className="p-4 text-sm text-muted">Loading products...</p> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {filteredProducts.map((product) => (
+            {productsPage.pageItems.map((product) => (
               <article key={product.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -255,7 +254,7 @@ export default function BakeryProductsPage() {
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => setViewProduct(product)} title="View product prices">
+                  <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openProductDetails(product)} title="View product prices">
                     <Eye size={16} />
                   </button>
                   <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openEdit(product)} title="Edit product">
@@ -285,7 +284,7 @@ export default function BakeryProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredProducts.map((product) => (
+                {productsPage.pageItems.map((product) => (
                   <tr key={product.id} className="align-top">
                     <td className="px-4 py-3">
                       <span className="block font-semibold">{product.name}</span>
@@ -301,7 +300,7 @@ export default function BakeryProductsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" onClick={() => setViewProduct(product)} title="View product prices">
+                        <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" onClick={() => openProductDetails(product)} title="View product prices">
                           <Eye size={16} />
                         </button>
                         <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" onClick={() => openEdit(product)} title="Edit product">
@@ -322,6 +321,7 @@ export default function BakeryProductsPage() {
               </tbody>
             </table>
           </div>
+          <PaginationControls {...productsPage} />
         </section>
 
         <Modal open={productOpen} title="Add Product" description="Create a product inside a category with base pricing." onClose={() => setProductOpen(false)}>
@@ -383,7 +383,7 @@ export default function BakeryProductsPage() {
                 <p className="font-semibold">Customer prices</p>
               </div>
               <div className="max-h-72 divide-y divide-line overflow-auto">
-                {viewProduct?.customerPrices.map((price) => (
+                {(viewProduct?.customerPrices || []).map((price) => (
                   <div key={price.id} className="grid gap-1 p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
                     <div>
                       <p className="font-semibold">{price.customer.name}</p>
@@ -393,7 +393,7 @@ export default function BakeryProductsPage() {
                     <p className="font-bold text-mint">{formatAmount(price.price)}</p>
                   </div>
                 ))}
-                {!viewProduct?.customerPrices.length ? <p className="p-3 text-sm text-muted">No customer prices set yet.</p> : null}
+                {!viewProduct?.customerPrices?.length ? <p className="p-3 text-sm text-muted">No customer prices set yet.</p> : null}
               </div>
             </div>
           </div>

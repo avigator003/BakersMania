@@ -9,7 +9,15 @@ export const customersRepository = {
   listByTenant(tenantId: string) {
     return prisma.customer.findMany({
       where: { tenantId },
-      include: { route: true, orders: { include: { payments: true } } },
+      include: {
+        route: true,
+        orders: {
+          select: {
+            grandTotal: true,
+            payments: { select: { amount: true } }
+          }
+        }
+      },
       orderBy: { createdAt: "desc" },
       take: 100
     });

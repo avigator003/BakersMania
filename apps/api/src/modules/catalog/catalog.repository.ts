@@ -48,18 +48,12 @@ export const catalogRepository = {
     return prisma.productCategory.create({ data: { ...input, tenantId } });
   },
 
-  listProducts(tenantId: string, includeManagementDetails = false) {
+  listProducts(tenantId: string, includeInactive = false) {
     return prisma.product.findMany({
-      where: { tenantId, ...(includeManagementDetails ? {} : { active: true }) },
+      where: { tenantId, ...(includeInactive ? {} : { active: true }) },
       orderBy: [{ active: "desc" }, { name: "asc" }],
       include: {
-        categoryRef: true,
-        customerPrices: includeManagementDetails
-          ? {
-              include: { customer: { include: { route: true } } },
-              orderBy: { createdAt: "desc" }
-            }
-          : false
+        categoryRef: true
       }
     });
   },

@@ -4,6 +4,7 @@ import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import { Copy, Download, Eye, FileDown, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaginationControls, usePagination } from "../../../components/pagination";
 import { PaymentHistory, paymentDue, paymentTotal, resolvedPaymentStatus } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -179,6 +180,7 @@ export default function BakeryOrdersPage() {
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [orders, search]);
+  const ordersPage = usePagination(filteredOrders, 25);
 
   const orderTotals = useMemo(() => {
     return {
@@ -630,7 +632,7 @@ export default function BakeryOrdersPage() {
               </div>
               {loading ? <p className="p-4 text-sm text-muted">Loading orders...</p> : null}
               <div className="grid gap-3 p-3 sm:hidden">
-                {filteredOrders.map((order) => {
+                {ordersPage.pageItems.map((order) => {
                   const paid = orderPaid(order);
                   const due = orderDue(order);
                   const todaysDue = isCarryForwardDue(order) ? due : 0;
@@ -714,7 +716,7 @@ export default function BakeryOrdersPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {filteredOrders.map((order) => {
+                    {ordersPage.pageItems.map((order) => {
                       const paid = orderPaid(order);
                       const due = orderDue(order);
                       const todaysDue = isCarryForwardDue(order) ? due : 0;
@@ -779,6 +781,7 @@ export default function BakeryOrdersPage() {
                   </tbody>
                 </table>
               </div>
+              <PaginationControls {...ordersPage} />
             </section>
           </>
         ) : (

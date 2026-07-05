@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { IndianRupee, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { AppShell } from "../../../../../components/shell";
+import { PaginationControls, usePagination } from "../../../../../components/pagination";
 import { useToast } from "../../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../../lib/api";
 
@@ -88,6 +89,7 @@ export default function ProductPriceAssignmentPage() {
   const validRows = useMemo(() => {
     return priceRows.filter((row) => Number(row.price) > 0 && row.customerIds.length);
   }, [priceRows]);
+  const historyPage = usePagination(history, 25);
 
   async function loadData() {
     if (!apiBase || !params.productId) {
@@ -455,7 +457,7 @@ export default function ProductPriceAssignmentPage() {
             <h2 className="mt-1 text-lg font-semibold">Recent customer price changes</h2>
           </div>
           <div className="grid gap-3 p-3 sm:hidden">
-            {history.map((item) => (
+            {historyPage.pageItems.map((item) => (
               <article key={item.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -483,7 +485,7 @@ export default function ProductPriceAssignmentPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {history.map((item) => (
+                {historyPage.pageItems.map((item) => (
                   <tr key={item.id}>
                     <td className="px-4 py-3 font-semibold">{item.customer.name}</td>
                     <td className="px-4 py-3 text-muted">{item.customer.route?.name || "No route"}</td>
@@ -496,6 +498,7 @@ export default function ProductPriceAssignmentPage() {
               </tbody>
             </table>
           </div>
+          <PaginationControls {...historyPage} />
         </section>
       </div>
     </AppShell>

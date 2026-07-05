@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Eye, Pencil, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaginationControls, usePagination } from "../../../components/pagination";
 import { PhotoPicker } from "../../../components/photo-picker";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -108,6 +109,7 @@ export default function BakeryCustomersPage() {
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [customers, search]);
+  const customersPage = usePagination(filteredCustomers, 25);
 
   async function loadData() {
     if (!apiBase) {
@@ -269,7 +271,7 @@ export default function BakeryCustomersPage() {
           {loading ? <p className="p-4 text-sm text-muted">Loading customers...</p> : null}
 
           <div className="grid gap-3 p-3 sm:hidden">
-            {filteredCustomers.map((customer) => (
+            {customersPage.pageItems.map((customer) => (
               <article key={customer.id} className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -317,7 +319,7 @@ export default function BakeryCustomersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredCustomers.map((customer) => (
+                {customersPage.pageItems.map((customer) => (
                   <tr key={customer.id} className="align-top">
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-3">
@@ -359,6 +361,7 @@ export default function BakeryCustomersPage() {
               </tbody>
             </table>
           </div>
+          <PaginationControls {...customersPage} />
         </section>
 
         <Modal open={customerOpen} title={editCustomer ? "Edit Customer" : "Add Customer"} description="Create a bakery customer and assign the route where material or product will go." onClose={() => { setCustomerOpen(false); setEditCustomer(null); setCustomerForm(initialCustomerForm); }}>

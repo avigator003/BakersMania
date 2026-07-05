@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CalendarDays, Eye, History, PackagePlus, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { Modal } from "../../../components/modal";
+import { PaginationControls, usePagination } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -135,6 +136,8 @@ export default function BakeryInventoryPage() {
       return matchesCategory && matchesSearch;
     });
   }, [materials, materialCategory, materialSearch]);
+  const productsPage = usePagination(filteredProducts, 25);
+  const materialsPage = usePagination(filteredMaterials, 25);
 
   const totals = useMemo(() => {
     return products.reduce(
@@ -367,7 +370,7 @@ export default function BakeryInventoryPage() {
               {loading ? <p className="p-4 text-sm text-muted">Loading stock...</p> : null}
 
               <div className="grid gap-3 p-3 sm:hidden">
-                {filteredProducts.map((product) => (
+                {productsPage.pageItems.map((product) => (
                   <article key={product.id} className="rounded-lg border border-line bg-panel2 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -419,7 +422,7 @@ export default function BakeryInventoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {filteredProducts.map((product) => (
+                    {productsPage.pageItems.map((product) => (
                       <tr key={product.id}>
                         <td className="px-4 py-3">
                           <span className="block font-semibold">{product.name}</span>
@@ -450,6 +453,7 @@ export default function BakeryInventoryPage() {
                   </tbody>
                 </table>
               </div>
+              <PaginationControls {...productsPage} />
             </section>
           </>
         ) : (
@@ -502,7 +506,7 @@ export default function BakeryInventoryPage() {
               {loading ? <p className="p-4 text-sm text-muted">Loading materials...</p> : null}
 
               <div className="grid gap-3 p-3 sm:hidden">
-                {filteredMaterials.map((material) => {
+                {materialsPage.pageItems.map((material) => {
                   const last = material.ledger?.[0];
                   const value = Number(material.stockOnHand || 0) * Number(material.unitPrice || 0);
                   return (
@@ -568,7 +572,7 @@ export default function BakeryInventoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {filteredMaterials.map((material) => {
+                    {materialsPage.pageItems.map((material) => {
                       const last = material.ledger?.[0];
                       const value = Number(material.stockOnHand || 0) * Number(material.unitPrice || 0);
                       return (
@@ -615,6 +619,7 @@ export default function BakeryInventoryPage() {
                   </tbody>
                 </table>
               </div>
+              <PaginationControls {...materialsPage} />
             </section>
           </>
         )}
