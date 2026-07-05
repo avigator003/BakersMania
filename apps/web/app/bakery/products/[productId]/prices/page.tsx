@@ -457,6 +457,7 @@ export default function ProductPriceAssignmentPage() {
             <p className="text-sm font-semibold uppercase text-mint">Price History</p>
             <h2 className="mt-1 text-lg font-semibold">Recent customer price changes</h2>
           </div>
+          <PaginationControls {...historyPage} />
           <div className="grid gap-3 p-3 sm:hidden">
             {historyPage.pageItems.map((item) => (
               <article key={item.id} className="rounded-lg border border-line bg-panel2 p-3">
@@ -499,7 +500,6 @@ export default function ProductPriceAssignmentPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls {...historyPage} />
         </section>
       </div>
     </AppShell>

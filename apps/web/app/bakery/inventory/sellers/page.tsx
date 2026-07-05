@@ -287,6 +287,14 @@ export default function RawMaterialSellersPage() {
           </div>
 
           {loading ? <LoadingSpinner label="Loading seller purchases" /> : null}
+          <PaginationControls
+            {...purchasesPage}
+            summary={[
+              { label: "Sellers", value: suppliers.length },
+              { label: "Month total", value: formatAmount(totals.amount) },
+              { label: "Due", value: formatAmount(totals.due) }
+            ]}
+          />
 
           <div className="grid gap-3 p-3 sm:hidden">
             {purchasesPage.pageItems.map((purchase) => {
@@ -386,14 +394,6 @@ export default function RawMaterialSellersPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls
-            {...purchasesPage}
-            summary={[
-              { label: "Sellers", value: suppliers.length },
-              { label: "Month total", value: formatAmount(totals.amount) },
-              { label: "Due", value: formatAmount(totals.due) }
-            ]}
-          />
         </section>
       </div>
 

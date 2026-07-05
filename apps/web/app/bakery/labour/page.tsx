@@ -310,6 +310,16 @@ export default function LabourManagementPage() {
               ))}
             </div>
           </div>
+          <PaginationControls
+            {...laboursPage}
+            summary={[
+              { label: "Active", value: data?.stats.activeLabour ?? 0 },
+              { label: "Present", value: data?.stats.presentToday ?? 0 },
+              { label: "Absent", value: data?.stats.absentToday ?? 0 },
+              { label: "Paid", value: formatAmount(data?.stats.paymentThisMonth ?? 0) },
+              { label: "Advances", value: formatAmount(data?.stats.advanceThisMonth ?? 0) }
+            ]}
+          />
 
           <div className="grid gap-3 p-3 sm:hidden">
             {laboursPage.pageItems.map((labour) => {
@@ -433,16 +443,6 @@ export default function LabourManagementPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls
-            {...laboursPage}
-            summary={[
-              { label: "Active", value: data?.stats.activeLabour ?? 0 },
-              { label: "Present", value: data?.stats.presentToday ?? 0 },
-              { label: "Absent", value: data?.stats.absentToday ?? 0 },
-              { label: "Paid", value: formatAmount(data?.stats.paymentThisMonth ?? 0) },
-              { label: "Advances", value: formatAmount(data?.stats.advanceThisMonth ?? 0) }
-            ]}
-          />
         </section>
 
         <Modal open={labourOpen} title="Add Labour" description="Create a bakery labour profile for attendance and payment tracking." onClose={() => setLabourOpen(false)}>

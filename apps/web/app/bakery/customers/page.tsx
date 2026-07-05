@@ -252,6 +252,14 @@ export default function BakeryCustomersPage() {
           </div>
 
           {loading ? <LoadingSpinner label="Loading customers" /> : null}
+          <PaginationControls
+            {...customersPage}
+            summary={[
+              { label: "Routes", value: routes.length },
+              { label: "Aadhaar", value: customers.filter((customer) => customer.aadhaarNumber).length },
+              { label: "Due", value: formatAmount(customers.reduce((sum, customer) => sum + Number(customer.dueBalance || 0), 0)) }
+            ]}
+          />
 
           <div className="grid gap-3 p-3 sm:hidden">
             {customersPage.pageItems.map((customer) => (
@@ -344,14 +352,6 @@ export default function BakeryCustomersPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls
-            {...customersPage}
-            summary={[
-              { label: "Routes", value: routes.length },
-              { label: "Aadhaar", value: customers.filter((customer) => customer.aadhaarNumber).length },
-              { label: "Due", value: formatAmount(customers.reduce((sum, customer) => sum + Number(customer.dueBalance || 0), 0)) }
-            ]}
-          />
         </section>
 
         <Modal open={customerOpen} title={editCustomer ? "Edit Customer" : "Add Customer"} description="Create a bakery customer and assign the route where material or product will go." onClose={() => { setCustomerOpen(false); setEditCustomer(null); setCustomerForm(initialCustomerForm); }}>

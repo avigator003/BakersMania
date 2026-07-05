@@ -351,6 +351,14 @@ export default function BakeryInventoryPage() {
               </div>
 
               {loading ? <LoadingSpinner label="Loading stock" /> : null}
+              <PaginationControls
+                {...productsPage}
+                summary={[
+                  { label: "Stock", value: formatNumber(totals.stock) },
+                  { label: "Required", value: formatNumber(totals.required) },
+                  { label: "Short", value: totals.short }
+                ]}
+              />
 
               <div className="grid gap-3 p-3 sm:hidden">
                 {productsPage.pageItems.map((product) => (
@@ -436,14 +444,6 @@ export default function BakeryInventoryPage() {
                   </tbody>
                 </table>
               </div>
-              <PaginationControls
-                {...productsPage}
-                summary={[
-                  { label: "Stock", value: formatNumber(totals.stock) },
-                  { label: "Required", value: formatNumber(totals.required) },
-                  { label: "Short", value: totals.short }
-                ]}
-              />
             </section>
           </>
         ) : (
@@ -476,6 +476,14 @@ export default function BakeryInventoryPage() {
               </div>
 
               {loading ? <LoadingSpinner label="Loading materials" /> : null}
+              <PaginationControls
+                {...materialsPage}
+                summary={[
+                  { label: "Quantity", value: formatNumber(materialTotals.stock) },
+                  { label: "Value", value: formatAmount(materialTotals.value) },
+                  { label: "Low", value: materialTotals.low }
+                ]}
+              />
 
               <div className="grid gap-3 p-3 sm:hidden">
                 {materialsPage.pageItems.map((material) => {
@@ -591,14 +599,6 @@ export default function BakeryInventoryPage() {
                   </tbody>
                 </table>
               </div>
-              <PaginationControls
-                {...materialsPage}
-                summary={[
-                  { label: "Quantity", value: formatNumber(materialTotals.stock) },
-                  { label: "Value", value: formatAmount(materialTotals.value) },
-                  { label: "Low", value: materialTotals.low }
-                ]}
-              />
             </section>
           </>
         )}

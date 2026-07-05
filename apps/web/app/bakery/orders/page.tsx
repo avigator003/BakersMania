@@ -557,6 +557,15 @@ export default function BakeryOrdersPage() {
                 </select>
               </div>
               {loading ? <LoadingSpinner label="Loading orders" /> : null}
+              <PaginationControls
+                {...ordersPage}
+                summary={[
+                  { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
+                  { label: "Total", value: formatAmount(orderTotals.amount) },
+                  { label: "Due", value: formatAmount(orderTotals.due) },
+                  { label: "Today due", value: formatAmount(orderTotals.todaysDue) }
+                ]}
+              />
               <div className="grid gap-3 p-3 sm:hidden">
                 {ordersPage.pageItems.map((order) => {
                   const paid = orderPaid(order);
@@ -703,15 +712,6 @@ export default function BakeryOrdersPage() {
                   </tbody>
                 </table>
               </div>
-              <PaginationControls
-                {...ordersPage}
-                summary={[
-                  { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
-                  { label: "Total", value: formatAmount(orderTotals.amount) },
-                  { label: "Due", value: formatAmount(orderTotals.due) },
-                  { label: "Today due", value: formatAmount(orderTotals.todaysDue) }
-                ]}
-              />
             </section>
       </div>
 

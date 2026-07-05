@@ -13,6 +13,10 @@ export const bakeryRoutesRepository = {
     return prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId }, select: { id: true } });
   },
 
+  findRoute(tenantId: string, routeId: string) {
+    return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
+  },
+
   upsertVehicleUser(input: { email: string; phone: string; name: string; passwordHash: string }) {
     return prisma.user.upsert({
       where: { email: input.email },
@@ -25,6 +29,13 @@ export const bakeryRoutesRepository = {
     return prisma.vehicle.create({ data: { ...input, tenantId } });
   },
 
+  updateVehicle(tenantId: string, vehicleId: string, input: VehicleInput) {
+    return prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: input
+    });
+  },
+
   list(tenantId: string) {
     return prisma.route.findMany({
       where: { tenantId },
@@ -34,5 +45,13 @@ export const bakeryRoutesRepository = {
 
   create(tenantId: string, input: RouteInput) {
     return prisma.route.create({ data: { ...input, vehicleId: input.vehicleId || undefined, tenantId }, include: { vehicle: true } });
+  },
+
+  update(tenantId: string, routeId: string, input: RouteInput) {
+    return prisma.route.update({
+      where: { id: routeId },
+      data: { ...input, vehicleId: input.vehicleId || null },
+      include: { vehicle: true }
+    });
   }
 };

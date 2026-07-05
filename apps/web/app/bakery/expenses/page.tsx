@@ -211,6 +211,15 @@ export default function BakeryExpensesPage() {
           </div>
 
           {loading ? <LoadingSpinner label="Loading expenses" /> : null}
+          <PaginationControls
+            {...expensesPage}
+            summary={[
+              { label: "Month total", value: formatAmount(totals.total) },
+              { label: "Paid", value: formatAmount(totals.paid) },
+              { label: "Pending", value: formatAmount(totals.pending) },
+              { label: "Rent", value: formatAmount(totals.rent) }
+            ]}
+          />
 
           <div className="grid gap-3 p-3 sm:hidden">
             {expensesPage.pageItems.map((expense) => (
@@ -298,15 +307,6 @@ export default function BakeryExpensesPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls
-            {...expensesPage}
-            summary={[
-              { label: "Month total", value: formatAmount(totals.total) },
-              { label: "Paid", value: formatAmount(totals.paid) },
-              { label: "Pending", value: formatAmount(totals.pending) },
-              { label: "Rent", value: formatAmount(totals.rent) }
-            ]}
-          />
         </section>
       </div>
 

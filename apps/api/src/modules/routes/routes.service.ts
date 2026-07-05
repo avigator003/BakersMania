@@ -32,6 +32,14 @@ export const bakeryRoutesService = {
     return bakeryRoutesRepository.createVehicle(tenantId, { ...input, driverPhone: phone, userId: user.id });
   },
 
+  async updateVehicle(tenantId: string, vehicleId: string, input: VehicleInput) {
+    const vehicle = await bakeryRoutesRepository.findVehicle(tenantId, vehicleId);
+    if (!vehicle) {
+      throw new HttpError(404, "Vehicle not found");
+    }
+    return bakeryRoutesRepository.updateVehicle(tenantId, vehicleId, { ...input, driverPhone: normalizePhone(input.driverPhone) || undefined });
+  },
+
   list(tenantId: string) {
     return bakeryRoutesRepository.list(tenantId);
   },
@@ -44,5 +52,19 @@ export const bakeryRoutesService = {
       }
     }
     return bakeryRoutesRepository.create(tenantId, input);
+  },
+
+  async update(tenantId: string, routeId: string, input: RouteInput) {
+    const route = await bakeryRoutesRepository.findRoute(tenantId, routeId);
+    if (!route) {
+      throw new HttpError(404, "Route not found");
+    }
+    if (input.vehicleId) {
+      const vehicle = await bakeryRoutesRepository.findVehicle(tenantId, input.vehicleId);
+      if (!vehicle) {
+        throw new HttpError(400, "Selected vehicle does not belong to this bakery");
+      }
+    }
+    return bakeryRoutesRepository.update(tenantId, routeId, input);
   }
 };

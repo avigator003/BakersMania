@@ -8,9 +8,9 @@ export const routeSchema = z.object({
 
 export const vehicleSchema = z.object({
   name: z.string().min(2),
-  number: z.string().min(2),
+  number: z.string().optional(),
   driverName: z.string().optional(),
-  driverPhone: z.string().optional(),
+  driverPhone: z.string().min(5),
   rcExpiryDate: z.coerce.date().optional(),
   rcPhotoUrl: z.string().optional(),
   pucExpiryDate: z.coerce.date().optional(),

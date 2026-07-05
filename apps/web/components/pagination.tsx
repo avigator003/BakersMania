@@ -54,7 +54,7 @@ export function PaginationControls({
   const end = Math.min(total, page * pageSize);
 
   return (
-    <div className="flex flex-col gap-3 border-t border-line px-4 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+    <div className="sticky top-14 z-10 flex flex-col gap-3 border-b border-line bg-panel/95 px-4 py-3 text-sm text-muted backdrop-blur sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span>
           Showing <span className="font-semibold text-ink">{start}-{end}</span> of <span className="font-semibold text-ink">{total}</span>

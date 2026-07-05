@@ -12,5 +12,7 @@ bakeryRoutesRouter.use(resolveTenant, requireAuth);
 
 bakeryRoutesRouter.get("/vehicles", asyncHandler(bakeryRoutesController.listVehicles));
 bakeryRoutesRouter.post("/vehicles", validateBody(vehicleSchema), asyncHandler(bakeryRoutesController.createVehicle));
+bakeryRoutesRouter.patch("/vehicles/:vehicleId", validateBody(vehicleSchema), asyncHandler(bakeryRoutesController.updateVehicle));
 bakeryRoutesRouter.get("/", asyncHandler(bakeryRoutesController.list));
 bakeryRoutesRouter.post("/", validateBody(routeSchema), asyncHandler(bakeryRoutesController.create));
+bakeryRoutesRouter.patch("/:routeId", validateBody(routeSchema), asyncHandler(bakeryRoutesController.update));

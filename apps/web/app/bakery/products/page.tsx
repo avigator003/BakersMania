@@ -227,6 +227,7 @@ export default function BakeryProductsPage() {
           </div>
 
           {loading ? <LoadingSpinner label="Loading products" /> : null}
+          <PaginationControls {...productsPage} />
 
           <div className="grid gap-3 p-3 sm:hidden">
             {productsPage.pageItems.map((product) => (
@@ -318,7 +319,6 @@ export default function BakeryProductsPage() {
               </tbody>
             </table>
           </div>
-          <PaginationControls {...productsPage} />
         </section>
 
         <Modal open={productOpen} title="Add Product" description="Create a product inside a category with base pricing." onClose={() => setProductOpen(false)}>

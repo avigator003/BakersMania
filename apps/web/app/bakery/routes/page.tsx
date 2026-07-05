@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { MapPinned, Plus, RefreshCw, Truck } from "lucide-react";
+import { Eye, MapPinned, Pencil, Plus, RefreshCw, Truck } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
@@ -63,6 +63,10 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
 }
 
+function dateInput(value?: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
+
 export default function BakeryRoutesPage() {
   const toast = useToast();
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -70,6 +74,10 @@ export default function BakeryRoutesPage() {
   const [activeTab, setActiveTab] = useState<Tab>("routes");
   const [routeOpen, setRouteOpen] = useState(false);
   const [vehicleOpen, setVehicleOpen] = useState(false);
+  const [viewRoute, setViewRoute] = useState<Route | null>(null);
+  const [editRoute, setEditRoute] = useState<Route | null>(null);
+  const [viewVehicle, setViewVehicle] = useState<Vehicle | null>(null);
+  const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
   const [routeForm, setRouteForm] = useState(initialRouteForm);
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm);
   const [loading, setLoading] = useState(true);
@@ -152,6 +160,80 @@ export default function BakeryRoutesPage() {
     }
   }
 
+  function openEditRoute(route: Route) {
+    setEditRoute(route);
+    setRouteForm({
+      name: route.name,
+      vehicleId: route.vehicle?.id || "",
+      active: route.active
+    });
+  }
+
+  function openEditVehicle(vehicle: Vehicle) {
+    setEditVehicle(vehicle);
+    setVehicleForm({
+      name: vehicle.name || "",
+      number: vehicle.number || "",
+      driverName: vehicle.driverName || "",
+      driverPhone: vehicle.driverPhone || "",
+      rcExpiryDate: dateInput(vehicle.rcExpiryDate),
+      rcPhotoUrl: vehicle.rcPhotoUrl || "",
+      pucExpiryDate: dateInput(vehicle.pucExpiryDate),
+      pucPhotoUrl: vehicle.pucPhotoUrl || "",
+      insuranceExpiryDate: dateInput(vehicle.insuranceExpiryDate),
+      insurancePhotoUrl: vehicle.insurancePhotoUrl || "",
+      fitnessExpiryDate: dateInput(vehicle.fitnessExpiryDate),
+      fitnessPhotoUrl: vehicle.fitnessPhotoUrl || "",
+      active: vehicle.active
+    });
+  }
+
+  async function updateRoute(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase || !editRoute) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/routes/${editRoute.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ...routeForm, vehicleId: routeForm.vehicleId || undefined })
+      });
+      toast.success("Route updated", `${routeForm.name} was saved.`);
+      setEditRoute(null);
+      setRouteForm(initialRouteForm);
+      await loadData();
+    } catch (error) {
+      toast.error("Route update failed", error instanceof Error ? error.message : "Could not update route.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateVehicle(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase || !editVehicle) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/routes/vehicles/${editVehicle.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...vehicleForm,
+          rcExpiryDate: vehicleForm.rcExpiryDate || undefined,
+          pucExpiryDate: vehicleForm.pucExpiryDate || undefined,
+          insuranceExpiryDate: vehicleForm.insuranceExpiryDate || undefined,
+          fitnessExpiryDate: vehicleForm.fitnessExpiryDate || undefined
+        })
+      });
+      toast.success("Vehicle updated", `${vehicleForm.name} was saved.`);
+      setEditVehicle(null);
+      setVehicleForm(initialVehicleForm);
+      await loadData();
+    } catch (error) {
+      toast.error("Vehicle update failed", error instanceof Error ? error.message : "Could not update vehicle.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AppShell title="Bakery CRM" subtitle="Route and vehicle management" surface="bakery">
       <div className="grid gap-4">
@@ -192,6 +274,14 @@ export default function BakeryRoutesPage() {
 
           {activeTab === "routes" ? (
             <>
+            <PaginationControls
+              {...routesPage}
+              summary={[
+                { label: "Active routes", value: routes.filter((route) => route.active).length },
+                { label: "Vehicles", value: vehicles.length },
+                { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
+              ]}
+            />
             <div className="grid gap-3 p-3 sm:hidden">
               {routesPage.pageItems.map((route) => (
                 <article key={route.id} className="rounded-lg border border-line bg-panel2 p-3">
@@ -207,6 +297,10 @@ export default function BakeryRoutesPage() {
                   <p className="mt-3 rounded-md bg-panel px-3 py-2 text-xs text-muted">
                     Driver: {route.vehicle?.driverName ? `${route.vehicle.driverName} · ${route.vehicle.driverPhone || "No phone"}` : "-"}
                   </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => setViewRoute(route)} title="View route" type="button"><Eye size={15} /></button>
+                    <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openEditRoute(route)} title="Edit route" type="button"><Pencil size={15} /></button>
+                  </div>
                 </article>
               ))}
               {!loading && !routes.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No routes found.</p> : null}
@@ -219,6 +313,7 @@ export default function BakeryRoutesPage() {
                     <th className="px-4 py-3">Vehicle</th>
                     <th className="px-4 py-3">Driver</th>
                     <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -236,27 +331,33 @@ export default function BakeryRoutesPage() {
                           {route.active ? "Active" : "Inactive"}
                         </span>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => setViewRoute(route)} title="View route" type="button"><Eye size={15} /></button>
+                          <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openEditRoute(route)} title="Edit route" type="button"><Pencil size={15} /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {!loading && !routes.length ? (
                     <tr>
-                      <td className="px-4 py-6 text-center text-sm text-muted" colSpan={4}>No routes found.</td>
+                      <td className="px-4 py-6 text-center text-sm text-muted" colSpan={5}>No routes found.</td>
                     </tr>
                   ) : null}
                 </tbody>
               </table>
             </div>
-            <PaginationControls
-              {...routesPage}
-              summary={[
-                { label: "Active routes", value: routes.filter((route) => route.active).length },
-                { label: "Vehicles", value: vehicles.length },
-                { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
-              ]}
-            />
             </>
           ) : (
             <>
+            <PaginationControls
+              {...vehiclesPage}
+              summary={[
+                { label: "Routes", value: routes.length },
+                { label: "Active routes", value: routes.filter((route) => route.active).length },
+                { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
+              ]}
+            />
             <div className="grid gap-3 p-3 sm:hidden">
               {vehiclesPage.pageItems.map((vehicle) => (
                 <article key={vehicle.id} className="rounded-lg border border-line bg-panel2 p-3">
@@ -277,6 +378,10 @@ export default function BakeryRoutesPage() {
                     <span className="rounded-md bg-panel px-3 py-2">Insurance: {formatDate(vehicle.insuranceExpiryDate)}</span>
                     <span className="rounded-md bg-panel px-3 py-2">Fitness: {formatDate(vehicle.fitnessExpiryDate)}</span>
                   </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => setViewVehicle(vehicle)} title="View vehicle" type="button"><Eye size={15} /></button>
+                    <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openEditVehicle(vehicle)} title="Edit vehicle" type="button"><Pencil size={15} /></button>
+                  </div>
                 </article>
               ))}
               {!loading && !vehicles.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No vehicles found.</p> : null}
@@ -292,6 +397,7 @@ export default function BakeryRoutesPage() {
                     <th className="px-4 py-3">Insurance</th>
                     <th className="px-4 py-3">Fitness</th>
                     <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -314,24 +420,22 @@ export default function BakeryRoutesPage() {
                           {vehicle.active ? "Active" : "Inactive"}
                         </span>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => setViewVehicle(vehicle)} title="View vehicle" type="button"><Eye size={15} /></button>
+                          <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openEditVehicle(vehicle)} title="Edit vehicle" type="button"><Pencil size={15} /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {!loading && !vehicles.length ? (
                     <tr>
-                      <td className="px-4 py-6 text-center text-sm text-muted" colSpan={7}>No vehicles found.</td>
+                      <td className="px-4 py-6 text-center text-sm text-muted" colSpan={8}>No vehicles found.</td>
                     </tr>
                   ) : null}
                 </tbody>
               </table>
             </div>
-            <PaginationControls
-              {...vehiclesPage}
-              summary={[
-                { label: "Routes", value: routes.length },
-                { label: "Active routes", value: routes.filter((route) => route.active).length },
-                { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
-              ]}
-            />
             </>
           )}
         </section>
@@ -354,6 +458,44 @@ export default function BakeryRoutesPage() {
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setRouteOpen(false)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Create Route"}</button>
+            </div>
+          </form>
+        </Modal>
+
+        <Modal open={Boolean(viewRoute)} title="Route Details" description={viewRoute?.name || ""} onClose={() => setViewRoute(null)}>
+          {viewRoute ? (
+            <div className="divide-y divide-line text-sm">
+              <p className="flex justify-between gap-3 py-3"><span className="text-muted">Route</span><span className="font-semibold">{viewRoute.name}</span></p>
+              <p className="flex justify-between gap-3 py-3"><span className="text-muted">Status</span><span className="font-semibold">{viewRoute.active ? "Active" : "Inactive"}</span></p>
+              <p className="flex justify-between gap-3 py-3"><span className="text-muted">Vehicle</span><span className="font-semibold">{viewRoute.vehicle ? `${viewRoute.vehicle.name} · ${viewRoute.vehicle.number || "No number"}` : "-"}</span></p>
+              <p className="flex justify-between gap-3 py-3"><span className="text-muted">Driver</span><span className="font-semibold">{viewRoute.vehicle?.driverName || "-"}</span></p>
+              <p className="flex justify-between gap-3 py-3"><span className="text-muted">Driver phone</span><span className="font-semibold">{viewRoute.vehicle?.driverPhone || "-"}</span></p>
+            </div>
+          ) : null}
+        </Modal>
+
+        <Modal open={Boolean(editRoute)} title="Edit Route" description={editRoute ? `Update ${editRoute.name}.` : ""} onClose={() => { setEditRoute(null); setRouteForm(initialRouteForm); }}>
+          <form className="grid gap-3" onSubmit={updateRoute}>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Route name</span>
+              <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRouteForm((current) => ({ ...current, name: event.target.value }))} value={routeForm.name} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Vehicle</span>
+              <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRouteForm((current) => ({ ...current, vehicleId: event.target.value }))} value={routeForm.vehicleId}>
+                <option value="">No vehicle</option>
+                {vehicles.filter((vehicle) => vehicle.active || vehicle.id === routeForm.vehicleId).map((vehicle) => (
+                  <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle.number || "No number"}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input checked={routeForm.active} onChange={(event) => setRouteForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" />
+              Active route
+            </label>
+            <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setEditRoute(null); setRouteForm(initialRouteForm); }} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Route"}</button>
             </div>
           </form>
         </Modal>
@@ -398,6 +540,74 @@ export default function BakeryRoutesPage() {
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setVehicleOpen(false)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Onboard Vehicle"}</button>
+            </div>
+          </form>
+        </Modal>
+
+        <Modal open={Boolean(viewVehicle)} title="Vehicle Details" description={viewVehicle?.name || ""} onClose={() => setViewVehicle(null)}>
+          {viewVehicle ? (
+            <div className="divide-y divide-line text-sm">
+              {[
+                ["Vehicle", viewVehicle.name],
+                ["Number", viewVehicle.number || "-"],
+                ["Driver", viewVehicle.driverName || "-"],
+                ["Driver phone", viewVehicle.driverPhone || "-"],
+                ["Status", viewVehicle.active ? "Active" : "Inactive"],
+                ["RC", `${formatDate(viewVehicle.rcExpiryDate)}${viewVehicle.rcPhotoUrl ? ` · ${viewVehicle.rcPhotoUrl}` : ""}`],
+                ["PUC", `${formatDate(viewVehicle.pucExpiryDate)}${viewVehicle.pucPhotoUrl ? ` · ${viewVehicle.pucPhotoUrl}` : ""}`],
+                ["Insurance", `${formatDate(viewVehicle.insuranceExpiryDate)}${viewVehicle.insurancePhotoUrl ? ` · ${viewVehicle.insurancePhotoUrl}` : ""}`],
+                ["Fitness", `${formatDate(viewVehicle.fitnessExpiryDate)}${viewVehicle.fitnessPhotoUrl ? ` · ${viewVehicle.fitnessPhotoUrl}` : ""}`]
+              ].map(([label, value]) => (
+                <p className="flex justify-between gap-3 py-3" key={label}><span className="text-muted">{label}</span><span className="text-right font-semibold">{value}</span></p>
+              ))}
+            </div>
+          ) : null}
+        </Modal>
+
+        <Modal open={Boolean(editVehicle)} title="Edit Vehicle" description={editVehicle ? `Update ${editVehicle.name}.` : ""} onClose={() => { setEditVehicle(null); setVehicleForm(initialVehicleForm); }}>
+          <form className="grid gap-3" onSubmit={updateVehicle}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                ["name", "Vehicle name"],
+                ["number", "Vehicle number"],
+                ["driverName", "Driver name"],
+                ["driverPhone", "Driver phone number"]
+              ].map(([key, label]) => (
+                <label key={key} className="grid gap-1">
+                  <span className="text-sm font-medium">{label}</span>
+                  <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setVehicleForm((current) => ({ ...current, [key]: event.target.value }))} value={String(vehicleForm[key as keyof typeof vehicleForm])} />
+                </label>
+              ))}
+            </div>
+            {[
+              ["rc", "RC"],
+              ["puc", "PUC"],
+              ["insurance", "Insurance"],
+              ["fitness", "Fitness"]
+            ].map(([key, label]) => {
+              const expiryKey = `${key}ExpiryDate` as keyof typeof vehicleForm;
+              const photoKey = `${key}PhotoUrl` as keyof typeof vehicleForm;
+              return (
+                <div key={key} className="grid gap-3 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-medium">{label} expiry date</span>
+                    <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => setVehicleForm((current) => ({ ...current, [expiryKey]: event.target.value }))} type="date" value={String(vehicleForm[expiryKey])} />
+                  </label>
+                  <PhotoPicker
+                    label={`${label} photo`}
+                    onChange={(fileName) => setVehicleForm((current) => ({ ...current, [photoKey]: fileName }))}
+                    value={String(vehicleForm[photoKey])}
+                  />
+                </div>
+              );
+            })}
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input checked={vehicleForm.active} onChange={(event) => setVehicleForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" />
+              Active vehicle
+            </label>
+            <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setEditVehicle(null); setVehicleForm(initialVehicleForm); }} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Vehicle"}</button>
             </div>
           </form>
         </Modal>

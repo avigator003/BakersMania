@@ -4,9 +4,14 @@ import { signAccessToken } from "../../utils/tokens.js";
 import { authRepository } from "./auth.repository.js";
 import type { CustomerSignupInput, LoginInput } from "./auth.schemas.js";
 
+function normalizePhone(value: string) {
+  return value.replace(/[^\d+]/g, "");
+}
+
 export const authService = {
   async login(input: LoginInput) {
-    const platformAdmin = await authRepository.findPlatformAdminByEmail(input.email);
+    const identifier = input.email.trim();
+    const platformAdmin = await authRepository.findPlatformAdminByEmail(identifier);
     if (platformAdmin && (await bcrypt.compare(input.password, platformAdmin.passwordHash))) {
       return {
         token: signAccessToken({ sub: platformAdmin.id, actorType: "platform_admin" }),
@@ -14,8 +19,7 @@ export const authService = {
       };
     }
 
-    const identifier = input.email.trim();
-    const users = await authRepository.findUsersWithAccess(identifier);
+    const users = await authRepository.findUsersWithAccess(identifier.includes("@") ? identifier : normalizePhone(identifier));
     let user = null;
     for (const candidate of users) {
       if (await bcrypt.compare(input.password, candidate.passwordHash)) {
