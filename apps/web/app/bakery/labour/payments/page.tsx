@@ -219,8 +219,6 @@ export default function LabourPaymentsPage() {
                 >
                   <option value="Cash">Cash</option>
                   <option value="UPI">UPI</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cheque">Cheque</option>
                 </select>
               </label>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadPayments} title="Refresh payments">

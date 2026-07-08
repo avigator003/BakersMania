@@ -8,15 +8,23 @@ export type CustomerListFilters = PaginationInput & {
 };
 
 export const customersRepository = {
+  findVehicleRoutes(tenantId: string, vehicleId: string) {
+    return prisma.vehicle.findFirst({
+      where: { tenantId, id: vehicleId, active: true },
+      include: { routes: { where: { active: true }, select: { id: true } } }
+    });
+  },
+
   findRoute(tenantId: string, routeId: string) {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },
 
-  async listByTenant(tenantId: string, filters: CustomerListFilters = {}) {
+  async listByTenant(tenantId: string, filters: CustomerListFilters = {}, routeIds?: string[]) {
     const { page, pageSize, skip } = pagination(filters);
     const search = filters.search?.trim();
     const where = {
       tenantId,
+      ...(routeIds ? { routeId: { in: routeIds } } : {}),
       ...(search
         ? {
             OR: [

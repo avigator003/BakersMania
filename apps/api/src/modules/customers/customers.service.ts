@@ -30,8 +30,16 @@ function withBalance(
 }
 
 export const customersService = {
-  async listCustomers(tenantId: string, filters: CustomerListFilters = {}) {
-    const result = await customersRepository.listByTenant(tenantId, filters);
+  async listCustomers(auth: Express.Request["auth"], tenantId: string, filters: CustomerListFilters = {}) {
+    let routeIds: string[] | undefined;
+    if (auth?.actorType === "vehicle") {
+      const vehicle = await customersRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
+      if (!vehicle) {
+        throw new HttpError(403, "Vehicle workspace access required");
+      }
+      routeIds = vehicle.routes.map((route) => route.id);
+    }
+    const result = await customersRepository.listByTenant(tenantId, filters, routeIds);
     const summaries = await customersRepository.financialSummaryByCustomer(tenantId, result.customers.map((customer) => customer.id));
     return {
       customers: result.customers.map((customer) => withBalance(customer, summaries.get(customer.id))),

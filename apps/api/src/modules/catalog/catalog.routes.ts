@@ -19,4 +19,5 @@ catalogRouter.get("/products/:productId", requireAuth, asyncHandler(catalogContr
 catalogRouter.get("/products/:productId/price-history", requireAuth, asyncHandler(catalogController.listPriceHistory));
 catalogRouter.patch("/products/:productId", requireAuth, validateBody(productUpdateSchema), asyncHandler(catalogController.updateProduct));
 catalogRouter.post("/customer-prices", requireAuth, validateBody(customerPriceSchema), asyncHandler(catalogController.upsertCustomerPrice));
+catalogRouter.get("/route-prices", requireAuth, asyncHandler(catalogController.listRoutePrices));
 catalogRouter.post("/route-prices", requireAuth, validateBody(routePriceSchema), asyncHandler(catalogController.upsertRoutePrice));

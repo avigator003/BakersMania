@@ -60,6 +60,17 @@ export const catalogRepository = {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },
 
+  listRoutePrices(tenantId: string, routeId: string) {
+    return prisma.routeProductPrice.findMany({
+      where: { tenantId, routeId },
+      include: {
+        product: { include: { categoryRef: true } },
+        route: { include: { vehicle: true } }
+      },
+      orderBy: [{ product: { name: "asc" } }]
+    });
+  },
+
   listCategories(tenantId: string) {
     return prisma.productCategory.findMany({
       where: { tenantId },

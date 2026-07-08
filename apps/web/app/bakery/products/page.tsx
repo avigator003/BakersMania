@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { Eye, IndianRupee, Pencil, Plus, RefreshCw, Search } from "lucide-react";
+import { Eye, Pencil, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
@@ -254,16 +253,13 @@ export default function BakeryProductsPage() {
                     <span className="font-semibold">{formatAmount(product.unitPrice)}</span>
                   </span>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openProductDetails(product)} title="View product prices">
                     <Eye size={16} />
                   </button>
                   <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openEdit(product)} title="Edit product">
                     <Pencil size={16} />
                   </button>
-                  <Link className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" href={`products/${product.id}/prices`} title="Set route prices">
-                    <IndianRupee size={16} />
-                  </Link>
                 </div>
               </article>
             ))}
@@ -305,9 +301,6 @@ export default function BakeryProductsPage() {
                         <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" onClick={() => openEdit(product)} title="Edit product">
                           <Pencil size={16} />
                         </button>
-                        <Link className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" href={`products/${product.id}/prices`} title="Set route prices">
-                          <IndianRupee size={16} />
-                        </Link>
                       </div>
                     </td>
                   </tr>

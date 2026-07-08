@@ -40,6 +40,14 @@ export const catalogService = {
     return catalogRepository.listPriceHistory(tenantId, productId, filters);
   },
 
+  async listRoutePrices(tenantId: string, routeId: string) {
+    const route = await catalogRepository.findRoute(tenantId, routeId);
+    if (!route) {
+      throw new HttpError(404, "Route not found");
+    }
+    return catalogRepository.listRoutePrices(tenantId, routeId);
+  },
+
   async createProduct(tenantId: string, input: ProductInput) {
     if (input.categoryId) {
       const category = await catalogRepository.findCategory(tenantId, input.categoryId);

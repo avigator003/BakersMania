@@ -38,6 +38,7 @@ const bakeryNav = [
   { href: "/bakery/truck-loading", label: "Truck Loading", icon: Truck },
   { href: "/bakery/customers", label: "Customers", icon: Users },
   { href: "/bakery/products", label: "Products", icon: Boxes },
+  { href: "/bakery/prices", label: "Product Prices", icon: IndianRupee },
   { href: "/bakery/categories", label: "Product Categories", icon: Boxes },
   { href: "/bakery/labour", label: "Labour", icon: Users },
   { href: "/bakery/inventory", label: "Inventory", icon: Boxes },

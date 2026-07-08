@@ -39,6 +39,10 @@ export const catalogController = {
     }));
   },
 
+  async listRoutePrices(req: Request, res: Response) {
+    res.json({ routePrices: await catalogService.listRoutePrices(req.tenant!.id, String(req.query.routeId || "")) });
+  },
+
   async createProduct(req: Request, res: Response) {
     const product = await catalogService.createProduct(req.tenant!.id, req.body);
     res.status(201).json({ product });

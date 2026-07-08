@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Download, Eye, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
@@ -17,15 +17,36 @@ type Order = {
   grandTotal: string | number;
   dueAt?: string | null;
   createdAt: string;
-  customer: { name: string; phone?: string | null; route?: { name: string } | null };
+  customer: { id?: string; name: string; phone?: string | null; route?: { name: string } | null };
   route?: { name: string } | null;
-  items: { id: string; name: string; quantity: string | number }[];
+  items: {
+    id: string;
+    name: string;
+    quantity: string | number;
+    unitPrice?: string | number | null;
+    lineTotal?: string | number | null;
+    product?: { category?: string | null; categoryRef?: { name: string } | null } | null;
+  }[];
   payments?: Payment[];
 };
 
-const today = new Date().toISOString().slice(0, 10);
-const paymentMethods = ["Cash", "Advance", "UPI"];
+const paymentMethods = ["Cash", "UPI"];
 const paymentTypes = ["Partial", "Full", "Advance"];
+
+function inputDate(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+const today = inputDate();
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -44,17 +65,34 @@ function orderDue(order: Order) {
   return paymentDue(order.grandTotal, order.payments);
 }
 
-function routeName(order: Order) {
-  return order.route?.name || order.customer.route?.name || "No route";
+function customerKey(order: Order) {
+  return order.customer.id || order.customer.name;
+}
+
+function itemAmount(item: Order["items"][number]) {
+  const lineTotal = Number(item.lineTotal ?? 0);
+  if (lineTotal) return lineTotal;
+  return Number(item.unitPrice || 0) * Number(item.quantity || 0);
+}
+
+function itemCategory(item: Order["items"][number]) {
+  return item.product?.categoryRef?.name || item.product?.category || "-";
+}
+
+function csvCell(value: string | number) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, "\"\"")}"`;
 }
 
 export default function VehicleRoutesPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: "Partial", amount: "", method: "Cash", reference: "" });
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
@@ -64,8 +102,14 @@ export default function VehicleRoutesPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ startDate: date, endDate: date });
-      const data = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`);
+      const previousEndDate = inputDate(addDays(new Date(`${date}T00:00:00`), -1));
+      const previousParams = new URLSearchParams({ endDate: previousEndDate, pageSize: "500" });
+      const [data, previousData] = await Promise.all([
+        authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
+        authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
+      ]);
       setOrders(data.orders);
+      setPreviousOrders(previousData.orders);
     } catch (error) {
       toast.error("Could not load assigned routes", error instanceof Error ? error.message : "Please sign in again.");
     } finally {
@@ -77,12 +121,28 @@ export default function VehicleRoutesPage() {
     loadData();
   }, [date]);
 
+  const previousDueByCustomer = useMemo(() => {
+    const dueByCustomer = new Map<string, number>();
+    previousOrders.forEach((order) => {
+      dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+    });
+    return dueByCustomer;
+  }, [previousOrders]);
+
+  function previousDue(order: Order) {
+    return previousDueByCustomer.get(customerKey(order)) || 0;
+  }
+
+  function todayDue(order: Order) {
+    return previousDue(order) + orderDue(order);
+  }
+
   const totals = useMemo(() => ({
     orders: orders.length,
-    delivered: orders.filter((order) => order.status === "COMPLETED").length,
-    due: orders.reduce((sum, order) => sum + orderDue(order), 0),
+    orderAmount: orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
+    due: orders.reduce((sum, order) => sum + todayDue(order), 0),
     paid: orders.reduce((sum, order) => sum + orderPaid(order), 0)
-  }), [orders]);
+  }), [orders, previousDueByCustomer]);
 
   async function updateOrder(order: Order, patch: { status?: string; paymentStatus?: string; paymentAmount?: number; paymentMethod?: string; reference?: string }) {
     if (!apiBase) return;
@@ -106,7 +166,7 @@ export default function VehicleRoutesPage() {
     setPaymentForm({
       type,
       amount: type === "Full" ? String(due || "") : "",
-      method: type === "Advance" ? "Advance" : "Cash",
+      method: "Cash",
       reference: ""
     });
   }
@@ -122,6 +182,30 @@ export default function VehicleRoutesPage() {
     });
   }
 
+  function exportCollectionSheet() {
+    const headers = ["Customer", "Phone", "Order Amount", "Previous Due", "Today Due", "Paid Amount", "Payment Method", "Reference"];
+    const rows = orders.map((order) => [
+      order.customer.name,
+      order.customer.phone || "",
+      Number(order.grandTotal || 0),
+      previousDue(order),
+      todayDue(order),
+      "",
+      "",
+      ""
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `vehicle-collection-${date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <AppShell title="Vehicle Workspace" subtitle="Assigned customers, deliveries, and collections" surface="vehicle">
       <div className="grid gap-6">
@@ -133,28 +217,25 @@ export default function VehicleRoutesPage() {
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
               <span>Orders: <span className="font-semibold text-ink">{totals.orders}</span></span>
-              <span>Delivered: <span className="font-semibold text-ink">{totals.delivered}</span></span>
+              <span>Order amount: <span className="font-semibold text-ink">{formatAmount(totals.orderAmount)}</span></span>
               <span>Collected: <span className="font-semibold text-ink">{formatAmount(totals.paid)}</span></span>
-              <span>Due: <span className="font-semibold text-ink">{formatAmount(totals.due)}</span></span>
+              <span>Today due: <span className="font-semibold text-ink">{formatAmount(totals.due)}</span></span>
             </div>
             <div className="flex gap-2">
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+              <button className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" disabled={!orders.length} onClick={exportCollectionSheet} type="button"><Download size={16} /> Export</button>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
             </div>
           </div>
           {loading ? <LoadingSpinner label="Loading assigned orders" /> : null}
           <div className="max-h-[700px] w-full max-w-full overflow-auto">
-            <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[980px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Route</th>
-                  <th className="px-4 py-3">Quantity</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Paid</th>
-                  <th className="px-4 py-3">Due</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Payment</th>
+                  <th className="px-4 py-3 text-right">Order Amount</th>
+                  <th className="px-4 py-3 text-right">Previous Due</th>
+                  <th className="px-4 py-3 text-right">Today's Due</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -167,27 +248,14 @@ export default function VehicleRoutesPage() {
                         <span className="block font-semibold">{order.customer.name}</span>
                         <span className="text-xs text-muted">{order.customer.phone || "No phone"}</span>
                       </td>
-                      <td className="px-4 py-3">{routeName(order)}</td>
-                      <td className="px-4 py-3">
-                        <span className="block max-w-[240px] text-xs leading-5 text-muted">
-                          {order.items.map((item) => `${item.name}: ${formatQty(item.quantity) || "0"}`).join(", ")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-semibold">{formatAmount(order.grandTotal)}</td>
-                      <td className="px-4 py-3">{formatAmount(orderPaid(order))}</td>
-                      <td className="px-4 py-3 font-semibold text-berry">{formatAmount(due)}</td>
-                      <td className="px-4 py-3">
-                        <span className="block font-semibold">{order.status}</span>
-                        <span className="text-xs text-muted">{order.paymentStatus}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
-                      </td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todayDue(order))}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
-                          <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => updateOrder(order, { status: "COMPLETED" })} type="button">Delivered</button>
-                          <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => updateOrder(order, { status: "DISPATCHED" })} type="button">Not Delivered</button>
-                          <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" disabled={saving || due <= 0} onClick={() => startPayment(order)} type="button">Payment</button>
+                          <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                          <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Order details</button>
+                          <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" disabled={saving || due <= 0} onClick={() => startPayment(order)} type="button">Record payment</button>
                         </div>
                       </td>
                     </tr>
@@ -195,7 +263,7 @@ export default function VehicleRoutesPage() {
                 })}
                 {!loading && !orders.length ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={9}>No customers for this date.</td>
+                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={5}>No customers for this date.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -213,7 +281,7 @@ export default function VehicleRoutesPage() {
                 ...current,
                 type,
                 amount: type === "Full" ? String(orderDue(paymentOrder) || "") : "",
-                method: type === "Advance" ? "Advance" : current.method === "Advance" ? "Cash" : current.method
+                method: current.method
               }));
             }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={orderDue(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type === "Full"} required type="number" value={paymentForm.amount} /></label>
@@ -224,6 +292,37 @@ export default function VehicleRoutesPage() {
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
             </div>
           </form>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(detailOrder)} title="Order details" description={detailOrder ? detailOrder.customer.name : ""} onClose={() => setDetailOrder(null)}>
+        {detailOrder ? (
+          <div className="max-h-[560px] overflow-auto rounded-lg border border-line">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
+                <tr>
+                  <th className="px-4 py-3">Product</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3 text-right">Quantity</th>
+                  <th className="px-4 py-3 text-right">Order Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {detailOrder.items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-3 font-semibold">{item.name}</td>
+                    <td className="px-4 py-3 text-muted">{itemCategory(item)}</td>
+                    <td className="px-4 py-3 text-right">{formatQty(item.quantity) || "0"}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatAmount(itemAmount(item))}</td>
+                  </tr>
+                ))}
+                <tr className="bg-panel2 font-semibold">
+                  <td className="px-4 py-3" colSpan={3}>Total</td>
+                  <td className="px-4 py-3 text-right">{formatAmount(detailOrder.grandTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         ) : null}
       </Modal>
     </AppShell>

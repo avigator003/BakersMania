@@ -21,7 +21,7 @@ type Order = {
   payments?: { id: string; amount: string | number; method?: string | null; reference?: string | null; paidAt?: string | null }[];
 };
 
-const paymentMethods = ["Cash", "Advance", "UPI", "Bank Transfer", "Cheque"];
+const paymentMethods = ["Cash", "UPI"];
 const paymentTypes = ["Partial", "Full", "Advance"];
 
 function formatAmount(value?: string | number | null) {
@@ -96,7 +96,7 @@ export default function CustomerOrdersPage() {
     setPaymentForm({
       type,
       amount: type === "Full" ? String(dueAmount || "") : "",
-      method: type === "Advance" ? "Advance" : "Cash",
+      method: "Cash",
       reference: ""
     });
   }
@@ -184,7 +184,7 @@ export default function CustomerOrdersPage() {
                 ...current,
                 type,
                 amount: type === "Full" ? String(due(paymentOrder) || "") : "",
-                method: type === "Advance" ? "Advance" : current.method === "Advance" ? "Cash" : current.method
+                method: current.method
               }));
             }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={due(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type === "Full"} required type="number" value={paymentForm.amount} /></label>

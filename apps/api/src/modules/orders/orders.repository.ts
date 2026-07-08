@@ -108,7 +108,7 @@ async function paginatedOrders(where: Prisma.OrderWhereInput, filters: OrderList
   const [items, total] = await prisma.$transaction([
     prisma.order.findMany({
       where,
-      include: { customer: { include: { route: true } }, route: true, items: true, invoice: true, payments: true },
+      include: { customer: { include: { route: true } }, route: true, items: { include: { product: { include: { categoryRef: true } } } }, invoice: true, payments: true },
       orderBy,
       skip,
       take: pageSize
@@ -225,7 +225,7 @@ export const ordersRepository = {
         status: { not: "COMPLETED" },
         AND: andFilters
       },
-      include: { customer: { include: { route: true } }, route: true, items: true, payments: true, invoice: true },
+      include: { customer: { include: { route: true } }, route: true, items: { include: { product: { include: { categoryRef: true } } } }, payments: true, invoice: true },
       orderBy: { createdAt: "asc" }
     });
   },
@@ -251,7 +251,7 @@ export const ordersRepository = {
         tenantId,
         AND: andFilters
       },
-      include: { customer: { include: { route: true } }, route: true, items: true, payments: true, invoice: true },
+      include: { customer: { include: { route: true } }, route: true, items: { include: { product: { include: { categoryRef: true } } } }, payments: true, invoice: true },
       orderBy: [{ route: { name: "asc" } }, { createdAt: "asc" }]
     });
   },
