@@ -1,6 +1,6 @@
 import { catalogRepository } from "./catalog.repository.js";
 import type { PriceHistoryFilters, ProductListFilters } from "./catalog.repository.js";
-import type { CategoryInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
+import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
 import { HttpError } from "../../utils/http.js";
 
 export const catalogService = {
@@ -10,6 +10,14 @@ export const catalogService = {
 
   createCategory(tenantId: string, input: CategoryInput) {
     return catalogRepository.createCategory(tenantId, input);
+  },
+
+  async updateCategory(tenantId: string, categoryId: string, input: CategoryUpdateInput) {
+    const category = await catalogRepository.findCategory(tenantId, categoryId);
+    if (!category) {
+      throw new HttpError(404, "Category not found");
+    }
+    return catalogRepository.updateCategory(tenantId, categoryId, input);
   },
 
   listProducts(tenantId: string, filters: ProductListFilters = {}) {

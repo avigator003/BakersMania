@@ -74,6 +74,27 @@ function dateInput(value?: string | null) {
   return value ? value.slice(0, 10) : "";
 }
 
+function documentExpiryClass(value?: string | null) {
+  if (!value) return "text-muted";
+  const expiry = new Date(value);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((expiry.getTime() - today.getTime()) / 86400000);
+  if (daysLeft < 0) return "font-semibold text-berry";
+  if (daysLeft <= 15) return "font-semibold text-saffron";
+  return "font-semibold text-mint";
+}
+
+function DocumentExpiry({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <span>
+      <span className="block text-xs text-muted">{label}</span>
+      <span className={documentExpiryClass(value)}>{formatDate(value)}</span>
+    </span>
+  );
+}
+
 export default function BakeryRoutesPage() {
   const toast = useToast();
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -410,10 +431,10 @@ export default function BakeryRoutesPage() {
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <span className="rounded-md bg-panel px-3 py-2">Driver: {vehicle.driverName || "-"}</span>
                     <span className="rounded-md bg-panel px-3 py-2">Phone: {vehicle.driverPhone || "-"}</span>
-                    <span className="rounded-md bg-panel px-3 py-2">RC: {formatDate(vehicle.rcExpiryDate)}</span>
-                    <span className="rounded-md bg-panel px-3 py-2">PUC: {formatDate(vehicle.pucExpiryDate)}</span>
-                    <span className="rounded-md bg-panel px-3 py-2">Insurance: {formatDate(vehicle.insuranceExpiryDate)}</span>
-                    <span className="rounded-md bg-panel px-3 py-2">Fitness: {formatDate(vehicle.fitnessExpiryDate)}</span>
+                    <span className="rounded-md bg-panel px-3 py-2"><DocumentExpiry label="RC" value={vehicle.rcExpiryDate} /></span>
+                    <span className="rounded-md bg-panel px-3 py-2"><DocumentExpiry label="PUC" value={vehicle.pucExpiryDate} /></span>
+                    <span className="rounded-md bg-panel px-3 py-2"><DocumentExpiry label="Insurance" value={vehicle.insuranceExpiryDate} /></span>
+                    <span className="rounded-md bg-panel px-3 py-2"><DocumentExpiry label="Fitness" value={vehicle.fitnessExpiryDate} /></span>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => setViewVehicle(vehicle)} title="View vehicle" type="button"><Eye size={15} /></button>
@@ -448,10 +469,10 @@ export default function BakeryRoutesPage() {
                         <span className="block">{vehicle.driverName || "-"}</span>
                         <span className="text-xs text-muted">{vehicle.driverPhone || ""}</span>
                       </td>
-                      <td className="px-4 py-3">{formatDate(vehicle.rcExpiryDate)}<br /><span className="text-xs text-mint">{vehicle.rcPhotoUrl || ""}</span></td>
-                      <td className="px-4 py-3">{formatDate(vehicle.pucExpiryDate)}<br /><span className="text-xs text-mint">{vehicle.pucPhotoUrl || ""}</span></td>
-                      <td className="px-4 py-3">{formatDate(vehicle.insuranceExpiryDate)}<br /><span className="text-xs text-mint">{vehicle.insurancePhotoUrl || ""}</span></td>
-                      <td className="px-4 py-3">{formatDate(vehicle.fitnessExpiryDate)}<br /><span className="text-xs text-mint">{vehicle.fitnessPhotoUrl || ""}</span></td>
+                      <td className="px-4 py-3"><span className={documentExpiryClass(vehicle.rcExpiryDate)}>{formatDate(vehicle.rcExpiryDate)}</span><br /><span className="text-xs text-mint">{vehicle.rcPhotoUrl || ""}</span></td>
+                      <td className="px-4 py-3"><span className={documentExpiryClass(vehicle.pucExpiryDate)}>{formatDate(vehicle.pucExpiryDate)}</span><br /><span className="text-xs text-mint">{vehicle.pucPhotoUrl || ""}</span></td>
+                      <td className="px-4 py-3"><span className={documentExpiryClass(vehicle.insuranceExpiryDate)}>{formatDate(vehicle.insuranceExpiryDate)}</span><br /><span className="text-xs text-mint">{vehicle.insurancePhotoUrl || ""}</span></td>
+                      <td className="px-4 py-3"><span className={documentExpiryClass(vehicle.fitnessExpiryDate)}>{formatDate(vehicle.fitnessExpiryDate)}</span><br /><span className="text-xs text-mint">{vehicle.fitnessPhotoUrl || ""}</span></td>
                       <td className="px-4 py-3">
                         <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${vehicle.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}>
                           {vehicle.active ? "Active" : "Inactive"}

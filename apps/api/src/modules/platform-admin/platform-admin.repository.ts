@@ -20,6 +20,10 @@ export const platformAdminRepository = {
     ownerName: string;
     ownerEmail: string;
     ownerPasswordHash: string;
+    managerName?: string;
+    managerEmail?: string;
+    managerPhone?: string;
+    managerPasswordHash?: string;
     phone?: string;
     address?: string;
     planCode: string;
@@ -39,20 +43,40 @@ export const platformAdminRepository = {
         phone: input.phone,
         address: input.address,
         users: {
-          create: {
-            role: BakeryRole.OWNER,
-            user: {
-              connectOrCreate: {
-                where: { email: input.ownerEmail },
-                create: {
-                  email: input.ownerEmail,
-                  name: input.ownerName,
-                  passwordHash: input.ownerPasswordHash,
-                  phone: input.phone
+          create: [
+            {
+              role: BakeryRole.OWNER,
+              user: {
+                connectOrCreate: {
+                  where: { email: input.ownerEmail },
+                  create: {
+                    email: input.ownerEmail,
+                    name: input.ownerName,
+                    passwordHash: input.ownerPasswordHash,
+                    phone: input.phone
+                  }
                 }
               }
-            }
-          }
+            },
+            ...(input.managerName && input.managerEmail && input.managerPasswordHash
+              ? [
+                  {
+                    role: BakeryRole.MANAGER,
+                    user: {
+                      connectOrCreate: {
+                        where: { email: input.managerEmail },
+                        create: {
+                          email: input.managerEmail,
+                          name: input.managerName,
+                          passwordHash: input.managerPasswordHash,
+                          phone: input.managerPhone
+                        }
+                      }
+                    }
+                  }
+                ]
+              : [])
+          ]
         },
         subscriptions: {
           create: {

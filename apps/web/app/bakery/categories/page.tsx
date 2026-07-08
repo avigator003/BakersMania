@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Layers3, Plus, RefreshCw } from "lucide-react";
+import { Layers3, Pencil, Plus, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
@@ -18,7 +18,8 @@ type Category = {
 
 const initialCategoryForm = {
   name: "",
-  description: ""
+  description: "",
+  active: true
 };
 
 export default function BakeryCategoriesPage() {
@@ -27,6 +28,7 @@ export default function BakeryCategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editCategory, setEditCategory] = useState<Category | null>(null);
   const [form, setForm] = useState(initialCategoryForm);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
@@ -74,6 +76,35 @@ export default function BakeryCategoriesPage() {
     }
   }
 
+  function openEdit(category: Category) {
+    setEditCategory(category);
+    setForm({
+      name: category.name,
+      description: category.description || "",
+      active: category.active
+    });
+  }
+
+  async function updateCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase || !editCategory) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/catalog/categories/${editCategory.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(form)
+      });
+      toast.success("Category updated", `${form.name} was saved.`);
+      setForm(initialCategoryForm);
+      setEditCategory(null);
+      await loadCategories();
+    } catch (error) {
+      toast.error("Category update failed", error instanceof Error ? error.message : "Could not update category.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AppShell title="Bakery CRM" subtitle="Product category list and descriptions" surface="bakery">
       <div className="grid gap-6">
@@ -112,6 +143,9 @@ export default function BakeryCategoriesPage() {
                     {category.active ? "Active" : "Inactive"}
                   </span>
                 </div>
+                <button className="focus-ring mt-3 inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-panel" onClick={() => openEdit(category)} title="Edit category" type="button">
+                  <Pencil size={16} />
+                </button>
               </article>
             ))}
             {!loading && !categories.length ? <p className="text-sm text-muted">No categories found.</p> : null}
@@ -128,9 +162,34 @@ export default function BakeryCategoriesPage() {
               <span className="text-sm font-medium">Description</span>
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} value={form.description} />
             </label>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" />
+              Active category
+            </label>
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setOpen(false)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Create Category"}</button>
+            </div>
+          </form>
+        </Modal>
+
+        <Modal open={Boolean(editCategory)} title="Edit Category" description={editCategory ? `Update ${editCategory.name}.` : ""} onClose={() => { setEditCategory(null); setForm(initialCategoryForm); }}>
+          <form className="grid gap-3" onSubmit={updateCategory}>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Category name</span>
+              <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} value={form.name} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Description</span>
+              <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} value={form.description} />
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" />
+              Active category
+            </label>
+            <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setEditCategory(null); setForm(initialCategoryForm); }} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Category"}</button>
             </div>
           </form>
         </Modal>

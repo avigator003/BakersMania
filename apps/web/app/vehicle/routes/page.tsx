@@ -5,7 +5,6 @@ import { RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { OrderWorkflowChecklist } from "../../../components/order-workflow-checklist";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -25,7 +24,7 @@ type Order = {
 };
 
 const today = new Date().toISOString().slice(0, 10);
-const paymentMethods = ["Cash", "Advance", "UPI", "Bank Transfer", "Cheque"];
+const paymentMethods = ["Cash", "Advance", "UPI"];
 const paymentTypes = ["Partial", "Full", "Advance"];
 
 function formatAmount(value?: string | number | null) {
@@ -124,13 +123,13 @@ export default function VehicleRoutesPage() {
   }
 
   return (
-    <AppShell title="Vehicle Workspace" subtitle="Assigned route deliveries and collections" surface="vehicle">
+    <AppShell title="Vehicle Workspace" subtitle="Assigned customers, deliveries, and collections" surface="vehicle">
       <div className="grid gap-6">
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-xl font-semibold">Assigned Routes</h1>
-              <p className="mt-1 text-sm text-muted">Only route orders assigned to this vehicle are visible.</p>
+              <h1 className="text-xl font-semibold">Customers</h1>
+              <p className="mt-1 text-sm text-muted">Only customers assigned to this vehicle are visible for the selected date.</p>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
               <span>Orders: <span className="font-semibold text-ink">{totals.orders}</span></span>
@@ -144,41 +143,63 @@ export default function VehicleRoutesPage() {
             </div>
           </div>
           {loading ? <LoadingSpinner label="Loading assigned orders" /> : null}
-          <div className="grid gap-3 p-3">
-            {orders.map((order) => {
-              const due = orderDue(order);
-              return (
-                <article className="rounded-lg border border-line bg-panel2 p-4" key={order.id}>
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <h2 className="text-lg font-semibold">{order.customer.name}</h2>
-                      <p className="mt-1 text-sm text-muted">{routeName(order)} · {order.customer.phone || "No phone"}</p>
-                      <p className="mt-2 text-sm">{order.items.map((item) => `${item.name} ${formatQty(item.quantity)}`).join(", ")}</p>
-                    </div>
-                    <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[360px]">
-                      <span className="rounded-md bg-panel px-3 py-2">Order: <strong>{formatAmount(order.grandTotal)}</strong></span>
-                      <span className="rounded-md bg-panel px-3 py-2">Paid: <strong>{formatAmount(orderPaid(order))}</strong></span>
-                      <span className="rounded-md bg-panel px-3 py-2">Due: <strong className="text-berry">{formatAmount(due)}</strong></span>
-                    </div>
-                  </div>
-                  <OrderWorkflowChecklist
-                    allowTruckLoading
-                    dueAmount={due}
-                    onDelivered={() => updateOrder(order, { status: "COMPLETED" })}
-                    onNotDelivered={() => updateOrder(order, { status: "DISPATCHED" })}
-                    onPayment={() => startPayment(order)}
-                    onTruckLoading={() => updateOrder(order, { status: "DISPATCHED" })}
-                    order={order}
-                    saving={saving}
-                  />
-                  <p className="mt-3 text-xs text-muted">Status: <span className="font-semibold">{order.status}</span> · Payment: <span className="font-semibold">{order.paymentStatus}</span></p>
-                  <div className="mt-3">
-                    <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
-                  </div>
-                </article>
-              );
-            })}
-            {!loading && !orders.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No assigned orders for this date.</p> : null}
+          <div className="max-h-[700px] w-full max-w-full overflow-auto">
+            <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+              <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
+                <tr>
+                  <th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3">Route</th>
+                  <th className="px-4 py-3">Quantity</th>
+                  <th className="px-4 py-3">Total</th>
+                  <th className="px-4 py-3">Paid</th>
+                  <th className="px-4 py-3">Due</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Payment</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {orders.map((order) => {
+                  const due = orderDue(order);
+                  return (
+                    <tr className="align-top" key={order.id}>
+                      <td className="px-4 py-3">
+                        <span className="block font-semibold">{order.customer.name}</span>
+                        <span className="text-xs text-muted">{order.customer.phone || "No phone"}</span>
+                      </td>
+                      <td className="px-4 py-3">{routeName(order)}</td>
+                      <td className="px-4 py-3">
+                        <span className="block max-w-[240px] text-xs leading-5 text-muted">
+                          {order.items.map((item) => `${item.name}: ${formatQty(item.quantity) || "0"}`).join(", ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-semibold">{formatAmount(order.grandTotal)}</td>
+                      <td className="px-4 py-3">{formatAmount(orderPaid(order))}</td>
+                      <td className="px-4 py-3 font-semibold text-berry">{formatAmount(due)}</td>
+                      <td className="px-4 py-3">
+                        <span className="block font-semibold">{order.status}</span>
+                        <span className="text-xs text-muted">{order.paymentStatus}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => updateOrder(order, { status: "COMPLETED" })} type="button">Delivered</button>
+                          <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => updateOrder(order, { status: "DISPATCHED" })} type="button">Not Delivered</button>
+                          <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" disabled={saving || due <= 0} onClick={() => startPayment(order)} type="button">Payment</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!loading && !orders.length ? (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={9}>No customers for this date.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>

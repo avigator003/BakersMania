@@ -92,6 +92,7 @@ export default function BakeryProductsPage() {
   const [productForm, setProductForm] = useState(initialProductForm);
   const [editForm, setEditForm] = useState(initialPriceForm);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [pageCount, setPageCount] = useState(1);
@@ -113,6 +114,7 @@ export default function BakeryProductsPage() {
       productParams.set("page", String(page));
       productParams.set("pageSize", String(pageSize));
       if (search.trim()) productParams.set("search", search.trim());
+      if (categoryFilter) productParams.set("categoryId", categoryFilter);
       const [categoryData, productData] = await Promise.all([
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
         authFetch<{ products: Product[]; pagination?: PaginationMeta }>(`${apiBase}/catalog/products?${productParams.toString()}`)
@@ -132,7 +134,7 @@ export default function BakeryProductsPage() {
 
   useEffect(() => {
     loadData();
-  }, [page, pageSize, search]);
+  }, [page, pageSize, search, categoryFilter]);
 
   async function createProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -223,18 +225,33 @@ export default function BakeryProductsPage() {
           </div>
 
           <div className="border-b border-line p-3">
-            <label className="flex max-w-md items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
-              <Search size={16} className="text-muted" />
-              <input
-                className="w-full bg-transparent text-sm outline-none"
+            <div className="grid gap-2 md:grid-cols-[minmax(220px,420px)_minmax(180px,260px)]">
+              <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
+                <Search size={16} className="text-muted" />
+                <input
+                  className="w-full bg-transparent text-sm outline-none"
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search product or category"
+                  value={search}
+                />
+              </label>
+              <select
+                className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-mint"
                 onChange={(event) => {
-                  setSearch(event.target.value);
+                  setCategoryFilter(event.target.value);
                   setPage(1);
                 }}
-                placeholder="Search product or category"
-                value={search}
-              />
-            </label>
+                value={categoryFilter}
+              >
+                <option value="">All categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {loading ? <LoadingSpinner label="Loading products" /> : null}
@@ -256,10 +273,6 @@ export default function BakeryProductsPage() {
                   <span>
                     <span className="block text-xs text-muted">Base price</span>
                     <span className="font-semibold">{formatAmount(product.unitPrice)}</span>
-                  </span>
-                  <span>
-                    <span className="block text-xs text-muted">Tax</span>
-                    <span className="font-semibold">{Number(product.taxRate || 0)}%</span>
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
@@ -287,7 +300,6 @@ export default function BakeryProductsPage() {
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Base price</th>
-                  <th className="px-4 py-3">Tax</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
@@ -301,7 +313,6 @@ export default function BakeryProductsPage() {
                     </td>
                     <td className="px-4 py-3">{product.categoryRef?.name || product.category}</td>
                     <td className="px-4 py-3">{formatAmount(product.unitPrice)}</td>
-                    <td className="px-4 py-3">{Number(product.taxRate || 0)}%</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${product.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}>
                         {product.active ? "Active" : "Inactive"}
@@ -324,7 +335,7 @@ export default function BakeryProductsPage() {
                 ))}
                 {!loading && !products.length ? (
                   <tr>
-                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={6}>No products found.</td>
+                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={5}>No products found.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -349,16 +360,10 @@ export default function BakeryProductsPage() {
               <span className="text-sm font-medium">Description</span>
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setProductForm((current) => ({ ...current, description: event.target.value }))} value={productForm.description} />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1">
-                <span className="text-sm font-medium">Base price</span>
-                <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setProductForm((current) => ({ ...current, unitPrice: event.target.value }))} type="number" value={productForm.unitPrice} />
-              </label>
-              <label className="grid gap-1">
-                <span className="text-sm font-medium">Tax %</span>
-                <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setProductForm((current) => ({ ...current, taxRate: event.target.value }))} type="number" value={productForm.taxRate} />
-              </label>
-            </div>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Base price</span>
+              <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setProductForm((current) => ({ ...current, unitPrice: event.target.value, taxRate: "0" }))} type="number" value={productForm.unitPrice} />
+            </label>
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setProductOpen(false)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving || !categories.length} type="submit">{saving ? "Saving..." : "Create Product"}</button>
@@ -376,10 +381,6 @@ export default function BakeryProductsPage() {
               <div>
                 <p className="text-muted">Base price</p>
                 <p className="font-semibold">{formatAmount(viewProduct?.unitPrice)}</p>
-              </div>
-              <div>
-                <p className="text-muted">Tax</p>
-                <p className="font-semibold">{Number(viewProduct?.taxRate || 0)}%</p>
               </div>
               <div>
                 <p className="text-muted">Status</p>
@@ -424,16 +425,10 @@ export default function BakeryProductsPage() {
               <span className="text-sm font-medium">Description</span>
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} value={editForm.description} />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1">
-                <span className="text-sm font-medium">Base price</span>
-                <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, unitPrice: event.target.value }))} type="number" value={editForm.unitPrice} />
-              </label>
-              <label className="grid gap-1">
-                <span className="text-sm font-medium">Tax %</span>
-                <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, taxRate: event.target.value }))} type="number" value={editForm.taxRate} />
-              </label>
-            </div>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Base price</span>
+              <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, unitPrice: event.target.value, taxRate: "0" }))} type="number" value={editForm.unitPrice} />
+            </label>
             <label className="flex items-center gap-2 text-sm font-medium">
               <input checked={editForm.active} onChange={(event) => setEditForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" />
               Active product

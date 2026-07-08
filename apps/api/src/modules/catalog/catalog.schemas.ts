@@ -6,6 +6,8 @@ export const categorySchema = z.object({
   active: z.boolean().default(true)
 });
 
+export const categoryUpdateSchema = categorySchema.partial();
+
 export const productSchema = z.object({
   name: z.string().min(2),
   categoryId: z.string().optional(),
@@ -26,6 +28,7 @@ export const customerPriceSchema = z.object({
 });
 
 export type CategoryInput = z.infer<typeof categorySchema>;
+export type CategoryUpdateInput = z.infer<typeof categoryUpdateSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type CustomerPriceInput = z.infer<typeof customerPriceSchema>;

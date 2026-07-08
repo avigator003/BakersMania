@@ -12,12 +12,18 @@ export const catalogController = {
     res.status(201).json({ category });
   },
 
+  async updateCategory(req: Request, res: Response) {
+    const category = await catalogService.updateCategory(req.tenant!.id, req.params.categoryId, req.body);
+    res.json({ category });
+  },
+
   async listProducts(req: Request, res: Response) {
     const result = await catalogService.listProducts(req.tenant!.id, {
       includeInactive: req.auth?.actorType === "bakery_user",
       page: numberQueryParam(req.query.page),
       pageSize: numberQueryParam(req.query.pageSize),
-      search: req.query.search ? String(req.query.search) : undefined
+      search: req.query.search ? String(req.query.search) : undefined,
+      categoryId: req.query.categoryId ? String(req.query.categoryId) : undefined
     });
     res.json(result);
   },

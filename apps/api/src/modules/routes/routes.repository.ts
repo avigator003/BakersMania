@@ -47,6 +47,17 @@ export const bakeryRoutesRepository = {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },
 
+  findRouteByVehicle(tenantId: string, vehicleId: string, excludeRouteId?: string) {
+    return prisma.route.findFirst({
+      where: {
+        tenantId,
+        vehicleId,
+        ...(excludeRouteId ? { id: { not: excludeRouteId } } : {})
+      },
+      select: { id: true, name: true }
+    });
+  },
+
   async upsertVehicleUser(input: { email: string; phone: string; name: string; passwordHash: string }) {
     const existingByEmail = await prisma.user.findUnique({ where: { email: input.email } });
     if (existingByEmail) {

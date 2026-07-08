@@ -1,10 +1,11 @@
 import { prisma } from "../../db/prisma.js";
 import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
-import type { CategoryInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
+import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
 
 export type ProductListFilters = PaginationInput & {
   includeInactive?: boolean;
   search?: string;
+  categoryId?: string;
 };
 
 export type PriceHistoryFilters = PaginationInput;
@@ -63,12 +64,20 @@ export const catalogRepository = {
     return prisma.productCategory.create({ data: { ...input, tenantId } });
   },
 
+  updateCategory(tenantId: string, categoryId: string, input: CategoryUpdateInput) {
+    return prisma.productCategory.update({
+      where: { id: categoryId },
+      data: input
+    });
+  },
+
   async listProducts(tenantId: string, filters: ProductListFilters = {}) {
     const { page, pageSize, skip } = pagination(filters);
     const search = filters.search?.trim();
     const where = {
       tenantId,
       ...(filters.includeInactive ? {} : { active: true }),
+      ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
       ...(search
         ? {
             OR: [

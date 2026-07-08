@@ -48,6 +48,10 @@ type OnboardForm = {
   ownerName: string;
   ownerEmail: string;
   ownerPassword: string;
+  managerName: string;
+  managerEmail: string;
+  managerPhone: string;
+  managerPassword: string;
   phone: string;
   address: string;
   monthlyAmount: string;
@@ -81,6 +85,10 @@ const initialForm: OnboardForm = {
   ownerName: "Demo Owner",
   ownerEmail: "owner@democakes.local",
   ownerPassword: "Owner@123456",
+  managerName: "Demo Manager",
+  managerEmail: "manager@democakes.local",
+  managerPhone: "+91 90000 00001",
+  managerPassword: "Manager@123456",
   phone: "+91 90000 00000",
   address: "Demo bakery address",
   monthlyAmount: "1999",
@@ -424,6 +432,10 @@ export default function AdminTenantsPage() {
               ["ownerPassword", "Owner password"],
               ["phone", "Phone"],
               ["address", "Address"],
+              ["managerName", "Manager name"],
+              ["managerEmail", "Manager email"],
+              ["managerPhone", "Manager phone"],
+              ["managerPassword", "Manager password"],
               ["monthlyAmount", "Amount per month"],
               ["lastPaymentDate", "Last payment date"],
               ["lastPaymentAmount", "Last payment amount"],
@@ -434,7 +446,7 @@ export default function AdminTenantsPage() {
                 <input
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
                   onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                  type={key.includes("Date") ? "date" : key === "ownerPassword" ? "password" : key === "ownerEmail" ? "email" : key.includes("Amount") ? "number" : "text"}
+                  type={key.includes("Date") ? "date" : key.includes("Password") ? "password" : key.includes("Email") ? "email" : key.includes("Amount") ? "number" : "text"}
                   value={form[key as keyof OnboardForm]}
                 />
               </label>

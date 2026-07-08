@@ -62,6 +62,10 @@ export const bakeryRoutesService = {
       if (!vehicle) {
         throw new HttpError(400, "Selected vehicle does not belong to this bakery");
       }
+      const existingRoute = await bakeryRoutesRepository.findRouteByVehicle(tenantId, input.vehicleId);
+      if (existingRoute) {
+        throw new HttpError(409, `Vehicle is already assigned to ${existingRoute.name}`);
+      }
     }
     return bakeryRoutesRepository.create(tenantId, input);
   },
@@ -75,6 +79,10 @@ export const bakeryRoutesService = {
       const vehicle = await bakeryRoutesRepository.findVehicle(tenantId, input.vehicleId);
       if (!vehicle) {
         throw new HttpError(400, "Selected vehicle does not belong to this bakery");
+      }
+      const existingRoute = await bakeryRoutesRepository.findRouteByVehicle(tenantId, input.vehicleId, routeId);
+      if (existingRoute) {
+        throw new HttpError(409, `Vehicle is already assigned to ${existingRoute.name}`);
       }
     }
     return bakeryRoutesRepository.update(tenantId, routeId, input);

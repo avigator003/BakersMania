@@ -55,12 +55,17 @@ export const platformAdminService = {
     }
 
     const ownerPasswordHash = await bcrypt.hash(input.ownerPassword, 12);
+    const managerPasswordHash = input.managerPassword ? await bcrypt.hash(input.managerPassword, 12) : undefined;
     const months = recurrenceMonths(input.recurrence, input.recurrenceMonths);
     const lastPaymentDate = input.lastPaymentDate;
+    if ((input.managerName || input.managerEmail || input.managerPhone || input.managerPassword) && (!input.managerName || !input.managerEmail || !input.managerPassword)) {
+      throw new HttpError(422, "Manager name, email, and password are required to create a bakery manager");
+    }
     return platformAdminRepository.createTenant({
       ...input,
       slug,
       ownerPasswordHash,
+      managerPasswordHash,
       recurrenceMonths: months,
       nextDueDate: input.nextDueDate || (lastPaymentDate ? addMonths(lastPaymentDate, months) : undefined)
     });

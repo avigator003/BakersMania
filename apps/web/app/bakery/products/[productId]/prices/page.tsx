@@ -58,6 +58,8 @@ type PaginationMeta = {
   pageCount: number;
 };
 
+type PricingTab = "assign" | "assigned";
+
 function formatAmount(value?: string | number | null) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
@@ -71,6 +73,7 @@ export default function ProductPriceAssignmentPage() {
   const [history, setHistory] = useState<PriceHistory[]>([]);
   const [priceRows, setPriceRows] = useState<PriceRow[]>([{ id: "row-1", price: "", customerIds: [] }]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<PricingTab>("assign");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
@@ -94,6 +97,9 @@ export default function ProductPriceAssignmentPage() {
   const validRows = useMemo(() => {
     return priceRows.filter((row) => Number(row.price) > 0 && row.customerIds.length);
   }, [priceRows]);
+
+  const assignedCustomerIds = useMemo(() => new Set((product?.customerPrices || []).map((price) => price.customer.id)), [product]);
+
   async function loadData() {
     if (!apiBase || !params.productId) {
       toast.error("Bakery slug missing", "Please sign in again.");
@@ -147,7 +153,8 @@ export default function ProductPriceAssignmentPage() {
     return customers
       .filter((customer) => {
         const matchesRoute = row.customerIds.includes(customer.id) || !routeFilter.length || (customer.route?.id && routeFilter.includes(customer.route.id));
-        return matchesRoute && !selectedInOtherRows.has(customer.id);
+        const alreadyAssigned = assignedCustomerIds.has(customer.id) && !row.customerIds.includes(customer.id);
+        return matchesRoute && !selectedInOtherRows.has(customer.id) && !alreadyAssigned;
       })
       .map((customer) => ({
         value: customer.id,
@@ -182,6 +189,7 @@ export default function ProductPriceAssignmentPage() {
       const savedCount = validRows.reduce((count, row) => count + row.customerIds.length, 0);
       toast.success("Prices saved", `${savedCount} customer price${savedCount === 1 ? "" : "s"} updated across ${validRows.length} row${validRows.length === 1 ? "" : "s"}.`);
       setPriceRows([{ id: "row-1", price: "", customerIds: [] }]);
+      setActiveTab("assigned");
       await loadData();
     } catch (error) {
       toast.error("Price save failed", error instanceof Error ? error.message : "Could not save customer prices.");
@@ -215,6 +223,24 @@ export default function ProductPriceAssignmentPage() {
         </section>
 
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
+          <div className="flex gap-2 border-b border-line p-3">
+            {[
+              ["assign", "Assign Pricing"],
+              ["assigned", "Assigned Pricing"]
+            ].map(([value, label]) => (
+              <button
+                className={`focus-ring rounded-md px-4 py-2 text-sm font-semibold ${activeTab === value ? "bg-mint text-white" : "border border-line bg-panel2 text-muted"}`}
+                key={value}
+                onClick={() => setActiveTab(value as PricingTab)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "assign" ? (
+            <>
           <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-sm font-semibold text-muted">Add one row per price, then search and attach customers to that row.</p>
             <div className="grid gap-2 sm:flex sm:flex-wrap">
@@ -317,8 +343,64 @@ export default function ProductPriceAssignmentPage() {
               </tbody>
             </table>
           </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase text-mint">Assigned Pricing</p>
+                  <h2 className="mt-1 text-lg font-semibold">{product?.customerPrices.length || 0} customer prices</h2>
+                </div>
+                <button className="focus-ring grid h-10 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-10" onClick={loadData} title="Refresh assigned prices" type="button">
+                  <RefreshCw size={16} />
+                </button>
+              </div>
+              {loading ? <LoadingSpinner label="Loading assigned prices" /> : null}
+              <div className="grid gap-3 p-3 sm:hidden">
+                {(product?.customerPrices || []).map((price) => (
+                  <article className="rounded-lg border border-line bg-panel2 p-3" key={price.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate font-semibold">{price.customer.name}</h3>
+                        <p className="text-xs text-muted">{price.customer.route?.name || "No route"} · {price.customer.phone || "No phone"}</p>
+                      </div>
+                      <span className="shrink-0 font-semibold text-mint">{formatAmount(price.price)}</span>
+                    </div>
+                    {price.notes ? <p className="mt-2 text-xs text-muted">{price.notes}</p> : null}
+                  </article>
+                ))}
+                {!product?.customerPrices.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No assigned prices yet.</p> : null}
+              </div>
+              <div className="hidden max-h-[420px] w-full max-w-full overflow-auto sm:block">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
+                    <tr>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Route</th>
+                      <th className="px-4 py-3">Phone</th>
+                      <th className="px-4 py-3 text-right">Assigned Price</th>
+                      <th className="px-4 py-3">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {(product?.customerPrices || []).map((price) => (
+                      <tr key={price.id}>
+                        <td className="px-4 py-3 font-semibold">{price.customer.name}</td>
+                        <td className="px-4 py-3 text-muted">{price.customer.route?.name || "No route"}</td>
+                        <td className="px-4 py-3 text-muted">{price.customer.phone || "-"}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-mint">{formatAmount(price.price)}</td>
+                        <td className="px-4 py-3 text-muted">{price.notes || "-"}</td>
+                      </tr>
+                    ))}
+                    {!product?.customerPrices.length ? <tr><td className="px-4 py-8 text-center text-muted" colSpan={5}>No assigned prices yet.</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </section>
 
+        {activeTab === "assigned" ? (
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="border-b border-line p-4">
             <p className="text-sm font-semibold uppercase text-mint">Price History</p>
@@ -368,6 +450,7 @@ export default function ProductPriceAssignmentPage() {
             </table>
           </div>
         </section>
+        ) : null}
       </div>
     </AppShell>
   );

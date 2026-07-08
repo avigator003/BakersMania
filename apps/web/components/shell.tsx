@@ -37,6 +37,7 @@ const bakeryNav = [
   { href: "/bakery/truck-loading", label: "Truck Loading", icon: Truck },
   { href: "/bakery/customers", label: "Customers", icon: Users },
   { href: "/bakery/products", label: "Products", icon: Boxes },
+  { href: "/bakery/categories", label: "Product Categories", icon: Boxes },
   { href: "/bakery/labour", label: "Labour", icon: Users },
   { href: "/bakery/inventory", label: "Inventory", icon: Boxes },
   { href: "/bakery/expenses", label: "Expenses", icon: CreditCard },
@@ -193,8 +194,7 @@ export function AppShell({
     : surface === "vehicle"
       ? [
         { href: `${routeBase}/vehicle`, label: "Overview", icon: Gauge },
-        { href: `${routeBase}/vehicle/routes`, label: "Routes", icon: ClipboardList },
-        { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck }
+        { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList }
       ]
     : surface === "admin"
       ? [
