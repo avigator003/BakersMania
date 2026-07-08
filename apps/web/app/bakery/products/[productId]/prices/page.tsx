@@ -100,6 +100,18 @@ export default function ProductPriceAssignmentPage() {
 
   const assignedCustomerIds = useMemo(() => new Set((product?.customerPrices || []).map((price) => price.customer.id)), [product]);
 
+  const selectedDraftCustomerIds = useMemo(() => new Set(priceRows.flatMap((row) => row.customerIds)), [priceRows]);
+
+  const allCustomerOptions = useMemo(
+    () =>
+      customers.map((customer) => ({
+        value: customer.id,
+        label: customer.name,
+        description: [customer.phone, customer.city, customer.route?.name || "No route"].filter(Boolean).join(" · ")
+      })),
+    [customers]
+  );
+
   async function loadData() {
     if (!apiBase || !params.productId) {
       toast.error("Bakery slug missing", "Please sign in again.");
@@ -145,22 +157,20 @@ export default function ProductPriceAssignmentPage() {
   }
 
   function customerOptionsForRow(row: PriceRow) {
-    const selectedInOtherRows = new Set(
-      priceRows
-        .filter((item) => item.id !== row.id)
-        .flatMap((item) => item.customerIds)
-    );
     return customers
       .filter((customer) => {
-        const matchesRoute = row.customerIds.includes(customer.id) || !routeFilter.length || (customer.route?.id && routeFilter.includes(customer.route.id));
-        const alreadyAssigned = assignedCustomerIds.has(customer.id) && !row.customerIds.includes(customer.id);
-        return matchesRoute && !selectedInOtherRows.has(customer.id) && !alreadyAssigned;
+        const matchesRoute = !routeFilter.length || (customer.route?.id && routeFilter.includes(customer.route.id));
+        return matchesRoute && !selectedDraftCustomerIds.has(customer.id) && !assignedCustomerIds.has(customer.id);
       })
       .map((customer) => ({
         value: customer.id,
         label: customer.name,
         description: [customer.phone, customer.city, customer.route?.name || "No route"].filter(Boolean).join(" · ")
       }));
+  }
+
+  function selectedCustomerOptionsForRow(row: PriceRow) {
+    return allCustomerOptions.filter((option) => row.customerIds.includes(option.value));
   }
 
   async function savePrices() {
@@ -286,6 +296,7 @@ export default function ProductPriceAssignmentPage() {
                     options={customerOptionsForRow(row)}
                     placeholder="Select customers"
                     searchPlaceholder="Search customers"
+                    selectedOptions={selectedCustomerOptionsForRow(row)}
                     value={row.customerIds}
                   />
                 </article>
@@ -293,55 +304,44 @@ export default function ProductPriceAssignmentPage() {
             })}
           </div>
 
-          <div className="hidden w-full max-w-full overflow-x-auto sm:block">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="border-b border-line bg-panel2 text-xs uppercase text-muted">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Price</th>
-                  <th className="px-4 py-3 font-semibold">Customers</th>
-                  <th className="px-4 py-3 text-right font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {priceRows.map((row, index) => {
-                  return (
-                    <tr key={row.id} className="align-top">
-                      <td className="w-44 px-4 py-3">
-                        <label className="sr-only">Row {index + 1} price</label>
-                        <input
-                          className="h-10 w-36 rounded-md border border-line bg-panel2 px-3 text-sm outline-none focus:border-mint"
-                          onChange={(event) => updateRow(row.id, { price: event.target.value })}
-                          placeholder="0"
-                          type="number"
-                          value={row.price}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <SearchableSelect
-                          multiple
-                          onChange={(customerIds) => updateRow(row.id, { customerIds })}
-                          options={customerOptionsForRow(row)}
-                          placeholder="Select customers"
-                          searchPlaceholder="Search customers"
-                          value={row.customerIds}
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          className="focus-ring inline-grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2"
-                          disabled={priceRows.length === 1}
-                          onClick={() => removeRow(row.id)}
-                          title="Remove row"
-                          type="button"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="hidden p-3 sm:grid sm:gap-3">
+            <div className="grid grid-cols-[180px_minmax(0,1fr)_56px] items-center gap-3 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold uppercase text-muted">
+              <span>Price</span>
+              <span>Customers</span>
+              <span className="text-right">Action</span>
+            </div>
+            {priceRows.map((row, index) => (
+              <div className="grid grid-cols-[180px_minmax(0,1fr)_56px] items-start gap-3 rounded-md border border-line bg-panel2 p-3" key={row.id}>
+                <label className="grid gap-1">
+                  <span className="sr-only">Row {index + 1} price</span>
+                  <input
+                    className="h-10 w-full rounded-md border border-line bg-panel px-3 text-sm outline-none focus:border-mint"
+                    onChange={(event) => updateRow(row.id, { price: event.target.value })}
+                    placeholder="0"
+                    type="number"
+                    value={row.price}
+                  />
+                </label>
+                <SearchableSelect
+                  multiple
+                  onChange={(customerIds) => updateRow(row.id, { customerIds })}
+                  options={customerOptionsForRow(row)}
+                  placeholder="Select customers"
+                  searchPlaceholder="Search customers"
+                  selectedOptions={selectedCustomerOptionsForRow(row)}
+                  value={row.customerIds}
+                />
+                <button
+                  className="focus-ring inline-grid h-10 w-10 place-items-center justify-self-end rounded-md border border-line bg-panel"
+                  disabled={priceRows.length === 1}
+                  onClick={() => removeRow(row.id)}
+                  title="Remove row"
+                  type="button"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
           </div>
             </>
           ) : (

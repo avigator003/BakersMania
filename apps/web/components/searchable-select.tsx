@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 
 export type SelectOption = {
@@ -18,6 +18,7 @@ type CommonProps = {
   disabled?: boolean;
   required?: boolean;
   className?: string;
+  selectedOptions?: SelectOption[];
 };
 
 type SingleProps = CommonProps & {
@@ -40,10 +41,13 @@ function isSelected(props: Props, value: string) {
 
 function selectedOptions(props: Props) {
   const values = props.multiple ? props.value : props.value ? [props.value] : [];
-  return values.map((value) => props.options.find((option) => option.value === value)).filter(Boolean) as SelectOption[];
+  const optionMap = new Map<string, SelectOption>();
+  [...(props.selectedOptions || []), ...props.options].forEach((option) => optionMap.set(option.value, option));
+  return values.map((value) => optionMap.get(value)).filter(Boolean) as SelectOption[];
 }
 
 export function SearchableSelect(props: Props) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const selected = selectedOptions(props);
@@ -57,6 +61,33 @@ export function SearchableSelect(props: Props) {
         .some((value) => String(value).toLowerCase().includes(normalizedQuery))
     );
   }, [props.options, query]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeOnOutsideClick(event: MouseEvent | TouchEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("touchstart", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("touchstart", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   function choose(value: string) {
     if (props.multiple) {
@@ -111,12 +142,12 @@ export function SearchableSelect(props: Props) {
   );
 
   return (
-    <div className={`relative ${props.className || ""}`}>
+    <div className={`relative whitespace-normal ${props.className || ""}`} ref={wrapperRef}>
       {props.label ? <label className="mb-1 block text-sm font-semibold">{props.label}</label> : null}
       {trigger}
       {props.required && !selected.length ? <input className="sr-only" required value="" onChange={() => undefined} /> : null}
       {open ? (
-        <div className="absolute left-0 right-0 z-30 mt-2 rounded-md border border-line bg-panel shadow-subtle">
+        <div className="absolute left-0 right-0 z-30 mt-2 whitespace-normal rounded-md border border-line bg-panel shadow-subtle">
           <label className="flex h-10 items-center gap-2 border-b border-line px-3">
             <Search size={15} className="text-muted" />
             <input
