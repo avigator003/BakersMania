@@ -423,7 +423,10 @@ export default function BakeryCustomersPage() {
                 </select>
               </label>
             </div>
-            <SearchableSelect label="Route" onChange={(value) => setCustomerForm((current) => ({ ...current, routeId: value }))} options={routeOptions} placeholder="No route" searchPlaceholder="Search routes" value={customerForm.routeId} />
+            <div className="grid gap-1">
+              <SearchableSelect label="Route" onChange={(value) => setCustomerForm((current) => ({ ...current, routeId: value }))} options={routeOptions} placeholder="No route" searchPlaceholder="Search routes" value={customerForm.routeId} />
+              <span className="text-xs text-muted">Multiple customers can be assigned to the same route.</span>
+            </div>
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setCustomerOpen(false); setEditCustomer(null); setCustomerForm(initialCustomerForm); }} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : editCustomer ? "Save Customer" : "Create Customer"}</button>

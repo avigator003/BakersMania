@@ -30,6 +30,7 @@ export const bakeryRoutesRepository = {
     const [vehicles, total] = await Promise.all([
       prisma.vehicle.findMany({
         where,
+        include: { routes: { select: { id: true, name: true } } },
         orderBy: [{ active: "desc" }, { createdAt: "desc" }],
         skip,
         take: pageSize

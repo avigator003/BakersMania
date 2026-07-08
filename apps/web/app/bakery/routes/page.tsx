@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Eye, MapPinned, Pencil, Plus, RefreshCw, Truck } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -25,6 +25,7 @@ type Vehicle = {
   fitnessExpiryDate?: string | null;
   fitnessPhotoUrl?: string | null;
   active: boolean;
+  routes?: Array<{ id: string; name: string }>;
 };
 
 type Route = {
@@ -121,6 +122,30 @@ export default function BakeryRoutesPage() {
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
+  const assignedRouteByVehicleId = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    routes.forEach((route) => {
+      if (route.vehicle?.id) {
+        map.set(route.vehicle.id, { id: route.id, name: route.name });
+      }
+    });
+    vehicles.forEach((vehicle) => {
+      const assignedRoute = vehicle.routes?.[0];
+      if (assignedRoute) {
+        map.set(vehicle.id, assignedRoute);
+      }
+    });
+    return map;
+  }, [routes, vehicles]);
+
+  function assignedRouteForVehicle(vehicleId: string, currentRouteId?: string) {
+    const assignedRoute = assignedRouteByVehicleId.get(vehicleId);
+    return assignedRoute && assignedRoute.id !== currentRouteId ? assignedRoute : null;
+  }
+
+  function selectedVehicleConflict(currentRouteId?: string) {
+    return routeForm.vehicleId ? assignedRouteForVehicle(routeForm.vehicleId, currentRouteId) : null;
+  }
 
   async function loadData() {
     if (!apiBase) {
@@ -508,14 +533,20 @@ export default function BakeryRoutesPage() {
               <span className="text-sm font-medium">Vehicle</span>
               <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRouteForm((current) => ({ ...current, vehicleId: event.target.value }))} value={routeForm.vehicleId}>
                 <option value="">No vehicle</option>
-                {vehicles.filter((vehicle) => vehicle.active).map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle.number || "No number"}</option>
-                ))}
+                {vehicles.filter((vehicle) => vehicle.active).map((vehicle) => {
+                  const assignedRoute = assignedRouteForVehicle(vehicle.id);
+                  return (
+                    <option disabled={Boolean(assignedRoute)} key={vehicle.id} value={vehicle.id}>
+                      {vehicle.name} · {vehicle.number || "No number"}{assignedRoute ? ` · Assigned to ${assignedRoute.name}` : ""}
+                    </option>
+                  );
+                })}
               </select>
+              {selectedVehicleConflict() ? <span className="text-xs font-medium text-berry">This vehicle is already assigned to {selectedVehicleConflict()?.name}.</span> : null}
             </label>
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setRouteOpen(false)} type="button">Cancel</button>
-              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Create Route"}</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving || Boolean(selectedVehicleConflict())} type="submit">{saving ? "Saving..." : "Create Route"}</button>
             </div>
           </form>
         </Modal>
@@ -542,10 +573,16 @@ export default function BakeryRoutesPage() {
               <span className="text-sm font-medium">Vehicle</span>
               <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRouteForm((current) => ({ ...current, vehicleId: event.target.value }))} value={routeForm.vehicleId}>
                 <option value="">No vehicle</option>
-                {vehicles.filter((vehicle) => vehicle.active || vehicle.id === routeForm.vehicleId).map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle.number || "No number"}</option>
-                ))}
+                {vehicles.filter((vehicle) => vehicle.active || vehicle.id === routeForm.vehicleId).map((vehicle) => {
+                  const assignedRoute = assignedRouteForVehicle(vehicle.id, editRoute?.id);
+                  return (
+                    <option disabled={Boolean(assignedRoute)} key={vehicle.id} value={vehicle.id}>
+                      {vehicle.name} · {vehicle.number || "No number"}{assignedRoute ? ` · Assigned to ${assignedRoute.name}` : ""}
+                    </option>
+                  );
+                })}
               </select>
+              {selectedVehicleConflict(editRoute?.id) ? <span className="text-xs font-medium text-berry">This vehicle is already assigned to {selectedVehicleConflict(editRoute?.id)?.name}.</span> : null}
             </label>
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input checked={routeForm.active} onChange={(event) => setRouteForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" />
@@ -553,7 +590,7 @@ export default function BakeryRoutesPage() {
             </label>
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setEditRoute(null); setRouteForm(initialRouteForm); }} type="button">Cancel</button>
-              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Route"}</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving || Boolean(selectedVehicleConflict(editRoute?.id))} type="submit">{saving ? "Saving..." : "Save Route"}</button>
             </div>
           </form>
         </Modal>
