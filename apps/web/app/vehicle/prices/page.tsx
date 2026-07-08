@@ -167,7 +167,31 @@ export default function VehiclePricesPage() {
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
           {loading ? <LoadingSpinner label="Loading customers and products" /> : null}
-          <div className="max-h-[700px] w-full max-w-full overflow-auto">
+          <div className="grid gap-3 p-3 sm:hidden">
+            {customers.map((customer) => (
+              <article className="rounded-lg border border-line bg-panel2 p-3" key={customer.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-semibold">{customer.name}</h2>
+                    <p className="mt-1 truncate text-xs text-muted">{customer.phone || "No phone"}</p>
+                    <p className="mt-1 truncate text-xs text-muted">{customer.city || "No city"}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[11px] font-semibold uppercase text-muted">Due</p>
+                    <p className="text-sm font-semibold">{formatAmount(customer.dueBalance)}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 text-xs font-semibold" onClick={() => openPrices(customer, "view")} type="button"><Eye size={14} /> View</button>
+                  <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-3 text-xs font-semibold text-white" onClick={() => openPrices(customer, "edit")} type="button"><IndianRupee size={14} /> Assign Price</button>
+                </div>
+              </article>
+            ))}
+            {!loading && !customers.length ? (
+              <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No customers assigned to this vehicle route.</div>
+            ) : null}
+          </div>
+          <div className="hidden max-h-[700px] w-full max-w-full overflow-auto sm:block">
             <table className="w-full min-w-[820px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>

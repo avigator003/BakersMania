@@ -61,7 +61,7 @@ type PaginatedOrdersResponse = {
 };
 
 const today = localDateInput();
-const orderStatuses = ["PENDING", "ACCEPTED", "DISPATCHED", "COMPLETED"];
+const orderStatuses = ["PENDING", "ACCEPTED", "COMPLETED"];
 const paymentStatuses = ["UNPAID", "PARTIAL", "PAID"];
 const emptyOrderForm: OrderFormState = {
   customerId: "",
@@ -106,9 +106,12 @@ function paymentStatus(order: Order) {
 
 function orderStatusClass(status: string) {
   if (status === "COMPLETED") return "border-mint/30 bg-mint/10 text-mint";
-  if (status === "DISPATCHED") return "border-sky-400/40 bg-sky-100 text-sky-700";
   if (status === "ACCEPTED") return "border-amber-400/40 bg-amber-100 text-amber-700";
   return "border-slate-300 bg-slate-100 text-slate-700";
+}
+
+function selectableOrderStatus(status: string) {
+  return orderStatuses.includes(status) ? status : "ACCEPTED";
 }
 
 function paymentStatusClass(status: string) {
@@ -629,7 +632,7 @@ export default function BakeryOrdersPage() {
                           className={`focus-ring rounded-md border px-2 py-2 text-xs font-semibold outline-none ${orderStatusClass(order.status)}`}
                           disabled={saving}
                           onChange={(event) => updateOrderStatus(order, { status: event.target.value })}
-                          value={order.status}
+                          value={selectableOrderStatus(order.status)}
                         >
                           {orderStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                         </select>
@@ -711,7 +714,7 @@ export default function BakeryOrdersPage() {
                             className={`focus-ring rounded-md border px-2 py-1 text-xs font-semibold outline-none ${orderStatusClass(order.status)}`}
                             disabled={saving}
                             onChange={(event) => updateOrderStatus(order, { status: event.target.value })}
-                            value={order.status}
+                            value={selectableOrderStatus(order.status)}
                           >
                             {orderStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                           </select>

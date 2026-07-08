@@ -165,7 +165,30 @@ export default function BakeryProductPricesPage() {
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
           {loading ? <LoadingSpinner label="Loading routes and products" /> : null}
-          <div className="max-h-[700px] w-full max-w-full overflow-auto">
+          <div className="grid gap-3 p-3 sm:hidden">
+            {routes.map((route) => (
+              <article className="rounded-lg border border-line bg-panel2 p-3" key={route.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-semibold">{route.name}</h2>
+                    <p className="mt-1 truncate text-xs text-muted">{route.vehicle?.name || "No vehicle"}</p>
+                    <p className="mt-1 truncate text-xs text-muted">{route.vehicle?.driverName || "No driver"}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${route.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}>
+                    {route.active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 text-xs font-semibold" onClick={() => openPrices(route, "view")} type="button"><Eye size={14} /> View</button>
+                  <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-3 text-xs font-semibold text-white" onClick={() => openPrices(route, "edit")} type="button"><IndianRupee size={14} /> Assign Price</button>
+                </div>
+              </article>
+            ))}
+            {!loading && !routes.length ? (
+              <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No routes found.</div>
+            ) : null}
+          </div>
+          <div className="hidden max-h-[700px] w-full max-w-full overflow-auto sm:block">
             <table className="w-full min-w-[820px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
