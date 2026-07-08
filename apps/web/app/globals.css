@@ -38,7 +38,8 @@ table {
 
 th,
 td {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 
 main [class*="overflow-auto"],
@@ -66,20 +67,10 @@ textarea {
 }
 
 @media (max-width: 1280px) {
-  main table[class*="min-w-"] {
-    min-width: 900px !important;
-  }
-
   th,
   td {
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;
-  }
-}
-
-@media (max-width: 1024px) {
-  main table[class*="min-w-"] {
-    min-width: 760px !important;
   }
 }
 
