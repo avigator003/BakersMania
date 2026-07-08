@@ -210,8 +210,8 @@ export default function ProductPriceAssignmentPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Bulk customer price assignment" surface="bakery">
-      <div className="grid gap-6">
-        <section className="rounded-lg border border-line bg-panel p-5 shadow-subtle">
+      <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-6">
+        <section className="shrink-0 rounded-lg border border-line bg-panel p-5 shadow-subtle">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase text-mint">Set Customer Prices</p>
@@ -232,8 +232,8 @@ export default function ProductPriceAssignmentPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="flex gap-2 border-b border-line p-3">
+        <section className="flex min-h-[520px] flex-1 flex-col rounded-lg border border-line bg-panel shadow-subtle">
+          <div className="shrink-0 flex gap-2 border-b border-line p-3">
             {[
               ["assign", "Assign Pricing"],
               ["assigned", "Assigned Pricing"]
@@ -250,8 +250,8 @@ export default function ProductPriceAssignmentPage() {
           </div>
 
           {activeTab === "assign" ? (
-            <>
-          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-sm font-semibold text-muted">Add one row per price, then search and attach customers to that row.</p>
             <div className="grid gap-2 sm:flex sm:flex-wrap">
               <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={addRow} type="button">
@@ -304,7 +304,7 @@ export default function ProductPriceAssignmentPage() {
             })}
           </div>
 
-          <div className="hidden p-3 sm:grid sm:gap-3">
+          <div className="hidden min-h-0 flex-1 content-start p-3 sm:grid sm:gap-3">
             <div className="grid grid-cols-[180px_minmax(0,1fr)_56px] items-center gap-3 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold uppercase text-muted">
               <span>Price</span>
               <span>Customers</span>
@@ -343,10 +343,10 @@ export default function ProductPriceAssignmentPage() {
               </div>
             ))}
           </div>
-            </>
+            </div>
           ) : (
-            <>
-              <div className="flex flex-col gap-2 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="shrink-0 flex flex-col gap-2 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold uppercase text-mint">Assigned Pricing</p>
                   <h2 className="mt-1 text-lg font-semibold">{product?.customerPrices.length || 0} customer prices</h2>
@@ -371,7 +371,7 @@ export default function ProductPriceAssignmentPage() {
                 ))}
                 {!product?.customerPrices.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No assigned prices yet.</p> : null}
               </div>
-              <div className="hidden max-h-[420px] w-full max-w-full overflow-auto sm:block">
+              <div className="hidden min-h-0 flex-1 w-full max-w-full overflow-auto sm:block">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
                     <tr>
@@ -396,7 +396,7 @@ export default function ProductPriceAssignmentPage() {
                   </tbody>
                 </table>
               </div>
-            </>
+            </div>
           )}
         </section>
 

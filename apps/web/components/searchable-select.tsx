@@ -158,7 +158,7 @@ export function SearchableSelect(props: Props) {
               value={query}
             />
           </label>
-          <div className="max-h-64 overflow-auto p-1">
+          <div className="max-h-[min(24rem,55vh)] overflow-auto p-1">
             {filteredOptions.map((option) => {
               const active = isSelected(props, option.value);
               return (
