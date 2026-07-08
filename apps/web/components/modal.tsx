@@ -19,7 +19,7 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/40 px-4 py-6">
-      <section className="flex max-h-[calc(100vh-3rem)] w-full max-w-xl flex-col rounded-lg border border-line bg-panel shadow-subtle">
+      <section className="flex max-h-[calc(100vh-3rem)] w-full max-w-[min(80vw,1200px)] flex-col rounded-lg border border-line bg-panel shadow-subtle">
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line p-4">
           <div>
             <h2 className="text-lg font-semibold">{title}</h2>

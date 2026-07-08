@@ -27,6 +27,7 @@ export default function BakeryCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [statusSavingId, setStatusSavingId] = useState("");
   const [open, setOpen] = useState(false);
   const [editCategory, setEditCategory] = useState<Category | null>(null);
   const [form, setForm] = useState(initialCategoryForm);
@@ -105,6 +106,23 @@ export default function BakeryCategoriesPage() {
     }
   }
 
+  async function updateCategoryStatus(category: Category, active: boolean) {
+    if (!apiBase || category.active === active) return;
+    setStatusSavingId(category.id);
+    try {
+      await authFetch(`${apiBase}/catalog/categories/${category.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active })
+      });
+      setCategories((current) => current.map((item) => (item.id === category.id ? { ...item, active } : item)));
+      toast.success("Category status updated", `${category.name} is now ${active ? "active" : "inactive"}.`);
+    } catch (error) {
+      toast.error("Status update failed", error instanceof Error ? error.message : "Could not update category status.");
+    } finally {
+      setStatusSavingId("");
+    }
+  }
+
   return (
     <AppShell title="Bakery CRM" subtitle="Product category list and descriptions" surface="bakery">
       <div className="grid gap-6">
@@ -139,9 +157,15 @@ export default function BakeryCategoriesPage() {
                 </div>
                 <div className="mt-4 flex items-center justify-between text-sm">
                   <span className="text-muted">{category._count?.products || 0} products</span>
-                  <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${category.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}>
-                    {category.active ? "Active" : "Inactive"}
-                  </span>
+                  <select
+                    className={`rounded-md border px-2 py-1 text-xs font-semibold outline-none ${category.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}
+                    disabled={statusSavingId === category.id}
+                    onChange={(event) => updateCategoryStatus(category, event.target.value === "active")}
+                    value={category.active ? "active" : "inactive"}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
                 </div>
                 <button className="focus-ring mt-3 inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-panel" onClick={() => openEdit(category)} title="Edit category" type="button">
                   <Pencil size={16} />

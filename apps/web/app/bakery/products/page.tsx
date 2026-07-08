@@ -65,6 +65,7 @@ export default function BakeryProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [statusSavingId, setStatusSavingId] = useState("");
   const [productOpen, setProductOpen] = useState(false);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -166,6 +167,23 @@ export default function BakeryProductsPage() {
     }
   }
 
+  async function updateProductStatus(product: Product, active: boolean) {
+    if (!apiBase || product.active === active) return;
+    setStatusSavingId(product.id);
+    try {
+      await authFetch(`${apiBase}/catalog/products/${product.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active })
+      });
+      setProducts((current) => current.map((item) => (item.id === product.id ? { ...item, active } : item)));
+      toast.success("Product status updated", `${product.name} is now ${active ? "active" : "inactive"}.`);
+    } catch (error) {
+      toast.error("Status update failed", error instanceof Error ? error.message : "Could not update product status.");
+    } finally {
+      setStatusSavingId("");
+    }
+  }
+
   function openEdit(product: Product) {
     setEditProduct(product);
     setEditForm({
@@ -243,9 +261,15 @@ export default function BakeryProductsPage() {
                     <h3 className="truncate font-semibold">{product.name}</h3>
                     <p className="text-xs text-muted">{product.categoryRef?.name || product.category}</p>
                   </div>
-                  <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${product.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}>
-                    {product.active ? "Active" : "Inactive"}
-                  </span>
+                  <select
+                    className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold outline-none ${product.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}
+                    disabled={statusSavingId === product.id}
+                    onChange={(event) => updateProductStatus(product, event.target.value === "active")}
+                    value={product.active ? "active" : "inactive"}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <span>
@@ -289,9 +313,15 @@ export default function BakeryProductsPage() {
                     <td className="px-4 py-3">{product.categoryRef?.name || product.category}</td>
                     <td className="px-4 py-3">{formatAmount(product.unitPrice)}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${product.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}>
-                        {product.active ? "Active" : "Inactive"}
-                      </span>
+                      <select
+                        className={`rounded-md border px-2 py-1 text-xs font-semibold outline-none ${product.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}
+                        disabled={statusSavingId === product.id}
+                        onChange={(event) => updateProductStatus(product, event.target.value === "active")}
+                        value={product.active ? "active" : "inactive"}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
