@@ -59,8 +59,20 @@ type PaginatedOrdersResponse = {
   };
 };
 
-const today = new Date().toISOString().slice(0, 10);
-const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+function inputDate(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+const today = inputDate();
 const orderStatuses = ["PENDING", "ACCEPTED", "DISPATCHED", "COMPLETED"];
 const paymentStatuses = ["UNPAID", "PARTIAL", "PAID"];
 const emptyOrderForm: OrderFormState = {
@@ -155,7 +167,7 @@ export default function BakeryOrdersPage() {
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "Cash", reference: "" });
   const [search, setSearch] = useState("");
-  const [startDate, setStartDate] = useState(monthStart);
+  const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
@@ -166,7 +178,7 @@ export default function BakeryOrdersPage() {
   const [form, setForm] = useState<OrderFormState>(emptyOrderForm);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [repeatForm, setRepeatForm] = useState({
-    sourceDate: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+    sourceDate: inputDate(addDays(new Date(), -1)),
     targetDate: today,
     routeId: "all"
   });
