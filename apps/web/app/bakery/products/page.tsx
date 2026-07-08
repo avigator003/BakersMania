@@ -7,21 +7,9 @@ import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
-
-type Route = {
-  id: string;
-  name: string;
-};
-
-type Customer = {
-  id: string;
-  name: string;
-  phone?: string | null;
-  city?: string | null;
-  route?: Route | null;
-};
 
 type Category = {
   id: string;
@@ -40,14 +28,6 @@ type Product = {
   taxRate: string;
   active: boolean;
   categoryRef?: Category | null;
-  customerPrices?: CustomerPrice[];
-};
-
-type CustomerPrice = {
-  id: string;
-  price: string;
-  notes?: string | null;
-  customer: Customer;
 };
 
 type PaginationMeta = {
@@ -100,6 +80,8 @@ export default function BakeryProductsPage() {
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
+  const categoryOptions = categories.map((category) => ({ value: category.id, label: category.name }));
+  const activeCategoryOptions = categories.filter((category) => category.active).map((category) => ({ value: category.id, label: category.name }));
 
   async function loadData() {
     if (!apiBase) {
@@ -209,7 +191,7 @@ export default function BakeryProductsPage() {
   }
 
   return (
-    <AppShell title="Bakery CRM" subtitle="Product categories, catalog, and customer-specific pricing" surface="bakery">
+    <AppShell title="Bakery CRM" subtitle="Product categories, catalog, and route pricing" surface="bakery">
       <div className="grid gap-4">
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center lg:justify-end">
@@ -238,19 +220,16 @@ export default function BakeryProductsPage() {
                   value={search}
                 />
               </label>
-              <select
-                className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-mint"
-                onChange={(event) => {
-                  setCategoryFilter(event.target.value);
+              <SearchableSelect
+                onChange={(value) => {
+                  setCategoryFilter(value);
                   setPage(1);
                 }}
+                options={categoryOptions}
+                placeholder="All categories"
+                searchPlaceholder="Search categories"
                 value={categoryFilter}
-              >
-                <option value="">All categories</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
+              />
             </div>
           </div>
 
@@ -282,7 +261,7 @@ export default function BakeryProductsPage() {
                   <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openEdit(product)} title="Edit product">
                     <Pencil size={16} />
                   </button>
-                  <Link className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" href={`products/${product.id}/prices`} title="Set customer prices">
+                  <Link className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" href={`products/${product.id}/prices`} title="Set route prices">
                     <IndianRupee size={16} />
                   </Link>
                 </div>
@@ -326,7 +305,7 @@ export default function BakeryProductsPage() {
                         <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" onClick={() => openEdit(product)} title="Edit product">
                           <Pencil size={16} />
                         </button>
-                        <Link className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" href={`products/${product.id}/prices`} title="Set customer prices">
+                        <Link className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" href={`products/${product.id}/prices`} title="Set route prices">
                           <IndianRupee size={16} />
                         </Link>
                       </div>
@@ -349,13 +328,7 @@ export default function BakeryProductsPage() {
               <span className="text-sm font-medium">Product name</span>
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))} value={productForm.name} />
             </label>
-            <label className="grid gap-1">
-              <span className="text-sm font-medium">Category</span>
-              <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setProductForm((current) => ({ ...current, categoryId: event.target.value }))} value={productForm.categoryId}>
-                <option value="">Select category</option>
-                {categories.filter((category) => category.active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-            </label>
+            <SearchableSelect label="Category" onChange={(value) => setProductForm((current) => ({ ...current, categoryId: value }))} options={activeCategoryOptions} placeholder="Select category" searchPlaceholder="Search categories" value={productForm.categoryId} />
             <label className="grid gap-1">
               <span className="text-sm font-medium">Description</span>
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setProductForm((current) => ({ ...current, description: event.target.value }))} value={productForm.description} />
@@ -371,7 +344,7 @@ export default function BakeryProductsPage() {
           </form>
         </Modal>
 
-        <Modal open={Boolean(viewProduct)} title="Product Details" description={viewProduct ? `${viewProduct.name} pricing for different customers.` : ""} onClose={() => setViewProduct(null)}>
+        <Modal open={Boolean(viewProduct)} title="Product Details" description={viewProduct ? `${viewProduct.name} base product details.` : ""} onClose={() => setViewProduct(null)}>
           <div className="grid gap-4">
             <div className="grid gap-3 rounded-md border border-line bg-panel2 p-3 text-sm sm:grid-cols-2">
               <div>
@@ -387,24 +360,6 @@ export default function BakeryProductsPage() {
                 <p className="font-semibold">{viewProduct?.active ? "Active" : "Inactive"}</p>
               </div>
             </div>
-            <div className="rounded-md border border-line">
-              <div className="border-b border-line bg-panel2 px-3 py-2">
-                <p className="font-semibold">Customer prices</p>
-              </div>
-              <div className="max-h-72 divide-y divide-line overflow-auto">
-                {(viewProduct?.customerPrices || []).map((price) => (
-                  <div key={price.id} className="grid gap-1 p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
-                    <div>
-                      <p className="font-semibold">{price.customer.name}</p>
-                      <p className="text-muted">{price.customer.route?.name || "No route"} · {price.customer.city || "No city"} · {price.customer.phone || "No phone"}</p>
-                      {price.notes ? <p className="text-xs text-muted">{price.notes}</p> : null}
-                    </div>
-                    <p className="font-bold text-mint">{formatAmount(price.price)}</p>
-                  </div>
-                ))}
-                {!viewProduct?.customerPrices?.length ? <p className="p-3 text-sm text-muted">No customer prices set yet.</p> : null}
-              </div>
-            </div>
           </div>
         </Modal>
 
@@ -414,13 +369,7 @@ export default function BakeryProductsPage() {
               <span className="text-sm font-medium">Product name</span>
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} value={editForm.name} />
             </label>
-            <label className="grid gap-1">
-              <span className="text-sm font-medium">Category</span>
-              <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, categoryId: event.target.value }))} value={editForm.categoryId}>
-                <option value="">Select category</option>
-                {categories.filter((category) => category.active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-            </label>
+            <SearchableSelect label="Category" onChange={(value) => setEditForm((current) => ({ ...current, categoryId: value }))} options={activeCategoryOptions} placeholder="Select category" searchPlaceholder="Search categories" value={editForm.categoryId} />
             <label className="grid gap-1">
               <span className="text-sm font-medium">Description</span>
               <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} value={editForm.description} />

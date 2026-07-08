@@ -37,7 +37,8 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
   const products = await ordersRepository.findProducts(
     tenantId,
     input.items.map((item) => item.productId),
-    customerId
+    customerId,
+    customer.routeId
   );
 
   if (products.length !== input.items.length) {
@@ -46,8 +47,8 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
 
   const orderItems = input.items.map((item) => {
     const product = products.find((candidate) => candidate.id === item.productId)!;
-    const pricedProduct = product as typeof product & { customerPrices?: Array<{ price: unknown }> };
-    const unitPrice = Number(pricedProduct.customerPrices?.[0]?.price || product.unitPrice);
+    const pricedProduct = product as typeof product & { customerPrices?: Array<{ price: unknown }>; routePrices?: Array<{ price: unknown }> };
+    const unitPrice = Number(pricedProduct.customerPrices?.[0]?.price || pricedProduct.routePrices?.[0]?.price || product.unitPrice);
     const taxRate = Number(product.taxRate);
     const lineSubtotal = unitPrice * item.quantity;
     const lineTax = lineSubtotal * (taxRate / 100);

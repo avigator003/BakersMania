@@ -1,6 +1,6 @@
 import { catalogRepository } from "./catalog.repository.js";
 import type { PriceHistoryFilters, ProductListFilters } from "./catalog.repository.js";
-import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
+import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
 import { HttpError } from "../../utils/http.js";
 
 export const catalogService = {
@@ -76,5 +76,19 @@ export const catalogService = {
       throw new HttpError(400, "Selected customer does not belong to this bakery");
     }
     return catalogRepository.upsertCustomerPrice(tenantId, input);
+  },
+
+  async upsertRoutePrice(tenantId: string, input: RoutePriceInput) {
+    const [product, route] = await Promise.all([
+      catalogRepository.findProduct(tenantId, input.productId),
+      catalogRepository.findRoute(tenantId, input.routeId)
+    ]);
+    if (!product) {
+      throw new HttpError(400, "Selected product does not belong to this bakery");
+    }
+    if (!route) {
+      throw new HttpError(400, "Selected route does not belong to this bakery");
+    }
+    return catalogRepository.upsertRoutePrice(tenantId, input);
   }
 };

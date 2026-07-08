@@ -1,6 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
-import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput } from "./catalog.schemas.js";
+import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
 
 export type ProductListFilters = PaginationInput & {
   includeInactive?: boolean;
@@ -24,6 +24,10 @@ export const catalogRepository = {
       where: { id: productId, tenantId },
       include: {
         categoryRef: true,
+        routePrices: {
+          include: { route: { include: { vehicle: true } } },
+          orderBy: { createdAt: "desc" }
+        },
         customerPrices: {
           include: { customer: { include: { route: true } } },
           orderBy: { createdAt: "desc" }
@@ -50,6 +54,10 @@ export const catalogRepository = {
 
   findCustomer(tenantId: string, customerId: string) {
     return prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true } });
+  },
+
+  findRoute(tenantId: string, routeId: string) {
+    return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },
 
   listCategories(tenantId: string) {
@@ -191,5 +199,23 @@ export const catalogRepository = {
       }
       return customerPrice;
     }, { timeout: 15000 });
+  },
+
+  upsertRoutePrice(tenantId: string, input: RoutePriceInput) {
+    return prisma.routeProductPrice.upsert({
+      where: {
+        tenantId_productId_routeId: {
+          tenantId,
+          productId: input.productId,
+          routeId: input.routeId
+        }
+      },
+      update: { price: input.price, notes: input.notes },
+      create: { ...input, tenantId },
+      include: {
+        product: true,
+        route: { include: { vehicle: true } }
+      }
+    });
   }
 };

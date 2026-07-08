@@ -30,6 +30,7 @@ function csvCell(value: string | number | null | undefined) {
 export default function BakeryTruckLoadingPage() {
   const toast = useToast();
   const [date, setDate] = useState(today);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState<string[]>([]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
   const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
@@ -61,6 +62,11 @@ export default function BakeryTruckLoadingPage() {
     description: product.category
   })), [truckLoading]);
 
+  const categoryOptions = useMemo(() => {
+    const categories = Array.from(new Set((truckLoading?.products || []).map((product) => product.category).filter(Boolean))).sort();
+    return categories.map((category) => ({ value: category, label: category }));
+  }, [truckLoading]);
+
   const routeOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
     value: route.id,
     label: route.name
@@ -68,8 +74,12 @@ export default function BakeryTruckLoadingPage() {
 
   const visibleProducts = useMemo(() => {
     const products = truckLoading?.products || [];
-    return productFilter.length ? products.filter((product) => productFilter.includes(product.id)) : products;
-  }, [productFilter, truckLoading]);
+    return products.filter((product) => {
+      const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
+      const productMatches = !productFilter.length || productFilter.includes(product.id);
+      return categoryMatches && productMatches;
+    });
+  }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {
     const routes = truckLoading?.routes || [];
@@ -119,6 +129,7 @@ export default function BakeryTruckLoadingPage() {
             <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
           </div>
           <div className="flex flex-wrap gap-2">
+            <SearchableSelect className="min-w-56" multiple onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
             <SearchableSelect className="min-w-52" multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
             <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setDate(event.target.value)} type="date" value={date} />

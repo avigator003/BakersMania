@@ -98,6 +98,7 @@ model Tenant {
   products       Product[]
   customerProductPrices CustomerProductPrice[]
   customerProductPriceHistory CustomerProductPriceHistory[]
+  routeProductPrices RouteProductPrice[]
   orders         Order[]
   invoices       Invoice[]
   inventoryItems InventoryItem[]
@@ -232,6 +233,7 @@ model Product {
   categoryRef ProductCategory? @relation(fields: [categoryId], references: [id])
   customerPrices CustomerProductPrice[]
   customerPriceHistory CustomerProductPriceHistory[]
+  routePrices RouteProductPrice[]
   orderItems  OrderItem[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -278,6 +280,25 @@ model CustomerProductPriceHistory {
   @@index([tenantId, customerId])
   @@index([tenantId, productId, changedAt])
   @@index([tenantId, customerId, changedAt])
+}
+
+model RouteProductPrice {
+  id        String   @id @default(cuid())
+  tenantId  String
+  productId String
+  routeId   String
+  price     Decimal  @db.Decimal(12, 2)
+  notes     String?
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  route     Route    @relation(fields: [routeId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, productId, routeId])
+  @@index([tenantId, routeId])
+  @@index([tenantId, productId])
+  @@index([tenantId, routeId, productId])
 }
 
 model Order {
@@ -588,6 +609,7 @@ model Route {
   customers Customer[]
   orders    Order[]
   expenses  Expense[]
+  productPrices RouteProductPrice[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

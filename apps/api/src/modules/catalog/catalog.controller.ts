@@ -52,5 +52,10 @@ export const catalogController = {
   async upsertCustomerPrice(req: Request, res: Response) {
     const customerPrice = await catalogService.upsertCustomerPrice(req.tenant!.id, req.body);
     res.status(201).json({ customerPrice });
+  },
+
+  async upsertRoutePrice(req: Request, res: Response) {
+    const routePrice = await catalogService.upsertRoutePrice(req.tenant!.id, req.body);
+    res.status(201).json({ routePrice });
   }
 };

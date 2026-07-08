@@ -7,6 +7,7 @@ import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -140,6 +141,8 @@ export default function BakeryInventoryPage() {
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
   const routeBase = tenantSlug ? `/${tenantSlug}` : "";
+  const categoryOptions = categories.map((category) => ({ value: category.id, label: category.name }));
+  const materialCategoryOptions = materialCategories.map((category) => ({ value: category, label: category }));
 
   async function loadData() {
     if (!apiBase) {
@@ -319,10 +322,7 @@ export default function BakeryInventoryPage() {
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
               <div className="flex min-w-0 flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-end">
                 <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap">
-                  <select className="min-w-0 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setCategoryId(event.target.value); setProductPage(1); }} value={categoryId}>
-                    <option value="all">All categories</option>
-                    {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                  </select>
+                  <SearchableSelect className="min-w-52" onChange={(value) => { setCategoryId(value || "all"); setProductPage(1); }} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryId === "all" ? "" : categoryId} />
                   <select className="min-w-0 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setFilterMode(event.target.value as "date" | "month"); setProductPage(1); }} value={filterMode}>
                     <option value="month">Month</option>
                     <option value="date">Date</option>
@@ -472,10 +472,7 @@ export default function BakeryInventoryPage() {
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => { setMaterialSearch(event.target.value); setMaterialPage(1); }} placeholder="Search material or category" value={materialSearch} />
                 </label>
-                <select className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => { setMaterialCategory(event.target.value); setMaterialPage(1); }} value={materialCategory}>
-                  <option value="all">All categories</option>
-                  {materialCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                </select>
+                <SearchableSelect className="min-w-52" onChange={(value) => { setMaterialCategory(value || "all"); setMaterialPage(1); }} options={materialCategoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={materialCategory === "all" ? "" : materialCategory} />
               </div>
 
               {loading ? <LoadingSpinner label="Loading materials" /> : null}

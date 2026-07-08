@@ -11,6 +11,7 @@ import {
   CreditCard,
   Gauge,
   Home,
+  IndianRupee,
   LogOut,
   Menu,
   Settings,
@@ -194,7 +195,8 @@ export function AppShell({
     : surface === "vehicle"
       ? [
         { href: `${routeBase}/vehicle`, label: "Overview", icon: Gauge },
-        { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList }
+        { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList },
+        { href: `${routeBase}/vehicle/prices`, label: "Prices", icon: IndianRupee }
       ]
     : surface === "admin"
       ? [

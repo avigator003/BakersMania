@@ -12,7 +12,7 @@ const credentials = {
   owner: { email: "owner@starbakery.local", password: "Star@123456" },
   manager: { email: "manager@starbakery.local", password: "Manager@123456" },
   customer: { email: "patel.mart@starbakery.local", phone: "+919810010001", password: "123456" },
-  vehicle: { email: "vehicle.ahmedabad-east@starbakery.local", phone: "+919820020001", password: "123456" }
+  vehicle: { email: "vehicle.maninagar@starbakery.local", phone: "+919820020001", password: "123456" }
 };
 
 function todayAt(hour, minute = 0) {
@@ -149,23 +149,34 @@ async function main() {
     prisma.productCategory.create({ data: { tenantId: tenant.id, name: "Breads", description: "Daily breads and pav", active: true } }),
     prisma.productCategory.create({ data: { tenantId: tenant.id, name: "Cakes", description: "Celebration and tea cakes", active: true } }),
     prisma.productCategory.create({ data: { tenantId: tenant.id, name: "Cookies", description: "Cookies and biscuits", active: true } }),
-    prisma.productCategory.create({ data: { tenantId: tenant.id, name: "Savouries", description: "Khari, puffs, and snacks", active: true } })
+    prisma.productCategory.create({ data: { tenantId: tenant.id, name: "Savouries", description: "Khari, puffs, and snacks", active: true } }),
+    prisma.productCategory.create({ data: { tenantId: tenant.id, name: "Pastries", description: "Single-serve pastries and desserts", active: true } }),
+    prisma.productCategory.create({ data: { tenantId: tenant.id, name: "Beverage Mixes", description: "Tea-time and cafe mixes", active: true } })
   ]);
   const categoryByName = new Map(categories.map((category) => [category.name, category]));
 
   const products = await Promise.all([
     prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Breads").id, category: "Breads", name: "Milk Bread 400g", unitPrice: 45, taxRate: 0, stockOnHand: 120, active: true } }),
     prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Breads").id, category: "Breads", name: "Pav Pack 12 pcs", unitPrice: 60, taxRate: 0, stockOnHand: 90, active: true } }),
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Breads").id, category: "Breads", name: "Multigrain Loaf 500g", unitPrice: 85, taxRate: 0, stockOnHand: 55, active: true } }),
     prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Cakes").id, category: "Cakes", name: "Chocolate Truffle Cake 1kg", unitPrice: 850, taxRate: 0, stockOnHand: 14, active: true } }),
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Cakes").id, category: "Cakes", name: "Pineapple Fresh Cream Cake 1kg", unitPrice: 720, taxRate: 0, stockOnHand: 10, active: true } }),
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Pastries").id, category: "Pastries", name: "Black Forest Pastry", unitPrice: 95, taxRate: 0, stockOnHand: 70, active: true } }),
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Pastries").id, category: "Pastries", name: "Butterscotch Pastry", unitPrice: 90, taxRate: 0, stockOnHand: 64, active: true } }),
     prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Cookies").id, category: "Cookies", name: "Jeera Cookies 500g", unitPrice: 180, taxRate: 0, stockOnHand: 45, active: true } }),
-    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Savouries").id, category: "Savouries", name: "Methi Khari 500g", unitPrice: 160, taxRate: 0, stockOnHand: 52, active: true } })
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Cookies").id, category: "Cookies", name: "Chocolate Chip Cookies 500g", unitPrice: 220, taxRate: 0, stockOnHand: 38, active: true } }),
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Savouries").id, category: "Savouries", name: "Methi Khari 500g", unitPrice: 160, taxRate: 0, stockOnHand: 52, active: true } }),
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Savouries").id, category: "Savouries", name: "Veg Puff", unitPrice: 35, taxRate: 0, stockOnHand: 110, active: true } }),
+    prisma.product.create({ data: { tenantId: tenant.id, categoryId: categoryByName.get("Beverage Mixes").id, category: "Beverage Mixes", name: "Masala Tea Premix 1kg", unitPrice: 280, taxRate: 0, stockOnHand: 24, active: true } })
   ]);
   const productByName = new Map(products.map((product) => [product.name, product]));
 
   const vehicleUsers = await Promise.all([
     prisma.user.create({ data: { email: credentials.vehicle.email, name: "Vikram Chauhan", phone: credentials.vehicle.phone, passwordHash: vehicleHash } }),
-    prisma.user.create({ data: { email: "vehicle.west@starbakery.local", name: "Imran Shaikh", phone: "+919820020002", passwordHash: vehicleHash } }),
-    prisma.user.create({ data: { email: "vehicle.south@starbakery.local", name: "Ketan Patel", phone: "+919820020003", passwordHash: vehicleHash } })
+    prisma.user.create({ data: { email: "vehicle.navrangpura@starbakery.local", name: "Imran Shaikh", phone: "+919820020002", passwordHash: vehicleHash } }),
+    prisma.user.create({ data: { email: "vehicle.satellite@starbakery.local", name: "Ketan Patel", phone: "+919820020003", passwordHash: vehicleHash } }),
+    prisma.user.create({ data: { email: "vehicle.vastrapur@starbakery.local", name: "Harsh Joshi", phone: "+919820020004", passwordHash: vehicleHash } }),
+    prisma.user.create({ data: { email: "vehicle.bopal@starbakery.local", name: "Sameer Qureshi", phone: "+919820020005", passwordHash: vehicleHash } })
   ]);
 
   const vehicles = await Promise.all([
@@ -173,7 +184,7 @@ async function main() {
       data: {
         tenantId: tenant.id,
         userId: vehicleUsers[0].id,
-        name: "Ahmedabad East Van",
+        name: "Maninagar Delivery Van",
         number: "GJ-01-AB-2145",
         driverName: "Vikram Chauhan",
         driverPhone: "+919820020001",
@@ -188,7 +199,7 @@ async function main() {
       data: {
         tenantId: tenant.id,
         userId: vehicleUsers[1].id,
-        name: "West Retail Van",
+        name: "Navrangpura Retail Van",
         number: "GJ-01-CD-7821",
         driverName: "Imran Shaikh",
         driverPhone: "+919820020002",
@@ -203,7 +214,7 @@ async function main() {
       data: {
         tenantId: tenant.id,
         userId: vehicleUsers[2].id,
-        name: "South Cafe Van",
+        name: "Satellite Cafe Van",
         number: "GJ-01-EF-6390",
         driverName: "Ketan Patel",
         driverPhone: "+919820020003",
@@ -213,22 +224,63 @@ async function main() {
         fitnessExpiryDate: addDays(new Date(), 210),
         active: true
       }
+    }),
+    prisma.vehicle.create({
+      data: {
+        tenantId: tenant.id,
+        userId: vehicleUsers[3].id,
+        name: "Vastrapur Corporate Van",
+        number: "GJ-01-GH-5084",
+        driverName: "Harsh Joshi",
+        driverPhone: "+919820020004",
+        rcExpiryDate: addDays(new Date(), 22),
+        pucExpiryDate: addDays(new Date(), 95),
+        insuranceExpiryDate: addDays(new Date(), 160),
+        fitnessExpiryDate: addDays(new Date(), 240),
+        active: true
+      }
+    }),
+    prisma.vehicle.create({
+      data: {
+        tenantId: tenant.id,
+        userId: vehicleUsers[4].id,
+        name: "Bopal Bakery Van",
+        number: "GJ-01-JK-9132",
+        driverName: "Sameer Qureshi",
+        driverPhone: "+919820020005",
+        rcExpiryDate: addDays(new Date(), 65),
+        pucExpiryDate: addDays(new Date(), 9),
+        insuranceExpiryDate: addDays(new Date(), 38),
+        fitnessExpiryDate: addDays(new Date(), 190),
+        active: true
+      }
     })
   ]);
 
   const routes = await Promise.all([
     prisma.route.create({ data: { tenantId: tenant.id, vehicleId: vehicles[0].id, name: "Maninagar Morning Route", active: true } }),
     prisma.route.create({ data: { tenantId: tenant.id, vehicleId: vehicles[1].id, name: "Navrangpura Retail Route", active: true } }),
-    prisma.route.create({ data: { tenantId: tenant.id, vehicleId: vehicles[2].id, name: "Satellite Cafe Route", active: true } })
+    prisma.route.create({ data: { tenantId: tenant.id, vehicleId: vehicles[2].id, name: "Satellite Cafe Route", active: true } }),
+    prisma.route.create({ data: { tenantId: tenant.id, vehicleId: vehicles[3].id, name: "Vastrapur Corporate Route", active: true } }),
+    prisma.route.create({ data: { tenantId: tenant.id, vehicleId: vehicles[4].id, name: "Bopal Evening Route", active: true } })
   ]);
 
   const customerRows = [
     ["Patel Super Mart", credentials.customer.email, credentials.customer.phone, "Maninagar Morning Route", "Maninagar", "Gujarat", "8 Anand Shopping Centre, Maninagar", 12000],
     ["Sunrise Cafe", "sunrise.cafe@starbakery.local", "+919810010002", "Maninagar Morning Route", "Kankaria", "Gujarat", "Lake Road, Kankaria", 9000],
+    ["Jay Ambe Provision Store", "jayambe.provision@starbakery.local", "+919810010007", "Maninagar Morning Route", "Ghodasar", "Gujarat", "Swaminarayan Road, Ghodasar", 8000],
     ["Green Leaf Restaurant", "greenleaf@starbakery.local", "+919810010003", "Navrangpura Retail Route", "Navrangpura", "Gujarat", "CG Road, Navrangpura", 15000],
     ["Krishna Tea House", "krishna.tea@starbakery.local", "+919810010004", "Navrangpura Retail Route", "Usmanpura", "Gujarat", "Ashram Road, Usmanpura", 7000],
+    ["Aarav Snacks Corner", "aarav.snacks@starbakery.local", "+919810010008", "Navrangpura Retail Route", "Navrangpura", "Gujarat", "Commerce Six Road, Navrangpura", 6500],
     ["Blue Oven Cafe", "blueoven@starbakery.local", "+919810010005", "Satellite Cafe Route", "Satellite", "Gujarat", "100 Feet Road, Satellite", 18000],
-    ["Nisha Party Orders", "nisha.party@starbakery.local", "+919810010006", "Satellite Cafe Route", "Prahlad Nagar", "Gujarat", "Corporate Road, Prahlad Nagar", 10000]
+    ["Nisha Party Orders", "nisha.party@starbakery.local", "+919810010006", "Satellite Cafe Route", "Prahlad Nagar", "Gujarat", "Corporate Road, Prahlad Nagar", 10000],
+    ["Cafe Magnolia", "cafe.magnolia@starbakery.local", "+919810010009", "Satellite Cafe Route", "Bodakdev", "Gujarat", "Judges Bungalow Road, Bodakdev", 14000],
+    ["Shreeji Corporate Pantry", "shreeji.pantry@starbakery.local", "+919810010010", "Vastrapur Corporate Route", "Vastrapur", "Gujarat", "Sunrise Business Park, Vastrapur", 22000],
+    ["Urban Bites Office Cafe", "urbanbites.office@starbakery.local", "+919810010011", "Vastrapur Corporate Route", "Vastrapur", "Gujarat", "Alpha One Road, Vastrapur", 16000],
+    ["Riverside Banquet Kitchen", "riverside.banquet@starbakery.local", "+919810010012", "Vastrapur Corporate Route", "Ambawadi", "Gujarat", "Near Nehru Bridge, Ambawadi", 28000],
+    ["Bopal Fresh Mart", "bopal.freshmart@starbakery.local", "+919810010013", "Bopal Evening Route", "Bopal", "Gujarat", "South Bopal Main Road", 12000],
+    ["Anaya Home Bakers", "anaya.homebakers@starbakery.local", "+919810010014", "Bopal Evening Route", "Bopal", "Gujarat", "Gala Gymkhana Road, Bopal", 9000],
+    ["Orchid Party Plot", "orchid.partyplot@starbakery.local", "+919810010015", "Bopal Evening Route", "Shela", "Gujarat", "Club O7 Road, Shela", 24000]
   ];
   const routeByName = new Map(routes.map((route) => [route.name, route]));
   const customers = [];
@@ -260,7 +312,23 @@ async function main() {
       { tenantId: tenant.id, customerId: customerByName.get("Patel Super Mart").id, productId: productByName.get("Milk Bread 400g").id, price: 40, notes: "Retail counter daily rate" },
       { tenantId: tenant.id, customerId: customerByName.get("Sunrise Cafe").id, productId: productByName.get("Pav Pack 12 pcs").id, price: 54, notes: "Morning cafe rate" },
       { tenantId: tenant.id, customerId: customerByName.get("Green Leaf Restaurant").id, productId: productByName.get("Methi Khari 500g").id, price: 145, notes: "Restaurant bulk rate" },
-      { tenantId: tenant.id, customerId: customerByName.get("Blue Oven Cafe").id, productId: productByName.get("Chocolate Truffle Cake 1kg").id, price: 790, notes: "Cafe display cake rate" }
+      { tenantId: tenant.id, customerId: customerByName.get("Blue Oven Cafe").id, productId: productByName.get("Chocolate Truffle Cake 1kg").id, price: 790, notes: "Cafe display cake rate" },
+      { tenantId: tenant.id, customerId: customerByName.get("Cafe Magnolia").id, productId: productByName.get("Black Forest Pastry").id, price: 84, notes: "Pastry counter rate" },
+      { tenantId: tenant.id, customerId: customerByName.get("Shreeji Corporate Pantry").id, productId: productByName.get("Veg Puff").id, price: 30, notes: "Corporate snack rate" },
+      { tenantId: tenant.id, customerId: customerByName.get("Urban Bites Office Cafe").id, productId: productByName.get("Multigrain Loaf 500g").id, price: 76, notes: "Office cafe bread rate" },
+      { tenantId: tenant.id, customerId: customerByName.get("Bopal Fresh Mart").id, productId: productByName.get("Chocolate Chip Cookies 500g").id, price: 198, notes: "Retail shelf rate" },
+      { tenantId: tenant.id, customerId: customerByName.get("Orchid Party Plot").id, productId: productByName.get("Pineapple Fresh Cream Cake 1kg").id, price: 660, notes: "Event cake rate" },
+      { tenantId: tenant.id, customerId: customerByName.get("Riverside Banquet Kitchen").id, productId: productByName.get("Masala Tea Premix 1kg").id, price: 250, notes: "Banquet beverage rate" }
+    ]
+  });
+
+  await prisma.routeProductPrice.createMany({
+    data: [
+      { tenantId: tenant.id, routeId: routeByName.get("Maninagar Morning Route").id, productId: productByName.get("Milk Bread 400g").id, price: 42, notes: "Morning retail route bread rate" },
+      { tenantId: tenant.id, routeId: routeByName.get("Navrangpura Retail Route").id, productId: productByName.get("Veg Puff").id, price: 32, notes: "Retail snack route rate" },
+      { tenantId: tenant.id, routeId: routeByName.get("Satellite Cafe Route").id, productId: productByName.get("Black Forest Pastry").id, price: 88, notes: "Cafe pastry route rate" },
+      { tenantId: tenant.id, routeId: routeByName.get("Vastrapur Corporate Route").id, productId: productByName.get("Masala Tea Premix 1kg").id, price: 255, notes: "Corporate pantry route rate" },
+      { tenantId: tenant.id, routeId: routeByName.get("Bopal Evening Route").id, productId: productByName.get("Chocolate Chip Cookies 500g").id, price: 205, notes: "Evening retail route rate" }
     ]
   });
 
@@ -313,22 +381,39 @@ async function main() {
   await prisma.purchasePayment.create({ data: { tenantId: tenant.id, purchaseId: purchase.id, supplierId: supplier.id, amount: 900, paymentType: "PARTIAL", method: "UPI", reference: "SUP-FLOUR-001" } });
 
   const orderSpecs = [
-    { customer: "Patel Super Mart", product: "Milk Bread 400g", qty: 40, status: "DISPATCHED", paid: 900, method: "Cash" },
-    { customer: "Sunrise Cafe", product: "Pav Pack 12 pcs", qty: 25, status: "CONFIRMED", paid: 700, method: "UPI" },
-    { customer: "Green Leaf Restaurant", product: "Methi Khari 500g", qty: 12, status: "CONFIRMED", paid: 0, method: null },
-    { customer: "Blue Oven Cafe", product: "Chocolate Truffle Cake 1kg", qty: 2, status: "COMPLETED", paid: 1580, method: "UPI" },
-    { customer: "Krishna Tea House", product: "Jeera Cookies 500g", qty: 18, status: "PENDING", paid: 500, method: "Cash" }
+    { customer: "Patel Super Mart", items: [["Milk Bread 400g", 40], ["Pav Pack 12 pcs", 12]], status: "DISPATCHED", paid: 1500, method: "Cash", hour: 8 },
+    { customer: "Sunrise Cafe", items: [["Pav Pack 12 pcs", 25], ["Veg Puff", 20]], status: "CONFIRMED", paid: 700, method: "UPI", hour: 8 },
+    { customer: "Jay Ambe Provision Store", items: [["Milk Bread 400g", 28], ["Jeera Cookies 500g", 8]], status: "PENDING", paid: 0, method: null, hour: 9 },
+    { customer: "Green Leaf Restaurant", items: [["Methi Khari 500g", 12], ["Multigrain Loaf 500g", 10]], status: "CONFIRMED", paid: 0, method: null, hour: 10 },
+    { customer: "Krishna Tea House", items: [["Jeera Cookies 500g", 18], ["Masala Tea Premix 1kg", 4]], status: "PENDING", paid: 500, method: "Cash", hour: 10 },
+    { customer: "Aarav Snacks Corner", items: [["Veg Puff", 35], ["Methi Khari 500g", 6]], status: "DISPATCHED", paid: 800, method: "UPI", hour: 11 },
+    { customer: "Blue Oven Cafe", items: [["Chocolate Truffle Cake 1kg", 2], ["Black Forest Pastry", 16]], status: "COMPLETED", paid: 2580, method: "UPI", hour: 12 },
+    { customer: "Nisha Party Orders", items: [["Pineapple Fresh Cream Cake 1kg", 3], ["Butterscotch Pastry", 24]], status: "CONFIRMED", paid: 1200, method: "Cash", hour: 12 },
+    { customer: "Cafe Magnolia", items: [["Black Forest Pastry", 28], ["Chocolate Chip Cookies 500g", 6]], status: "DISPATCHED", paid: 1800, method: "UPI", hour: 13 },
+    { customer: "Shreeji Corporate Pantry", items: [["Veg Puff", 60], ["Masala Tea Premix 1kg", 5]], status: "CONFIRMED", paid: 1400, method: "UPI", hour: 14 },
+    { customer: "Urban Bites Office Cafe", items: [["Multigrain Loaf 500g", 18], ["Butterscotch Pastry", 20]], status: "PENDING", paid: 0, method: null, hour: 14 },
+    { customer: "Riverside Banquet Kitchen", items: [["Pineapple Fresh Cream Cake 1kg", 5], ["Black Forest Pastry", 40]], status: "DISPATCHED", paid: 3000, method: "Cash", hour: 15 },
+    { customer: "Bopal Fresh Mart", items: [["Chocolate Chip Cookies 500g", 10], ["Milk Bread 400g", 24]], status: "CONFIRMED", paid: 900, method: "UPI", hour: 16 },
+    { customer: "Anaya Home Bakers", items: [["Methi Khari 500g", 7], ["Jeera Cookies 500g", 9]], status: "PENDING", paid: 0, method: null, hour: 16 },
+    { customer: "Orchid Party Plot", items: [["Chocolate Truffle Cake 1kg", 4], ["Pineapple Fresh Cream Cake 1kg", 4], ["Veg Puff", 80]], status: "CONFIRMED", paid: 3500, method: "UPI", hour: 17 }
   ];
   const createdOrders = [];
   for (const spec of orderSpecs) {
     const customer = customerByName.get(spec.customer);
-    const product = productByName.get(spec.product);
-    const customPrice = await prisma.customerProductPrice.findUnique({
-      where: { tenantId_productId_customerId: { tenantId: tenant.id, productId: product.id, customerId: customer.id } }
-    });
-    const unitPrice = Number(customPrice?.price || product.unitPrice);
-    const lineTotal = unitPrice * spec.qty;
-    const paymentStatus = spec.paid <= 0 ? "UNPAID" : spec.paid >= lineTotal ? "PAID" : "PARTIAL";
+    const orderItems = [];
+    for (const [productName, qty] of spec.items) {
+      const product = productByName.get(productName);
+      const customPrice = await prisma.customerProductPrice.findUnique({
+        where: { tenantId_productId_customerId: { tenantId: tenant.id, productId: product.id, customerId: customer.id } }
+      });
+      const routePrice = await prisma.routeProductPrice.findUnique({
+        where: { tenantId_productId_routeId: { tenantId: tenant.id, productId: product.id, routeId: customer.routeId } }
+      });
+      const unitPrice = Number(customPrice?.price || routePrice?.price || product.unitPrice);
+      orderItems.push({ productId: product.id, name: product.name, quantity: qty, unitPrice, taxRate: 0, lineTotal: unitPrice * qty });
+    }
+    const subtotal = orderItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    const paymentStatus = spec.paid <= 0 ? "UNPAID" : spec.paid >= subtotal ? "PAID" : "PARTIAL";
     const order = await prisma.order.create({
       data: {
         tenantId: tenant.id,
@@ -338,13 +423,13 @@ async function main() {
         status: spec.status,
         paymentStatus,
         fulfillmentType: "DELIVERY",
-        dueAt: todayAt(11),
-        subtotal: lineTotal,
+        dueAt: todayAt(spec.hour || 11),
+        subtotal,
         taxTotal: 0,
-        grandTotal: lineTotal,
+        grandTotal: subtotal,
         notes: "Seeded real-name order",
         items: {
-          create: [{ productId: product.id, name: product.name, quantity: spec.qty, unitPrice, taxRate: 0, lineTotal }]
+          create: orderItems
         }
       }
     });
@@ -383,6 +468,7 @@ async function main() {
     categories: await prisma.productCategory.count({ where: { tenantId: tenant.id } }),
     products: await prisma.product.count({ where: { tenantId: tenant.id } }),
     customerPrices: await prisma.customerProductPrice.count({ where: { tenantId: tenant.id } }),
+    routePrices: await prisma.routeProductPrice.count({ where: { tenantId: tenant.id } }),
     orders: await prisma.order.count({ where: { tenantId: tenant.id } }),
     payments: await prisma.payment.count({ where: { tenantId: tenant.id } }),
     labour: await prisma.labour.count({ where: { tenantId: tenant.id } }),
