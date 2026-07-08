@@ -285,8 +285,31 @@ export default function VehicleRoutesPage() {
 
       <Modal open={Boolean(detailOrder)} title="Order details" description={detailOrder ? detailOrder.customer.name : ""} onClose={() => setDetailOrder(null)}>
         {detailOrder ? (
-          <div className="max-h-[560px] overflow-auto rounded-lg border border-line">
-            <table className="w-full min-w-[640px] text-left text-sm">
+          <>
+            <div className="max-h-[560px] overflow-auto rounded-lg border border-line sm:hidden">
+              <div className="grid gap-3 p-3">
+                {detailOrder.items.map((item) => (
+                  <article className="rounded-lg border border-line bg-panel2 p-3" key={item.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold">{item.name}</h3>
+                        <p className="mt-1 text-xs text-muted">{itemCategory(item)}</p>
+                        <p className="mt-1 text-xs text-muted">Qty {formatQty(item.quantity) || "0"}</p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold">{formatAmount(itemAmount(item))}</span>
+                    </div>
+                  </article>
+                ))}
+                <div className="rounded-lg border border-line bg-panel2 p-3">
+                  <div className="flex items-center justify-between gap-3 text-sm font-semibold">
+                    <span>Total</span>
+                    <span>{formatAmount(detailOrder.grandTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="hidden max-h-[560px] overflow-auto rounded-lg border border-line sm:block">
+              <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Product</th>
@@ -309,8 +332,9 @@ export default function VehicleRoutesPage() {
                   <td className="px-4 py-3 text-right">{formatAmount(detailOrder.grandTotal)}</td>
                 </tr>
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </>
         ) : null}
       </Modal>
     </AppShell>

@@ -22,7 +22,25 @@ if (targetDatabase !== "neondb") {
 }
 
 const exportPath = process.env.MONGO_EXPORT_PATH || "/tmp/bakersmania-mongo-export.json";
+const sourceMongoUri = process.env.SOURCE_MONGO_URI || "";
+const tenantSlug = process.env.TENANT_SLUG || "star-bakery";
 const prisma = new PrismaClient();
+
+const legacyCollections = [
+  "categories",
+  "vehicles",
+  "users",
+  "products",
+  "orders",
+  "stocks",
+  "rawmaterialcategories",
+  "rawmaterials",
+  "sellers",
+  "rawmaterialbills",
+  "labour",
+  "rents",
+  "expenses"
+];
 
 const oid = (value) => {
   if (!value) return "";
@@ -109,39 +127,79 @@ const createMany = async (model, data, size = 1000) => {
   return count;
 };
 
-const clearDatabase = async () => {
+const loadSource = async () => {
+  if (!sourceMongoUri) {
+    return JSON.parse(readFileSync(exportPath, "utf8"));
+  }
+
+  let MongoClient;
+  try {
+    ({ MongoClient } = await import("mongodb"));
+  } catch {
+    throw new Error("SOURCE_MONGO_URI requires the mongodb package. Run npm install mongodb first.");
+  }
+
+  const client = new MongoClient(sourceMongoUri);
+  await client.connect();
+  try {
+    const db = client.db(process.env.SOURCE_MONGO_DB || undefined);
+    const source = {};
+    for (const collectionName of legacyCollections) {
+      source[collectionName] = await db.collection(collectionName).find({}).toArray();
+    }
+    return source;
+  } finally {
+    await client.close();
+  }
+};
+
+const deleteTenantGraph = async (tenantId) => {
+  const [memberships, customers, vehicles] = await Promise.all([
+    prisma.membership.findMany({ where: { tenantId }, select: { userId: true } }),
+    prisma.customer.findMany({ where: { tenantId }, select: { userId: true } }),
+    prisma.vehicle.findMany({ where: { tenantId }, select: { userId: true } })
+  ]);
+  const userIds = Array.from(new Set([...memberships, ...customers, ...vehicles].map((row) => row.userId).filter(Boolean)));
+
   await prisma.$transaction(async (tx) => {
-    await tx.payment.deleteMany({});
-    await tx.invoice.deleteMany({});
-    await tx.orderItem.deleteMany({});
-    await tx.order.deleteMany({});
-    await tx.purchasePayment.deleteMany({});
-    await tx.purchase.deleteMany({});
-    await tx.supplier.deleteMany({});
-    await tx.inventoryLedger.deleteMany({});
-    await tx.inventoryItem.deleteMany({});
-    await tx.expense.deleteMany({});
-    await tx.attendance.deleteMany({});
-    await tx.salaryPayment.deleteMany({});
-    await tx.labour.deleteMany({});
-    await tx.customerProductPriceHistory.deleteMany({});
-    await tx.customerProductPrice.deleteMany({});
-    await tx.customer.deleteMany({});
-    await tx.product.deleteMany({});
-    await tx.productCategory.deleteMany({});
-    await tx.route.deleteMany({});
-    await tx.vehicle.deleteMany({});
-    await tx.subscription.deleteMany({});
-    await tx.auditLog.deleteMany({});
-    await tx.membership.deleteMany({});
-    await tx.tenant.deleteMany({});
-    await tx.user.deleteMany({});
-    await tx.platformAdmin.deleteMany({});
+    const orders = await tx.order.findMany({ where: { tenantId }, select: { id: true } });
+    const orderIds = orders.map((order) => order.id);
+
+    await tx.payment.deleteMany({ where: { tenantId } });
+    await tx.invoice.deleteMany({ where: { tenantId } });
+    if (orderIds.length) await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+    await tx.order.deleteMany({ where: { tenantId } });
+    await tx.purchasePayment.deleteMany({ where: { tenantId } });
+    await tx.purchase.deleteMany({ where: { tenantId } });
+    await tx.supplier.deleteMany({ where: { tenantId } });
+    await tx.inventoryLedger.deleteMany({ where: { tenantId } });
+    await tx.inventoryItem.deleteMany({ where: { tenantId } });
+    await tx.expense.deleteMany({ where: { tenantId } });
+    await tx.attendance.deleteMany({ where: { tenantId } });
+    await tx.salaryPayment.deleteMany({ where: { tenantId } });
+    await tx.labour.deleteMany({ where: { tenantId } });
+    await tx.customerProductPriceHistory.deleteMany({ where: { tenantId } });
+    await tx.customerProductPrice.deleteMany({ where: { tenantId } });
+    await tx.routeProductPrice.deleteMany({ where: { tenantId } });
+    await tx.customer.deleteMany({ where: { tenantId } });
+    await tx.product.deleteMany({ where: { tenantId } });
+    await tx.productCategory.deleteMany({ where: { tenantId } });
+    await tx.route.deleteMany({ where: { tenantId } });
+    await tx.vehicle.deleteMany({ where: { tenantId } });
+    await tx.subscription.deleteMany({ where: { tenantId } });
+    await tx.auditLog.deleteMany({ where: { tenantId } });
+    await tx.membership.deleteMany({ where: { tenantId } });
+    await tx.tenant.delete({ where: { id: tenantId } });
+    if (userIds.length) await tx.user.deleteMany({ where: { id: { in: userIds } } });
   }, { timeout: 30000 });
 };
 
 const main = async () => {
-  const source = JSON.parse(readFileSync(exportPath, "utf8"));
+  if (tenantSlug !== "star-bakery" && process.env.ALLOW_NON_STAR_TENANT !== "YES") {
+    throw new Error(`Refusing to import unexpected tenant slug: ${tenantSlug}`);
+  }
+
+  const source = await loadSource();
   const now = new Date();
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
@@ -159,11 +217,32 @@ const main = async () => {
     bcrypt.hash(vehiclePassword, 12)
   ]);
 
-  console.log(JSON.stringify({ targetHost: targetUrl.hostname, targetDatabase, exportPath }));
-  await clearDatabase();
+  const sourceCounts = Object.fromEntries(legacyCollections.map((collectionName) => [collectionName, source[collectionName]?.length || 0]));
+  const existingTenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug }, select: { id: true, name: true, slug: true } });
+  console.log(JSON.stringify({
+    targetHost: targetUrl.hostname,
+    targetDatabase,
+    tenantSlug,
+    source: sourceMongoUri ? "mongo" : exportPath,
+    sourceCounts,
+    existingTenant
+  }, null, 2));
 
-  await prisma.platformAdmin.create({
-    data: {
+  if (process.env.DRY_RUN === "YES") {
+    return;
+  }
+
+  if (existingTenant) {
+    await deleteTenantGraph(existingTenant.id);
+  }
+
+  await prisma.platformAdmin.upsert({
+    where: { email: "admin@bakersmania.local" },
+    update: {
+      name: "Platform Admin",
+      passwordHash: adminHash
+    },
+    create: {
       email: "admin@bakersmania.local",
       name: "Platform Admin",
       passwordHash: adminHash
@@ -173,7 +252,7 @@ const main = async () => {
   const tenant = await prisma.tenant.create({
     data: {
       name: "Star Bakery",
-      slug: "star-bakery",
+      slug: tenantSlug,
       status: "TRIALING",
       ownerEmail,
       phone: "+919999999999",

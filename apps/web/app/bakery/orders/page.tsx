@@ -817,7 +817,26 @@ export default function BakeryOrdersPage() {
               </div>
             </div>
 
-            <div className="w-full max-w-full overflow-auto rounded-lg border border-line">
+            <div className="w-full max-w-full overflow-auto rounded-lg border border-line sm:hidden">
+              <div className="grid gap-3 p-3">
+                {viewOrder.items.map((item) => (
+                  <article className="rounded-lg border border-line bg-panel2 p-3" key={item.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold">{item.name}</h3>
+                        <p className="mt-1 text-xs text-muted">Qty {formatQty(item.quantity)}</p>
+                        <p className="mt-1 text-xs text-muted">Price {formatAmount(item.unitPrice)}</p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold">{formatAmount(item.lineTotal)}</span>
+                    </div>
+                  </article>
+                ))}
+                {!viewOrder.items.length ? (
+                  <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No products in this order.</div>
+                ) : null}
+              </div>
+            </div>
+            <div className="hidden w-full max-w-full overflow-auto rounded-lg border border-line sm:block">
               <table className="w-full min-w-[620px] text-left text-sm">
                 <thead className="border-b border-line bg-panel2 text-xs uppercase text-muted">
                   <tr>

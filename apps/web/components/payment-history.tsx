@@ -65,7 +65,26 @@ export function PaymentHistory({ payments = [], total, compact = false }: Paymen
         description={`Paid ${formatAmount(paid)} · Due ${formatAmount(due)} · ${payments.length} payment${payments.length === 1 ? "" : "s"}`}
         onClose={() => setOpen(false)}
       >
-        <div className="max-h-[520px] overflow-auto rounded-lg border border-line">
+        <div className="max-h-[520px] overflow-auto rounded-lg border border-line sm:hidden">
+          <div className="grid gap-3 p-3">
+            {payments.map((payment, index) => (
+              <article className="rounded-lg border border-line bg-panel2 p-3" key={payment.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold">Payment #{index + 1}</h3>
+                    <p className="mt-1 text-xs text-muted">{formatDate(payment.paidAt)} · {payment.method || "Cash"}</p>
+                    <p className="mt-1 truncate text-xs text-muted">{payment.reference || "No reference"}</p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold">{formatAmount(payment.amount)}</span>
+                </div>
+              </article>
+            ))}
+            {!payments.length ? (
+              <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No payment recorded yet.</div>
+            ) : null}
+          </div>
+        </div>
+        <div className="hidden max-h-[520px] overflow-auto rounded-lg border border-line sm:block">
           <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>

@@ -713,7 +713,29 @@ export default function BakeryInventoryPage() {
       </Modal>
 
       <Modal open={Boolean(ledgerMaterial)} title={ledgerMaterial ? `${ledgerMaterial.name} ledger` : "Raw material ledger"} description="Buy and use history for this material." onClose={() => setLedgerMaterial(null)}>
-        <div className="max-h-[520px] w-full max-w-full overflow-auto">
+        <div className="max-h-[520px] w-full max-w-full overflow-auto sm:hidden">
+          <div className="grid gap-3">
+            {ledger.map((entry) => (
+              <article className="rounded-lg border border-line bg-panel2 p-3" key={entry.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className={entry.type === "BUY" ? "text-sm font-semibold text-mint" : "text-sm font-semibold text-berry"}>{entry.type}</h3>
+                    <p className="mt-1 text-xs text-muted">{formatDate(entry.happenedAt)}</p>
+                    <p className="mt-1 truncate text-xs text-muted">{entry.note || "No note"}</p>
+                  </div>
+                  <div className="shrink-0 text-right text-sm">
+                    <p className="font-semibold">{formatNumber(entry.quantity)} {ledgerMaterial?.unit}</p>
+                    <p className="text-xs text-muted">{entry.totalAmount ? formatAmount(entry.totalAmount) : entry.unitPrice ? formatAmount(entry.unitPrice) : "-"}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+            {!ledger.length ? (
+              <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No ledger history yet.</div>
+            ) : null}
+          </div>
+        </div>
+        <div className="hidden max-h-[520px] w-full max-w-full overflow-auto sm:block">
           <table className="w-full min-w-[620px] text-left text-sm">
             <thead className="border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>

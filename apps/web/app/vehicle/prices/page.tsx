@@ -261,7 +261,36 @@ export default function VehiclePricesPage() {
               ) : null}
             </div>
             {loadingPrices ? <LoadingSpinner label="Loading product prices" /> : null}
-            <div className="max-h-[62vh] overflow-auto rounded-lg border border-line">
+            <div className="max-h-[62vh] overflow-auto rounded-lg border border-line sm:hidden">
+              <div className="grid gap-3 p-3">
+                {filteredProducts.map((product) => (
+                  <article className="rounded-lg border border-line bg-panel2 p-3" key={product.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold">{product.name}</h3>
+                        <p className="mt-1 text-xs text-muted">{productCategory(product)}</p>
+                        <p className="mt-1 text-xs text-muted">Base {formatAmount(product.unitPrice)}</p>
+                      </div>
+                      {priceModal.mode === "view" ? (
+                        <span className="shrink-0 text-sm font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
+                      ) : (
+                        <input
+                          className="h-10 w-28 shrink-0 rounded-md border border-line bg-panel px-3 text-right font-semibold outline-none focus:border-mint"
+                          min="0"
+                          onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                          type="number"
+                          value={priceMap[product.id] ?? String(product.unitPrice)}
+                        />
+                      )}
+                    </div>
+                  </article>
+                ))}
+                {!filteredProducts.length ? (
+                  <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No products in this category.</div>
+                ) : null}
+              </div>
+            </div>
+            <div className="hidden max-h-[62vh] overflow-auto rounded-lg border border-line sm:block">
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                   <tr>

@@ -423,7 +423,28 @@ export default function BakeryCustomersPage() {
                 <span>Paid: <span className="font-semibold text-ink">{formatAmount(ledger.summary.paidTotal)}</span></span>
                 <span>Due: <span className="font-semibold text-ink">{formatAmount(ledger.summary.dueBalance)}</span></span>
               </div>
-              <div className="max-h-[360px] w-full max-w-full overflow-auto rounded-lg border border-line">
+              <div className="max-h-[360px] w-full max-w-full overflow-auto rounded-lg border border-line sm:hidden">
+                <div className="grid gap-3 p-3">
+                  {ledger.entries.map((entry) => (
+                    <article className="rounded-lg border border-line bg-panel2 p-3" key={entry.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold">{entry.description}</h3>
+                          <p className="mt-1 text-xs text-muted">{formatDate(entry.date)} · {entry.type}</p>
+                        </div>
+                        <div className="shrink-0 text-right text-sm">
+                          <p className="font-semibold">{entry.debit ? formatAmount(entry.debit) : "-"}</p>
+                          <p className="text-xs text-muted">{entry.credit ? `Credit ${formatAmount(entry.credit)}` : "No credit"}</p>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                  {!ledger.entries.length ? (
+                    <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No ledger entries yet.</div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="hidden max-h-[360px] w-full max-w-full overflow-auto rounded-lg border border-line sm:block">
                 <table className="w-full min-w-[700px] text-left text-sm">
                   <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
                     <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Description</th><th className="px-4 py-3 text-right">Debit</th><th className="px-4 py-3 text-right">Credit</th></tr>
