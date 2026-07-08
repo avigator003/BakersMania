@@ -39,6 +39,7 @@ function hasDesiredAccess(user: Awaited<ReturnType<typeof authRepository.findUse
 export const authService = {
   async login(input: LoginInput) {
     const identifier = input.email.trim();
+    const identifierIsPhone = !identifier.includes("@");
     const platformAdmin = await authRepository.findPlatformAdminByEmail(identifier);
     if (platformAdmin && (await bcrypt.compare(input.password, platformAdmin.passwordHash))) {
       return {
@@ -56,8 +57,9 @@ export const authService = {
     }
 
     const user =
-      passwordMatches.find((candidate) => hasDesiredAccess(candidate, input.desiredActor)) ||
+      (input.desiredActor ? passwordMatches.find((candidate) => hasDesiredAccess(candidate, input.desiredActor)) : null) ||
       passwordMatches.find((candidate) => candidate.memberships.some((item) => item.active)) ||
+      (identifierIsPhone ? passwordMatches.find((candidate) => candidate.vehicles.some((item) => item.active)) : null) ||
       passwordMatches.find((candidate) => candidate.customers.length > 0) ||
       passwordMatches.find((candidate) => candidate.vehicles.some((item) => item.active)) ||
       null;

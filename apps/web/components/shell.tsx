@@ -71,6 +71,8 @@ export function AppShell({
 
   const requiredActor =
     surface === "admin" ? "platform_admin" : surface === "customer" ? "customer" : surface === "vehicle" ? "vehicle" : "bakery_user";
+  const loginPath =
+    surface === "admin" ? "/login/admin" : surface === "customer" ? "/login/customer" : surface === "vehicle" ? "/login/vehicle" : "/login/bakery";
   const pathSegments = pathname.split("/").filter(Boolean);
   const pathTenantSlug =
     pathSegments.length > 1 && (pathSegments[1] === "bakery" || pathSegments[1] === "customer" || pathSegments[1] === "vehicle")
@@ -114,7 +116,7 @@ export function AppShell({
         clearSession();
         if (!cancelled) {
           setAuthState("denied");
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          router.replace(`${loginPath}?next=${encodeURIComponent(pathname)}`);
         }
         return;
       }
@@ -145,7 +147,7 @@ export function AppShell({
         clearSession();
         if (!cancelled) {
           setAuthState("denied");
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          router.replace(`${loginPath}?next=${encodeURIComponent(pathname)}`);
         }
       }
     }

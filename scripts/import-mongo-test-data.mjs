@@ -207,8 +207,8 @@ const main = async () => {
   const adminPassword = "Admin@123456";
   const ownerEmail = "owner@starbakery.local";
   const ownerPassword = "Star@123456";
-  const customerPassword = "Customer@123456";
-  const vehiclePassword = "Vehicle@123456";
+  const customerPassword = "123456";
+  const vehiclePassword = "123456";
 
   const [adminHash, ownerHash, customerHash, vehicleHash] = await Promise.all([
     bcrypt.hash(adminPassword, 12),
@@ -335,14 +335,26 @@ const main = async () => {
     });
 
   const userVehicleRows = [];
+  const vehicleUserRows = [];
   for (const item of source.users || []) {
     const number = stringValue(item.vehicle_number);
     if (!number || vehicleByNumber.has(number.toLowerCase())) continue;
     const id = prefixedId("veh_user", item._id);
+    const userId = prefixedId("driver", item._id);
     vehicleByNumber.set(number.toLowerCase(), id);
+    vehicleUserRows.push({
+      id: userId,
+      email: `vehicle+${oid(item._id)}@starbakery.local`,
+      name: safeName(item.user_name, number),
+      phone: normalizePhone(item.mobile_number),
+      passwordHash: vehicleHash,
+      createdAt: dateValue(item.created_at, now),
+      updatedAt: dateValue(item.updated_at, now)
+    });
     userVehicleRows.push({
       id,
       tenantId: tenant.id,
+      userId,
       name: number,
       number,
       driverName: safeName(item.user_name, number),
@@ -353,6 +365,7 @@ const main = async () => {
     });
   }
 
+  await createMany(prisma.user, vehicleUserRows, 500);
   await createMany(prisma.vehicle, [...explicitVehicles, ...userVehicleRows]);
 
   const routeIdByName = new Map();
