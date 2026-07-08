@@ -196,7 +196,7 @@ export function AppShell({
       ? [
         { href: `${routeBase}/vehicle`, label: "Overview", icon: Gauge },
         { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList },
-        { href: `${routeBase}/vehicle/prices`, label: "Prices", icon: IndianRupee }
+        { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee }
       ]
     : surface === "admin"
       ? [
