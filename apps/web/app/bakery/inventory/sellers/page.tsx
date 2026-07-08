@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { CreditCard, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
+import { DateInput, localDateInput, localMonthInput } from "../../../../components/date-input";
 import { LoadingSpinner } from "../../../../components/loading-spinner";
 import { Modal } from "../../../../components/modal";
 import { PaginationControls } from "../../../../components/pagination";
@@ -63,9 +64,8 @@ type PurchaseSummary = {
   due: number;
 };
 
-const today = new Date();
-const initialMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-const initialDate = today.toISOString().slice(0, 10);
+const initialMonth = localMonthInput();
+const initialDate = localDateInput();
 
 const initialSupplierForm = { name: "", phone: "", email: "", address: "" };
 const initialPurchaseForm = {
@@ -430,7 +430,7 @@ export default function RawMaterialSellersPage() {
             <label className="grid gap-1 text-sm font-semibold">Price per unit<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" min="0" onChange={(event) => setPurchaseForm((current) => ({ ...current, unitPrice: event.target.value }))} required step="0.01" type="number" value={purchaseForm.unitPrice} /></label>
             <label className="grid gap-1 text-sm font-semibold">Paid now<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" min="0" onChange={(event) => setPurchaseForm((current) => ({ ...current, paidAmount: event.target.value }))} placeholder="0 for unpaid" step="0.01" type="number" value={purchaseForm.paidAmount} /></label>
             <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentType: event.target.value }))} value={purchaseForm.paymentType}><option value="ADVANCE">Advance</option><option value="PARTIAL">Partial</option><option value="FULL">Full</option></select></label>
-            <label className="grid gap-1 text-sm font-semibold">Date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPurchaseForm((current) => ({ ...current, purchasedAt: event.target.value }))} type="date" value={purchaseForm.purchasedAt} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setPurchaseForm((current) => ({ ...current, purchasedAt: value }))} value={purchaseForm.purchasedAt} /></label>
             <label className="grid gap-1 text-sm font-semibold">Method<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPurchaseForm((current) => ({ ...current, method: event.target.value }))} value={purchaseForm.method} /></label>
           </div>
           <label className="grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPurchaseForm((current) => ({ ...current, notes: event.target.value }))} value={purchaseForm.notes} /></label>
@@ -447,7 +447,7 @@ export default function RawMaterialSellersPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" min="0.01" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required step="0.01" type="number" value={paymentForm.amount} /></label>
             <label className="grid gap-1 text-sm font-semibold">Type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, paymentType: event.target.value }))} value={paymentForm.paymentType}><option value="ADVANCE">Advance</option><option value="PARTIAL">Partial</option><option value="FULL">Full</option></select></label>
-            <label className="grid gap-1 text-sm font-semibold">Date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, paidAt: event.target.value }))} type="date" value={paymentForm.paidAt} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setPaymentForm((current) => ({ ...current, paidAt: value }))} value={paymentForm.paidAt} /></label>
             <label className="grid gap-1 text-sm font-semibold">Method<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method} /></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
           </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
+import { DateInput, localDateInput } from "../../../../components/date-input";
 import { LoadingSpinner } from "../../../../components/loading-spinner";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
@@ -31,10 +32,6 @@ type LabourDashboard = {
   todayAttendance: Attendance[];
 };
 
-function todayInput() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function formatAmount(value?: string | number | null) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
@@ -49,7 +46,7 @@ function statusClass(status: AttendanceStatus) {
 
 export default function LabourAttendancePage() {
   const toast = useToast();
-  const [date, setDate] = useState(todayInput());
+  const [date, setDate] = useState(localDateInput());
   const [labours, setLabours] = useState<Labour[]>([]);
   const [draft, setDraft] = useState<Record<string, { status: AttendanceStatus; notes: string }>>({});
   const [search, setSearch] = useState("");
@@ -188,13 +185,12 @@ export default function LabourAttendancePage() {
               </button>
               <label className="grid gap-1">
                 <span className="text-xs font-semibold text-muted">Date</span>
-                <input
+                <DateInput
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
-                  onChange={(event) => {
-                    setDate(event.target.value);
-                    loadAttendance(event.target.value);
+                  onChange={(value) => {
+                    setDate(value);
+                    loadAttendance(value);
                   }}
-                  type="date"
                   value={date}
                 />
               </label>

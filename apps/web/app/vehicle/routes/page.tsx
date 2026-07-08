@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Download, Eye, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
@@ -33,20 +34,7 @@ type Order = {
 const paymentMethods = ["Cash", "UPI"];
 const paymentTypes = ["Partial", "Full", "Advance"];
 
-function inputDate(value = new Date()) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-const today = inputDate();
+const today = localDateInput();
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -102,7 +90,7 @@ export default function VehicleRoutesPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ startDate: date, endDate: date });
-      const previousEndDate = inputDate(addDays(new Date(`${date}T00:00:00`), -1));
+      const previousEndDate = localDateInput(addLocalDays(new Date(`${date}T00:00:00`), -1));
       const previousParams = new URLSearchParams({ endDate: previousEndDate, pageSize: "500" });
       const [data, previousData] = await Promise.all([
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
@@ -222,7 +210,7 @@ export default function VehicleRoutesPage() {
               <span>Today due: <span className="font-semibold text-ink">{formatAmount(totals.due)}</span></span>
             </div>
             <div className="flex gap-2">
-              <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+              <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setDate} value={date} />
               <button className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" disabled={!orders.length} onClick={exportCollectionSheet} type="button"><Download size={16} /> Export</button>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
             </div>

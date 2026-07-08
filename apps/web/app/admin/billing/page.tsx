@@ -8,6 +8,7 @@ import { Modal } from "../../../components/modal";
 import { StatusDropdown } from "../../../components/status-dropdown";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch } from "../../../lib/api";
+import { DateInput, localDateInput } from "../../../components/date-input";
 
 type BillingStatus = "PENDING" | "PAID" | "OVERDUE" | "WAIVED";
 type TenantStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "SUSPENDED";
@@ -50,7 +51,7 @@ function formatAmount(value?: string | null) {
 }
 
 function dateInputValue(value: Date) {
-  return value.toISOString().slice(0, 10);
+  return localDateInput(value);
 }
 
 function monthInputValue(value?: string | null) {
@@ -352,10 +353,9 @@ export default function AdminBillingPage() {
               </div>
               <label className="grid gap-1">
                 <span className="text-sm font-medium">Payment date</span>
-                <input
+                <DateInput
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
-                  onChange={(event) => setPaymentForm((current) => (current ? { ...current, paymentDate: event.target.value } : current))}
-                  type="date"
+                  onChange={(value) => setPaymentForm((current) => (current ? { ...current, paymentDate: value } : current))}
                   value={paymentForm.paymentDate}
                 />
               </label>

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Copy, Download, Eye, FileDown, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
@@ -59,20 +60,7 @@ type PaginatedOrdersResponse = {
   };
 };
 
-function inputDate(value = new Date()) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-const today = inputDate();
+const today = localDateInput();
 const orderStatuses = ["PENDING", "ACCEPTED", "DISPATCHED", "COMPLETED"];
 const paymentStatuses = ["UNPAID", "PARTIAL", "PAID"];
 const emptyOrderForm: OrderFormState = {
@@ -178,7 +166,7 @@ export default function BakeryOrdersPage() {
   const [form, setForm] = useState<OrderFormState>(emptyOrderForm);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [repeatForm, setRepeatForm] = useState({
-    sourceDate: inputDate(addDays(new Date(), -1)),
+    sourceDate: localDateInput(addLocalDays(new Date(), -1)),
     targetDate: today,
     routeId: "all"
   });
@@ -582,8 +570,8 @@ export default function BakeryOrdersPage() {
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, route, status" value={search} />
                 </label>
-                <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setStartDate(event.target.value)} type="date" value={startDate} />
-                <input className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} />
+                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setStartDate} value={startDate} />
+                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setEndDate} value={endDate} />
                 <SearchableSelect multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
                 <SearchableSelect multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
               </div>
@@ -754,8 +742,8 @@ export default function BakeryOrdersPage() {
       <Modal open={repeatOpen} title="Repeat orders" description="Copy all active orders from one date into another date, optionally for one route only." onClose={() => setRepeatOpen(false)}>
         <form className="grid gap-4" onSubmit={repeatOrders}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-semibold">Source date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRepeatForm((current) => ({ ...current, sourceDate: event.target.value }))} required type="date" value={repeatForm.sourceDate} /></label>
-            <label className="grid gap-1 text-sm font-semibold">Target date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRepeatForm((current) => ({ ...current, targetDate: event.target.value }))} required type="date" value={repeatForm.targetDate} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Source date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setRepeatForm((current) => ({ ...current, sourceDate: value }))} required value={repeatForm.sourceDate} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Target date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setRepeatForm((current) => ({ ...current, targetDate: value }))} required value={repeatForm.targetDate} /></label>
           </div>
           <SearchableSelect
             label="Route"
@@ -776,7 +764,7 @@ export default function BakeryOrdersPage() {
         <form className="grid gap-4" onSubmit={createOrder}>
           <div className="grid gap-3 sm:grid-cols-2">
             <SearchableSelect label="Customer" onChange={(value) => setForm((current) => ({ ...current, customerId: value }))} options={customerOptions} placeholder="Select customer" required searchPlaceholder="Search customers" value={form.customerId} />
-            <label className="grid gap-1 text-sm font-semibold">Order date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, dueAt: event.target.value }))} type="date" value={form.dueAt} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setForm((current) => ({ ...current, dueAt: value }))} value={form.dueAt} /></label>
             <label className="grid gap-1 text-sm font-semibold">Source<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, source: event.target.value }))} value={form.source}><option value="STAFF_CREATED">Staff created</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="WALK_IN">Walk-in</option></select></label>
             <label className="grid gap-1 text-sm font-semibold">Fulfillment<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, fulfillmentType: event.target.value }))} value={form.fulfillmentType}><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select></label>
           </div>
@@ -869,7 +857,7 @@ export default function BakeryOrdersPage() {
         <form className="grid gap-4" onSubmit={updateOrder}>
           <div className="grid gap-3 sm:grid-cols-2">
             <SearchableSelect label="Customer" onChange={(value) => setEditForm((current) => ({ ...current, customerId: value }))} options={customerOptions} placeholder="Select customer" required searchPlaceholder="Search customers" value={editForm.customerId} />
-            <label className="grid gap-1 text-sm font-semibold">Order date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, dueAt: event.target.value }))} type="date" value={editForm.dueAt} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setEditForm((current) => ({ ...current, dueAt: value }))} value={editForm.dueAt} /></label>
             <label className="grid gap-1 text-sm font-semibold">Source<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, source: event.target.value }))} value={editForm.source}><option value="STAFF_CREATED">Staff created</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="WALK_IN">Walk-in</option></select></label>
             <label className="grid gap-1 text-sm font-semibold">Fulfillment<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, fulfillmentType: event.target.value }))} value={editForm.fulfillmentType}><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select></label>
           </div>

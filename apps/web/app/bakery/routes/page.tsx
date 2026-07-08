@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Eye, MapPinned, Pencil, Plus, RefreshCw, Truck } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
@@ -622,7 +623,7 @@ export default function BakeryRoutesPage() {
                 <div key={key} className="grid gap-3 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-2">
                   <label className="grid gap-1">
                     <span className="text-sm font-medium">{label} expiry date</span>
-                    <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => setVehicleForm((current) => ({ ...current, [expiryKey]: event.target.value }))} type="date" value={String(vehicleForm[expiryKey])} />
+                    <DateInput className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(value) => setVehicleForm((current) => ({ ...current, [expiryKey]: value }))} value={String(vehicleForm[expiryKey])} />
                   </label>
                   <PhotoPicker
                     label={`${label} photo`}
@@ -686,7 +687,7 @@ export default function BakeryRoutesPage() {
                 <div key={key} className="grid gap-3 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-2">
                   <label className="grid gap-1">
                     <span className="text-sm font-medium">{label} expiry date</span>
-                    <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => setVehicleForm((current) => ({ ...current, [expiryKey]: event.target.value }))} type="date" value={String(vehicleForm[expiryKey])} />
+                    <DateInput className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(value) => setVehicleForm((current) => ({ ...current, [expiryKey]: value }))} value={String(vehicleForm[expiryKey])} />
                   </label>
                   <PhotoPicker
                     label={`${label} photo`}

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, ShoppingCart, Trash2 } from "lucide-react";
 import { AppShell } from "../../components/shell";
+import { DateInput, localDateInput } from "../../components/date-input";
 import { LoadingSpinner } from "../../components/loading-spinner";
 import { useToast } from "../../components/toast-provider";
 import { apiFetch, authFetch, getStoredTenantSlug } from "../../lib/api";
@@ -10,7 +11,7 @@ import { apiFetch, authFetch, getStoredTenantSlug } from "../../lib/api";
 type Product = { id: string; name: string; category: string; unitPrice: string | number; active: boolean };
 type CartItem = { id: string; name: string; unitPrice: string | number; quantity: number };
 
-const today = new Date().toISOString().slice(0, 10);
+const today = localDateInput();
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -140,7 +141,7 @@ export default function CustomerPage() {
             <span>Qty: <strong className="text-ink">{totals.quantity}</strong></span>
             <span>Total: <strong className="text-ink">{formatAmount(totals.amount)}</strong></span>
           </div>
-          <label className="mt-4 grid gap-1 text-sm font-semibold">Delivery date<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setDueAt(event.target.value)} type="date" value={dueAt} /></label>
+          <label className="mt-4 grid gap-1 text-sm font-semibold">Delivery date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={setDueAt} value={dueAt} /></label>
           <label className="mt-3 grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setNotes(event.target.value)} value={notes} /></label>
           <button className="focus-ring mt-4 w-full rounded-md bg-mint px-4 py-3 font-semibold text-white" disabled={saving || !cart.length} type="submit">{saving ? "Placing..." : "Place Order"}</button>
         </form>

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput, localDateInput, localMonthInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
@@ -50,9 +51,8 @@ type ExpenseSummary = {
   rent: number;
 };
 
-const today = new Date();
-const initialMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-const initialDate = today.toISOString().slice(0, 10);
+const initialMonth = localMonthInput();
+const initialDate = localDateInput();
 
 const initialForm = {
   type: "RENT" as "RENT" | "MISCELLANEOUS",
@@ -373,7 +373,7 @@ export default function BakeryExpensesPage() {
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               Date
-              <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, spentAt: event.target.value }))} type="date" value={form.spentAt} />
+              <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setForm((current) => ({ ...current, spentAt: value }))} value={form.spentAt} />
             </label>
           </div>
           <label className="grid gap-1 text-sm font-semibold">

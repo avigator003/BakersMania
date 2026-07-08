@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, Eye, History, PackagePlus, Plus, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput, localDateInput, localMonthInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
@@ -72,9 +73,8 @@ type MaterialSummary = {
   low: number;
 };
 
-const today = new Date();
-const initialMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-const initialDate = today.toISOString().slice(0, 10);
+const initialMonth = localMonthInput();
+const initialDate = localDateInput();
 
 const initialMaterialForm = {
   name: "",
@@ -332,7 +332,7 @@ export default function BakeryInventoryPage() {
                     {filterMode === "month" ? (
                       <input className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" onChange={(event) => { setMonth(event.target.value); setProductPage(1); }} type="month" value={month} />
                     ) : (
-                      <input className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" onChange={(event) => { setDate(event.target.value); setProductPage(1); }} type="date" value={date} />
+                      <DateInput className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" onChange={(value) => { setDate(value); setProductPage(1); }} value={date} />
                     )}
                   </label>
                   <button className="focus-ring grid h-10 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-10" onClick={loadData} title="Refresh stock" type="button">
@@ -687,7 +687,7 @@ export default function BakeryInventoryPage() {
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               Date
-              <input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setAdjustForm((current) => ({ ...current, happenedAt: event.target.value }))} type="date" value={adjustForm.happenedAt} />
+              <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setAdjustForm((current) => ({ ...current, happenedAt: value }))} value={adjustForm.happenedAt} />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               Quantity

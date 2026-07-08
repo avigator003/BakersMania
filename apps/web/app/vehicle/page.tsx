@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../components/payment-history";
 import { AppShell } from "../../components/shell";
+import { localDateInput, localMonthStartInput } from "../../components/date-input";
 import { LoadingSpinner } from "../../components/loading-spinner";
 import { useToast } from "../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../lib/api";
@@ -21,8 +22,8 @@ type Order = {
   route?: { name: string } | null;
 };
 
-const today = new Date().toISOString().slice(0, 10);
-const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+const today = localDateInput();
+const monthStart = localMonthStartInput();
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));

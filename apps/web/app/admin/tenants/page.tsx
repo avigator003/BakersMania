@@ -8,6 +8,7 @@ import { ConfirmModal, Modal } from "../../../components/modal";
 import { StatusDropdown } from "../../../components/status-dropdown";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch } from "../../../lib/api";
+import { localDateInput } from "../../../components/date-input";
 
 type TenantStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "SUSPENDED";
 type BillingStatus = "PENDING" | "PAID" | "OVERDUE" | "WAIVED";
@@ -94,7 +95,7 @@ const initialForm: OnboardForm = {
   monthlyAmount: "1999",
   recurrence: "MONTHLY",
   recurrenceMonths: "1",
-  lastPaymentDate: new Date().toISOString().slice(0, 10),
+  lastPaymentDate: localDateInput(),
   nextDueDate: "",
   lastPaymentAmount: "1999",
   billingStatus: "PENDING"

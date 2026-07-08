@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { CalendarCheck, Download, IndianRupee, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
@@ -81,7 +82,7 @@ const initialLabourForm = {
   skill: "",
   dailyWage: "",
   monthlySalary: "",
-  joinedAt: new Date().toISOString().slice(0, 10),
+  joinedAt: localDateInput(),
   notes: ""
 };
 
@@ -467,12 +468,20 @@ export default function LabourManagementPage() {
             ].map(([key, label]) => (
               <label key={key} className="grid gap-1">
                 <span className="text-sm font-medium">{label}</span>
-                <input
-                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
-                  onChange={(event) => setLabourForm((current) => ({ ...current, [key]: event.target.value }))}
-                  type={key === "joinedAt" ? "date" : key.toLowerCase().includes("wage") || key.toLowerCase().includes("salary") ? "number" : "text"}
-                  value={labourForm[key as keyof typeof labourForm]}
-                />
+                {key === "joinedAt" ? (
+                  <DateInput
+                    className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                    onChange={(value) => setLabourForm((current) => ({ ...current, [key]: value }))}
+                    value={labourForm[key as keyof typeof labourForm]}
+                  />
+                ) : (
+                  <input
+                    className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                    onChange={(event) => setLabourForm((current) => ({ ...current, [key]: event.target.value }))}
+                    type={key.toLowerCase().includes("wage") || key.toLowerCase().includes("salary") ? "number" : "text"}
+                    value={labourForm[key as keyof typeof labourForm]}
+                  />
+                )}
               </label>
             ))}
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
