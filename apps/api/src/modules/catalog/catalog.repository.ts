@@ -190,6 +190,6 @@ export const catalogRepository = {
         });
       }
       return customerPrice;
-    });
+    }, { timeout: 15000 });
   }
 };

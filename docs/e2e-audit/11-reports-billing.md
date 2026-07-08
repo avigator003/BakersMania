@@ -7,8 +7,8 @@ Scenarios:
 
 | ID | Scenario | Steps | Expected | Status | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| RB-001 | Billing overview | Open `/star-bakery/bakery` and billing/report panels. | Totals load without API errors. | DONE | Run 20260705170235: billing/dashboard pages render |
-| RB-002 | Reports API | Call reports endpoints after orders/payments/expenses. | Totals match created audit data. | DONE | Run 20260705170235: bakery reports dashboard ok |
-| RB-003 | Invoice from order | Create invoice for order. | Invoice persists with total/payment status. | DONE | Run 20260705170235: invoice persisted |
-| RB-004 | Report after payment | Add payment then reload reports. | Paid/due totals change correctly. | DONE | Run 20260705170235: reports reload after payment ok |
-| RB-005 | Report after expense | Add paid expense then reload reports. | Expense totals change correctly. | DONE | Run 20260705170235: reports reload after expense ok |
+| RB-001 | Billing overview | Open `/star-bakery/bakery` and billing/report panels. | Totals load without API errors. | DONE | Run 20260708193620: billing/dashboard pages render |
+| RB-002 | Reports API | Call reports endpoints after orders/payments/expenses. | Totals match created audit data. | DONE | Run 20260708193620: bakery reports dashboard ok |
+| RB-003 | Invoice from order | Create invoice for order. | Invoice persists with total/payment status. | DONE | Run 20260708193620: invoice persisted |
+| RB-004 | Report after payment | Add payment then reload reports. | Paid/due totals change correctly. | DONE | Run 20260708193620: reports reload after payment ok |
+| RB-005 | Report after expense | Add paid expense then reload reports. | Expense totals change correctly. | DONE | Run 20260708193620: reports reload after expense ok |

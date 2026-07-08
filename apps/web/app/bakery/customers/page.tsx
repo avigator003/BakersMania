@@ -28,17 +28,15 @@ type Customer = {
   state?: string | null;
   city?: string | null;
   notes?: string | null;
-  creditLimit?: string | number | null;
   dueBalance?: number;
   paidTotal?: number;
   orderTotal?: number;
-  creditExceeded?: boolean;
   route?: Route | null;
   createdAt: string;
 };
 type CustomerLedger = {
   customer: Customer;
-  summary: { orderTotal: number; paidTotal: number; dueBalance: number; creditLimit: number | null; creditExceeded: boolean };
+  summary: { orderTotal: number; paidTotal: number; dueBalance: number };
   entries: { id: string; type: string; date: string; description: string; debit: number; credit: number; invoiceNumber?: string | null }[];
   productPrices: { id: string; price: string | number; product: { name: string } }[];
 };
@@ -80,7 +78,6 @@ const initialCustomerForm = {
   state: "Gujarat",
   city: "Ahmedabad",
   routeId: "",
-  creditLimit: "",
   notes: ""
 };
 
@@ -159,7 +156,6 @@ export default function BakeryCustomersPage() {
           ...customerForm,
           routeId: customerForm.routeId || undefined,
           email: customerForm.email || undefined,
-          creditLimit: customerForm.creditLimit ? Number(customerForm.creditLimit) : undefined,
           tags: []
         })
       });
@@ -186,7 +182,6 @@ export default function BakeryCustomersPage() {
       state: customer.state || "Gujarat",
       city: customer.city || "Ahmedabad",
       routeId: customer.route?.id || "",
-      creditLimit: customer.creditLimit ? String(customer.creditLimit) : "",
       notes: customer.notes || ""
     });
     setCustomerOpen(true);
@@ -204,7 +199,6 @@ export default function BakeryCustomersPage() {
             ...customerForm,
             routeId: customerForm.routeId || undefined,
             email: customerForm.email || undefined,
-            creditLimit: customerForm.creditLimit ? Number(customerForm.creditLimit) : undefined,
             tags: []
           })
         });
@@ -294,11 +288,7 @@ export default function BakeryCustomersPage() {
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <span>
                     <span className="block text-xs text-muted">Due</span>
-                    <span className={customer.creditExceeded ? "font-semibold text-berry" : "font-semibold"}>{formatAmount(customer.dueBalance)}</span>
-                  </span>
-                  <span>
-                    <span className="block text-xs text-muted">Credit</span>
-                    <span className="font-semibold">{customer.creditLimit ? formatAmount(customer.creditLimit) : "-"}</span>
+                    <span className="font-semibold">{formatAmount(customer.dueBalance)}</span>
                   </span>
                 </div>
                 <p className="mt-3 line-clamp-2 text-xs text-muted">{customer.address || "No address"}</p>
@@ -314,23 +304,22 @@ export default function BakeryCustomersPage() {
           </div>
 
           <div className="hidden max-h-[680px] w-full max-w-full overflow-auto sm:block">
-            <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1680px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Mobile</th>
-                  <th className="px-4 py-3">City/State</th>
-                  <th className="px-4 py-3">Route</th>
-                  <th className="px-4 py-3 text-right">Due</th>
-                  <th className="px-4 py-3 text-right">Credit Limit</th>
-                  <th className="px-4 py-3">Address</th>
-                  <th className="px-4 py-3">Created</th>
+                  <th className="min-w-[360px] whitespace-nowrap px-4 py-3">Customer</th>
+                  <th className="min-w-[180px] whitespace-nowrap px-4 py-3">Mobile</th>
+                  <th className="min-w-[180px] whitespace-nowrap px-4 py-3">City/State</th>
+                  <th className="min-w-[280px] whitespace-nowrap px-4 py-3">Route</th>
+                  <th className="min-w-[130px] whitespace-nowrap px-4 py-3 text-right">Due</th>
+                  <th className="min-w-[360px] whitespace-nowrap px-4 py-3">Address</th>
+                  <th className="min-w-[160px] whitespace-nowrap px-4 py-3">Created</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
               {customers.map((customer) => (
                   <tr key={customer.id} className="align-top">
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3">
                       <div className="flex items-start gap-3">
                         <div className="flex gap-1.5 pt-0.5">
                           <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2" onClick={() => openLedger(customer)} title="View ledger" type="button"><Eye size={15} /></button>
@@ -342,29 +331,22 @@ export default function BakeryCustomersPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3">{customer.phone || "-"}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{customer.phone || "-"}</td>
                     
-                    <td className="px-4 py-3">{[customer.city, customer.state].filter(Boolean).join(", ") || "-"}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-md border border-mint/30 bg-mint/10 px-2 py-1 text-xs font-semibold text-mint">
+                    <td className="whitespace-nowrap px-4 py-3">{[customer.city, customer.state].filter(Boolean).join(", ") || "-"}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <span className="whitespace-nowrap rounded-md border border-mint/30 bg-mint/10 px-2 py-1 text-xs font-semibold text-mint">
                         {customer.route?.name || "No route"}
                       </span>
                     </td>
-                    <td className={`px-4 py-3 text-right font-semibold ${customer.creditExceeded ? "text-berry" : ""}`}>{formatAmount(customer.dueBalance)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {customer.creditLimit ? (
-                        <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${customer.creditExceeded ? "border-berry/30 bg-berry/10 text-berry" : "border-line bg-panel2"}`}>
-                          {formatAmount(customer.creditLimit)}
-                        </span>
-                      ) : "-"}
-                    </td>
-                    <td className="max-w-xs px-4 py-3 text-muted">{customer.address || "-"}</td>
-                    <td className="px-4 py-3">{formatDate(customer.createdAt)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{formatAmount(customer.dueBalance)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted">{customer.address || "-"}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatDate(customer.createdAt)}</td>
                   </tr>
                 ))}
                 {!loading && !customers.length ? (
                   <tr>
-                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={8}>No customers found.</td>
+                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={7}>No customers found.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -380,7 +362,6 @@ export default function BakeryCustomersPage() {
               ["email", "Email"],
               ["aadhaarNumber", "Aadhaar card number"],
               ["address", "Address"],
-              ["creditLimit", "Credit limit"],
               ["notes", "Notes"]
             ].map(([key, label]) => (
               <label key={key} className="grid gap-1">
@@ -388,7 +369,7 @@ export default function BakeryCustomersPage() {
                 <input
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
                   onChange={(event) => setCustomerForm((current) => ({ ...current, [key]: event.target.value }))}
-                  type={key === "email" ? "email" : key === "creditLimit" ? "number" : "text"}
+                  type={key === "email" ? "email" : "text"}
                   value={customerForm[key as keyof typeof customerForm]}
                 />
               </label>
@@ -434,16 +415,14 @@ export default function BakeryCustomersPage() {
           </form>
         </Modal>
 
-        <Modal open={Boolean(ledger)} title="Customer ledger" description="Orders, payments, credit limit, and customer-specific prices." onClose={() => setLedger(null)}>
+        <Modal open={Boolean(ledger)} title="Customer ledger" description="Orders, payments, and customer-specific prices." onClose={() => setLedger(null)}>
           {ledger ? (
             <div className="grid gap-4">
               <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm text-muted">
                 <span>Orders: <span className="font-semibold text-ink">{formatAmount(ledger.summary.orderTotal)}</span></span>
                 <span>Paid: <span className="font-semibold text-ink">{formatAmount(ledger.summary.paidTotal)}</span></span>
                 <span>Due: <span className="font-semibold text-ink">{formatAmount(ledger.summary.dueBalance)}</span></span>
-                <span>Credit: <span className="font-semibold text-ink">{ledger.summary.creditLimit === null ? "-" : formatAmount(ledger.summary.creditLimit)}</span></span>
               </div>
-              {ledger.summary.creditExceeded ? <p className="rounded-md border border-berry/30 bg-berry/10 px-3 py-2 text-sm font-semibold text-berry">Credit limit exceeded</p> : null}
               <div className="max-h-[360px] w-full max-w-full overflow-auto rounded-lg border border-line">
                 <table className="w-full min-w-[700px] text-left text-sm">
                   <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">

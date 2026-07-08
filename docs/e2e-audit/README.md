@@ -34,6 +34,6 @@ Current run:
 - Environment: `local`
 - Tenant slug: `star-bakery`
 - Cleanup status: `LOCAL_RESET_DONE`
-- Latest automated run: [20260705170235-local-star-bakery.md](./runs/20260705170235-local-star-bakery.md)
-- Latest automated result: `100 DONE / 3 FAILED / 0 BLOCKED`
-- Overall status: `FAILED`
+- Latest automated run: [20260708193620-local-star-bakery.md](./runs/20260708193620-local-star-bakery.md)
+- Latest automated result: `103 DONE / 0 FAILED / 0 BLOCKED`
+- Overall status: `DONE`

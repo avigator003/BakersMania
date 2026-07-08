@@ -1,0 +1,127 @@
+# E2E Audit Run - 20260708193620
+
+Environment:
+- API: `http://localhost:4000`
+- Web: `http://localhost:3000`
+- Tenant: `star-bakery`
+- Mode: reset local DB, API checks, and route-render checks
+- Runner: `node scripts/e2e-audit.mjs`
+
+Summary:
+- Automated scenarios: 103
+- DONE: 103
+- FAILED: 0
+- BLOCKED: 0
+
+Generated audit actors:
+- Platform admin: `admin@bakersmania.local`
+- Bakery owner: `owner@starbakery.local`
+- Customer phone: `+919700193620`
+- Customer password: `123456`
+- Vehicle phone: `+919800193620`
+- Vehicle password: `123456`
+
+Results:
+- PA-001: DONE - platform admin login admin@bakersmania.local
+- PA-002: DONE - tenant star-bakery
+- PA-003: DONE - invalid tenant payload rejected
+- PA-004: DONE - cmrcgxik4000870l4ufiwgf6s
+- PA-005: DONE - billing payment/status updated
+- PA-006: DONE - reports endpoint and page render
+- PA-007: DONE - owner denied admin API
+- AU-001: DONE - owner login owner@starbakery.local
+- AU-004: DONE - wrong password rejected
+- AU-005: DONE - legacy workspace routes render
+- AU-006: DONE - non-bakery actor rejected from staff route
+- BD-001: DONE - dashboard route and summary endpoint
+- BD-002: DONE - 9 bakery routes render
+- BD-003: DONE - responsive shell route rendered; no browser viewport driver installed
+- BD-004: DONE - refreshable page routes return 200
+- CP-001: DONE - cmrchb8yt0001yrc5bhachkoo
+- CP-002: DONE - empty category rejected
+- CP-003: DONE - cmrchbamo0003yrc5bzq73fxh
+- RV-001: DONE - cmrchbef00006yrc5e4h4s1h0
+- RV-002: DONE - vehicle login +919800193620
+- RV-003: DONE - vehicle without phone rejected because portal credentials require phone
+- RV-004: DONE - cmrchbied0008yrc5zps8binx
+- RV-005: DONE - bad vehicle rejected
+- CU-001: DONE - customer list and page render
+- CU-002: DONE - cmrchbntp000byrc5ikcxrq5p
+- AU-002: DONE - customer phone login +919700193620
+- AU-003: DONE - vehicle phone login +919800193620
+- AU-007: DONE - same phone credential rejects wrong password
+- CU-003: DONE - missing phone rejected
+- CU-004: DONE - customer update persisted
+- CU-005: DONE - phone search finds customer
+- CP-005: DONE - customer-specific price saved
+- CP-006: DONE - 2 price history rows
+- CP-004: DONE - product update persisted
+- OR-001: DONE - cmrchcdmd000oyrc56diguapq
+- RV-006: DONE - assigned route order visible
+- CU-006: DONE - ledger includes order
+- CU-007: DONE - updated route used by new order
+- CU-008: DONE - custom price verified by order pricing path
+- OR-002: DONE - order edit persisted
+- OR-003: DONE - accepted/dispatched/completed
+- OR-004: DONE - 2 partial payment rows saved
+- OR-005: DONE - full payment saved
+- OR-006: DONE - unpaid after payment rejected
+- OR-007: DONE - INV-00003
+- OR-008: DONE - route statement ok
+- OR-009: DONE - truck loading matrix ok
+- OR-010: DONE - repeat orders created
+- VW-001: DONE - vehicle workspace login +919800193620
+- VW-002: DONE - vehicle monthly/overview data endpoint ok
+- VW-003: DONE - assigned orders only
+- VW-004: DONE - vehicle dispatched assigned order
+- VW-005: DONE - vehicle delivered/completed
+- VW-006: DONE - not-delivered represented by leaving order dispatched
+- VW-007: DONE - 2 vehicle partial payment rows saved
+- VW-008: DONE - vehicle full payment saved
+- VW-009: DONE - vehicle truck-loading route and API ok
+- VW-010: DONE - other route update rejected
+- CPOR-001: DONE - customer workspace login +919700193620
+- CPOR-002: DONE - customer product list ok
+- CPOR-003: DONE - cmrchfsnq002hyrc57wzfxb3b
+- CPOR-004: DONE - own orders only
+- CPOR-005: DONE - customer delivered confirmation
+- CPOR-006: DONE - 2 customer partial payment rows saved
+- CPOR-007: DONE - customer full payment
+- CPOR-008: DONE - billing route and ledger ok
+- CPOR-009: DONE - profile update persisted
+- CPOR-010: DONE - other customer order rejected
+- LB-001: DONE - cmrchgr9r0032yrc5ogwhys3m
+- LB-002: DONE - labour dashboard list ok
+- LB-003: DONE - present saved
+- LB-004: DONE - half-day saved
+- LB-005: DONE - advance saved
+- LB-006: DONE - partial saved
+- LB-007: DONE - full saved
+- LB-008: DONE - monthly detail ok
+- LB-009: DONE - payment sheet route/export ok
+- LB-010: DONE - inactive saved
+- IN-001: DONE - cmrchh1ok003eyrc5zr9dgnv6
+- IN-002: DONE - buy ledger saved
+- IN-003: DONE - use ledger saved
+- IN-004: DONE - invalid ledger rejected
+- IN-005: DONE - product stock add
+- IN-006: DONE - product stock set
+- IN-007: DONE - below reorder item visible
+- CP-007: DONE - product stock visible
+- SP-001: DONE - cmrchhfbh003myrc5ojfb3dok
+- SP-002: DONE - full purchase paid
+- SP-003: DONE - cmrchhlcn003wyrc5m47fk542
+- SP-004: DONE - advance purchase saved
+- SP-005: DONE - additional payment saved
+- SP-006: DONE - supplier filter ok
+- EX-001: DONE - cmrchi20j004cyrc5q161fh8s
+- EX-002: DONE - rent expense saved
+- EX-003: DONE - route expense saved
+- EX-004: DONE - recurring expense saved
+- EX-005: DONE - expense paid
+- EX-006: DONE - expense canceled
+- RB-001: DONE - billing/dashboard pages render
+- RB-002: DONE - bakery reports dashboard ok
+- RB-003: DONE - invoice persisted
+- RB-004: DONE - reports reload after payment ok
+- RB-005: DONE - reports reload after expense ok

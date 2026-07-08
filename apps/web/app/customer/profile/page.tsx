@@ -16,13 +16,11 @@ type Profile = {
     state?: string | null;
     city?: string | null;
     route?: { name: string } | null;
-    creditLimit?: string | number | null;
   };
   summary: {
     orderTotal: number;
     paidTotal: number;
     dueBalance: number;
-    creditExceeded: boolean;
   };
 };
 
@@ -117,14 +115,13 @@ export default function CustomerProfilePage() {
           <div className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold">Account</h2>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
-              <span className={profile?.summary.creditExceeded ? "font-semibold text-berry" : ""}>Due: <span className="font-semibold text-ink">{formatAmount(profile?.summary.dueBalance || 0)}</span></span>
+              <span>Due: <span className="font-semibold text-ink">{formatAmount(profile?.summary.dueBalance || 0)}</span></span>
               <span>Paid: <span className="font-semibold text-ink">{formatAmount(profile?.summary.paidTotal || 0)}</span></span>
             </div>
           </div>
           <div className="mt-4 divide-y divide-line text-sm">
             <p className="flex items-start justify-between gap-3 py-3"><span className="text-muted">Email</span><strong className="text-right">{profile?.customer.email || "-"}</strong></p>
             <p className="flex items-start justify-between gap-3 py-3"><span className="text-muted">Route</span><strong className="text-right">{profile?.customer.route?.name || "No route assigned"}</strong></p>
-            <p className="flex items-start justify-between gap-3 py-3"><span className="text-muted">Credit limit</span><strong className="text-right">{profile?.customer.creditLimit ? formatAmount(profile.customer.creditLimit) : "-"}</strong></p>
           </div>
         </aside>
       </div>
