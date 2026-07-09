@@ -1,4 +1,8 @@
-export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://bakersmania-api.onrender.com";
+const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://bakersmania-api.onrender.com";
+
+export const apiBaseUrl = configuredApiBaseUrl.includes("bakery-fhet.onrender.com")
+  ? "https://bakersmania-api.onrender.com"
+  : configuredApiBaseUrl;
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {

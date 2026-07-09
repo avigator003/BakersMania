@@ -92,7 +92,7 @@ export function AppShell({
       : surface === "customer"
         ? {
             title: "Customer Portal",
-            body: "Orders, invoices, and profile"
+            body: "Shop, orders, and invoices"
           }
         : surface === "vehicle"
           ? {

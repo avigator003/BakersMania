@@ -189,13 +189,12 @@ export default function CustomerOrdersPage() {
   return (
     <AppShell title="Customer Portal" subtitle="Orders, dues, and payments" surface="customer">
       <section className="rounded-lg border border-line bg-panel shadow-subtle">
-        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="hidden lg:block" />
-          <div className="grid gap-2 sm:grid-cols-[150px_1fr_1fr_40px] lg:min-w-[760px]">
+        <div className="border-b border-line p-4">
+          <div className="grid gap-3 md:grid-cols-[150px_minmax(180px,1fr)_minmax(180px,1fr)_40px] md:items-end">
             <label className="grid gap-1 text-sm font-semibold">Date<DateInput className="h-10 rounded-md border border-line bg-panel2 px-3 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
-            <SearchableSelect onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
-            <SearchableSelect onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
-            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2 sm:self-end" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
+            <SearchableSelect className="min-w-0" onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
+            <SearchableSelect className="min-w-0" onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
+            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
         </div>
         {loading ? <LoadingSpinner label="Loading orders" /> : null}
@@ -208,7 +207,7 @@ export default function CustomerOrdersPage() {
           <span className="rounded-md bg-panel2 p-3">Today&apos;s Due<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Total Due<br /><strong>{formatAmount(totals.totalDue)}</strong></span>
         </div>
-        <div className="max-h-[calc(100vh-360px)] min-h-[320px] w-full max-w-full overflow-auto">
+        <div className="max-h-[calc(100vh-360px)] w-full max-w-full overflow-auto">
           <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>

@@ -129,11 +129,10 @@ export default function CustomerPage() {
 
   return (
     <AppShell title="Customer Portal" subtitle="Shop and create orders" surface="customer">
-      <section className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="grid gap-3 border-b border-line p-4 lg:grid-cols-[1fr_220px_280px] lg:items-end">
-            <div className="hidden lg:block" />
-            <SearchableSelect onChange={setShopCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={shopCategoryFilter} />
+          <div className="grid gap-3 border-b border-line p-4 md:grid-cols-[minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
+            <SearchableSelect className="min-w-0" onChange={setShopCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={shopCategoryFilter} />
             <label className="grid gap-1 text-sm font-semibold">
               Search
               <input
@@ -145,7 +144,7 @@ export default function CustomerPage() {
             </label>
           </div>
           {loading ? <LoadingSpinner label="Loading shop" /> : null}
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid min-h-[220px] gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-3">
             {shopProducts.map((product) => (
               <article className="rounded-lg border border-line bg-panel2 p-4" key={product.id}>
                 <p className="text-sm text-mint">{productCategory(product)}</p>
@@ -161,7 +160,7 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        <form className="rounded-lg border border-line bg-panel p-4 shadow-subtle" onSubmit={placeOrder}>
+        <form className="rounded-lg border border-line bg-panel p-4 shadow-subtle xl:sticky xl:top-24 xl:self-start" onSubmit={placeOrder}>
           <div className="flex items-center gap-2">
             <ShoppingCart className="text-mint" size={20} />
             <h2 className="text-lg font-semibold">Order Cart</h2>
