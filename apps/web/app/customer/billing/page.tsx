@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
 import { useToast } from "../../../components/toast-provider";
@@ -34,6 +35,7 @@ function paid(order: Order) {
 export default function CustomerBillingPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [date, setDate] = useState(localDateInput());
   const [loading, setLoading] = useState(true);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
@@ -42,7 +44,7 @@ export default function CustomerBillingPage() {
     if (!apiBase) return;
     setLoading(true);
     try {
-      const data = await authFetch<{ orders: Order[] }>(`${apiBase}/orders`);
+      const data = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100`);
       setOrders(data.orders);
     } catch (error) {
       toast.error("Could not load billing", error instanceof Error ? error.message : "Please sign in again.");
@@ -53,7 +55,7 @@ export default function CustomerBillingPage() {
 
   useEffect(() => {
     loadOrders();
-  }, []);
+  }, [date]);
 
   const totals = useMemo(() => {
     const orderTotal = orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
@@ -65,7 +67,7 @@ export default function CustomerBillingPage() {
     <AppShell title="Customer Portal" subtitle="Invoices, payments, and balances" surface="customer">
       <div className="grid gap-6">
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="text-xl font-semibold">Billing</h1>
               <p className="mt-1 text-sm text-muted">Order-wise payment history and invoice status.</p>
@@ -76,7 +78,10 @@ export default function CustomerBillingPage() {
               <span>Due: <span className="font-semibold text-ink">{formatAmount(totals.due)}</span></span>
               <span>Invoices: <span className="font-semibold text-ink">{totals.invoices}</span></span>
             </div>
-            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadOrders} title="Refresh billing" type="button"><RefreshCw size={16} /></button>
+            <div className="grid gap-2 sm:grid-cols-[150px_40px]">
+              <label className="grid gap-1 text-sm font-semibold">Date<DateInput className="h-10 rounded-md border border-line bg-panel2 px-3 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
+              <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2 sm:self-end" onClick={loadOrders} title="Refresh billing" type="button"><RefreshCw size={16} /></button>
+            </div>
           </div>
           {loading ? <LoadingSpinner label="Loading billing" /> : null}
           <div className="hidden max-h-[680px] overflow-auto sm:block">

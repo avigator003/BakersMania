@@ -3,13 +3,32 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
+import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { OrderWorkflowChecklist } from "../../../components/order-workflow-checklist";
-import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
-import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { apiFetch, authFetch, getStoredTenantSlug } from "../../../lib/api";
 
+type Product = {
+  id: string;
+  name: string;
+  category: string;
+  categoryId?: string | null;
+  categoryRef?: { id: string; name: string } | null;
+  unitPrice: string | number;
+  active: boolean;
+};
+type Category = { id: string; name: string; active?: boolean };
+type Payment = { id: string; amount: string | number; method?: string | null; reference?: string | null; paidAt?: string | null };
+type OrderItem = {
+  id: string;
+  name: string;
+  quantity: string | number;
+  unitPrice: string | number;
+  lineTotal: string | number;
+  product?: { id: string; category?: string | null; categoryId?: string | null; categoryRef?: { id: string; name: string } | null } | null;
+};
 type Order = {
   id: string;
   status: string;
@@ -17,46 +36,88 @@ type Order = {
   grandTotal: string | number;
   dueAt?: string | null;
   createdAt: string;
-  items: { id: string; name: string; quantity: string | number; lineTotal: string | number }[];
-  payments?: { id: string; amount: string | number; method?: string | null; reference?: string | null; paidAt?: string | null }[];
+  items: OrderItem[];
+  payments?: Payment[];
+};
+type DaySummary = {
+  previousDue: number;
+  todayOrderAmount: number;
+  todayPaid: number;
+  todaysDue: number;
+  totalDue: number;
 };
 
+const today = localDateInput();
 const paymentMethods = ["Cash", "UPI"];
-const paymentTypes = ["Partial", "Full", "Advance"];
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
+function formatQty(value?: string | number | null) {
+  return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 }
 
 function paid(order: Order) {
-  return paymentTotal(order.payments);
+  return (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 }
 
 function due(order: Order) {
-  return paymentDue(order.grandTotal, order.payments);
+  return Math.max(Number(order.grandTotal || 0) - paid(order), 0);
+}
+
+function productCategory(product: Product) {
+  return product.categoryRef?.name || product.category || "General";
+}
+
+function itemCategory(item: OrderItem) {
+  return item.product?.categoryRef?.name || item.product?.category || "General";
+}
+
+function itemCategoryId(item: OrderItem) {
+  return item.product?.categoryRef?.id || item.product?.categoryId || "";
 }
 
 export default function CustomerOrdersPage() {
   const toast = useToast();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [summary, setSummary] = useState<DaySummary | null>(null);
+  const [date, setDate] = useState(today);
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [productFilter, setProductFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ type: "Partial", amount: "", method: "Cash", reference: "" });
+  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "Cash", reference: "" });
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
-  async function loadOrders() {
+  const categoryOptions = useMemo(
+    () => categories.filter((category) => category.active !== false).map((category) => ({ value: category.id, label: category.name })),
+    [categories]
+  );
+
+  const productOptions = useMemo(
+    () => products.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    [products]
+  );
+
+  async function loadData() {
     if (!apiBase) return;
     setLoading(true);
     try {
-      const data = await authFetch<{ orders: Order[] }>(`${apiBase}/orders`);
-      setOrders(data.orders);
+      const [productData, categoryData, orderData, summaryData] = await Promise.all([
+        apiFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        apiFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
+        authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100`),
+        authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${date}`)
+      ]);
+      setProducts(productData.products.filter((product) => product.active !== false));
+      setCategories(categoryData.categories);
+      setOrders(orderData.orders);
+      setSummary(summaryData.summary);
     } catch (error) {
       toast.error("Could not load orders", error instanceof Error ? error.message : "Please sign in again.");
     } finally {
@@ -65,129 +126,133 @@ export default function CustomerOrdersPage() {
   }
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    loadData();
+  }, [date]);
 
-  const stats = useMemo(() => ({
-    open: orders.filter((order) => order.status !== "COMPLETED").length,
-    completed: orders.filter((order) => order.status === "COMPLETED").length,
-    total: orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0)
-  }), [orders]);
+  const rows = useMemo(() => orders.flatMap((order) => order.items.map((item) => ({
+    order,
+    item,
+    category: itemCategory(item),
+    categoryId: itemCategoryId(item),
+    paidAmount: paid(order),
+    dueAmount: due(order)
+  }))).filter((row) => {
+    if (categoryFilter && row.categoryId !== categoryFilter) return false;
+    if (productFilter && row.item.product?.id !== productFilter) return false;
+    return true;
+  }), [categoryFilter, orders, productFilter]);
 
-  async function updateOrder(order: Order, patch: { status?: string; paymentStatus?: string; paymentAmount?: number; paymentMethod?: string; reference?: string }) {
-    if (!apiBase) return;
+  const totals = useMemo(() => {
+    const uniqueOrders = Array.from(new Map(rows.map((row) => [row.order.id, row.order])).values());
+    return {
+      products: rows.length,
+      quantity: rows.reduce((sum, row) => sum + Number(row.item.quantity || 0), 0),
+      orderAmount: rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0),
+      paid: uniqueOrders.reduce((sum, order) => sum + paid(order), 0),
+      previousDue: summary?.previousDue || 0,
+      todaysDue: summary?.todaysDue || uniqueOrders.reduce((sum, order) => sum + due(order), 0),
+      totalDue: summary?.totalDue || uniqueOrders.reduce((sum, order) => sum + due(order), 0)
+    };
+  }, [rows, summary]);
+
+  function openPayment(order: Order) {
+    setPaymentOrder(order);
+    setPaymentForm({ amount: String(due(order) || ""), method: "Cash", reference: "" });
+  }
+
+  async function recordPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase || !paymentOrder) return;
     setSaving(true);
     try {
-      await authFetch(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
-      toast.success("Order updated", patch.status ? "Delivery was confirmed." : "Payment details were updated.");
+      const amount = Number(paymentForm.amount || 0);
+      const dueAmount = due(paymentOrder);
+      await authFetch(`${apiBase}/orders/${paymentOrder.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          paymentStatus: amount >= dueAmount ? "PAID" : "PARTIAL",
+          paymentAmount: amount >= dueAmount ? undefined : amount,
+          paymentMethod: paymentForm.method,
+          reference: paymentForm.reference || undefined
+        })
+      });
+      toast.success("Payment updated", "The payment status was changed.");
       setPaymentOrder(null);
-      setPaymentForm({ type: "Partial", amount: "", method: "Cash", reference: "" });
-      await loadOrders();
+      await loadData();
     } catch (error) {
-      toast.error("Update failed", error instanceof Error ? error.message : "Could not update this order.");
+      toast.error("Payment failed", error instanceof Error ? error.message : "Could not update payment.");
     } finally {
       setSaving(false);
     }
   }
 
-  function startPayment(order: Order, type = "Partial") {
-    const dueAmount = due(order);
-    setPaymentOrder(order);
-    setPaymentForm({
-      type,
-      amount: type === "Full" ? String(dueAmount || "") : "",
-      method: "Cash",
-      reference: ""
-    });
-  }
-
-  async function recordPayment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!paymentOrder) return;
-    await updateOrder(paymentOrder, {
-      paymentStatus: paymentForm.type === "Full" ? "PAID" : "PARTIAL",
-      paymentAmount: paymentForm.type === "Full" ? undefined : Number(paymentForm.amount),
-      paymentMethod: paymentForm.method,
-      reference: paymentForm.reference || undefined
-    });
-  }
-
   return (
-    <AppShell title="Customer Portal" subtitle="Your orders, status, and bakery updates" surface="customer">
-      <div className="grid gap-6">
-        <section className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="flex items-center justify-between gap-3 border-b border-line p-4">
-            <div>
-              <h1 className="text-xl font-semibold">Order History</h1>
-              <p className="mt-1 text-sm text-muted">Production, delivery, and payment status for your orders.</p>
-            </div>
-            <div className="hidden flex-wrap gap-x-4 gap-y-2 text-sm text-muted md:flex">
-              <span>Open: <span className="font-semibold text-ink">{stats.open}</span></span>
-              <span>Completed: <span className="font-semibold text-ink">{stats.completed}</span></span>
-              <span>Total: <span className="font-semibold text-ink">{formatAmount(stats.total)}</span></span>
-            </div>
-            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadOrders} title="Refresh orders" type="button"><RefreshCw size={16} /></button>
+    <AppShell title="Customer Portal" subtitle="Orders, dues, and payments" surface="customer">
+      <section className="rounded-lg border border-line bg-panel shadow-subtle">
+        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="hidden lg:block" />
+          <div className="grid gap-2 sm:grid-cols-[150px_1fr_1fr_40px] lg:min-w-[760px]">
+            <label className="grid gap-1 text-sm font-semibold">Date<DateInput className="h-10 rounded-md border border-line bg-panel2 px-3 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
+            <SearchableSelect onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
+            <SearchableSelect onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
+            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2 sm:self-end" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
-          {loading ? <LoadingSpinner label="Loading orders" /> : null}
-          <div className="grid gap-3 p-3">
-            {orders.map((order) => {
-              const dueAmount = due(order);
-              return (
-              <article className="rounded-lg border border-line bg-panel2 p-4" key={order.id}>
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <h2 className="font-semibold">Order {order.id.slice(-6).toUpperCase()}</h2>
-                    <p className="mt-1 text-sm text-muted">{formatDate(order.dueAt || order.createdAt)} · {order.items.length} product{order.items.length === 1 ? "" : "s"}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                    <span className="rounded-md border border-line bg-panel px-2 py-1">{order.status}</span>
-                    <span className="rounded-md border border-line bg-panel px-2 py-1">{order.paymentStatus}</span>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-                  <span className="rounded-md bg-panel p-3">Order<br /><strong>{formatAmount(order.grandTotal)}</strong></span>
-                  <span className="rounded-md bg-panel p-3">Paid<br /><strong>{formatAmount(paid(order))}</strong></span>
-                  <span className="rounded-md bg-panel p-3">Due<br /><strong>{formatAmount(dueAmount)}</strong></span>
-                </div>
-                <div className="mt-4">
-                  <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
-                </div>
-                <div className="mt-4 grid gap-2">
-                  {order.items.map((item) => (
-                    <p className="flex justify-between gap-3 rounded-md bg-panel px-3 py-2 text-sm" key={item.id}>
-                      <span>{item.name} x {Number(item.quantity)}</span>
-                      <strong>{formatAmount(item.lineTotal)}</strong>
-                    </p>
-                  ))}
-                </div>
-                <OrderWorkflowChecklist
-                  dueAmount={dueAmount}
-                  onDelivered={() => updateOrder(order, { status: "COMPLETED" })}
-                  onPayment={() => startPayment(order)}
-                  order={order}
-                  saving={saving}
-                />
-              </article>
-              );
-            })}
-            {!loading && !orders.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No orders yet.</p> : null}
-          </div>
-        </section>
-      </div>
+        </div>
+        {loading ? <LoadingSpinner label="Loading orders" /> : null}
+        <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-3 lg:grid-cols-7">
+          <span className="rounded-md bg-panel2 p-3">Products<br /><strong>{totals.products}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Quantity<br /><strong>{formatQty(totals.quantity)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals.orderAmount)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Paid<br /><strong>{formatAmount(totals.paid)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Previous Due<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Today&apos;s Due<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Total Due<br /><strong>{formatAmount(totals.totalDue)}</strong></span>
+        </div>
+        <div className="max-h-[calc(100vh-360px)] min-h-[320px] w-full max-w-full overflow-auto">
+          <table className="w-full min-w-[1040px] text-left text-sm">
+            <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
+              <tr>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3 text-right">Quantity</th>
+                <th className="px-4 py-3 text-right">Order Amount</th>
+                <th className="px-4 py-3 text-right">Paid</th>
+                <th className="px-4 py-3 text-right">Previous Due</th>
+                <th className="px-4 py-3 text-right">Today&apos;s Due</th>
+                <th className="px-4 py-3">Payment</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {rows.map((row) => (
+                <tr key={`${row.order.id}-${row.item.id}`}>
+                  <td className="px-4 py-3 font-semibold">{row.item.name}</td>
+                  <td className="px-4 py-3 text-muted">{row.category}</td>
+                  <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
+                  <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
+                  <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.dueAmount)}</td>
+                  <td className="px-4 py-3">
+                    <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold disabled:opacity-50" disabled={!row.dueAmount || saving} onClick={() => openPayment(row.order)} type="button">
+                      {row.dueAmount ? "Record Payment" : "Paid"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!loading && !rows.length ? (
+                <tr>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={8}>No products found for this date/filter.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <Modal open={Boolean(paymentOrder)} title="Record payment" description="Add payment type, method, reference, and amount." onClose={() => setPaymentOrder(null)}>
+      <Modal open={Boolean(paymentOrder)} title="Record payment" description={paymentOrder ? `Due ${formatAmount(due(paymentOrder))}` : ""} onClose={() => setPaymentOrder(null)}>
         {paymentOrder ? (
           <form className="grid gap-4" onSubmit={recordPayment}>
-            <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => {
-              const type = event.target.value;
-              setPaymentForm((current) => ({
-                ...current,
-                type,
-                amount: type === "Full" ? String(due(paymentOrder) || "") : "",
-                method: current.method
-              }));
-            }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={due(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type === "Full"} required type="number" value={paymentForm.amount} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={due(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required type="number" value={paymentForm.amount} /></label>
             <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

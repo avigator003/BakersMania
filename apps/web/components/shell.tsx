@@ -192,8 +192,7 @@ export function AppShell({
     ? [
         { href: `${routeBase}/customer`, label: "Shop", icon: ShoppingBag },
         { href: `${routeBase}/customer/orders`, label: "Orders", icon: ClipboardList },
-        { href: `${routeBase}/customer/billing`, label: "Invoices", icon: CreditCard },
-        { href: `${routeBase}/customer/profile`, label: "Profile", icon: Settings }
+        { href: `${routeBase}/customer/billing`, label: "Invoices", icon: CreditCard }
       ]
     : surface === "vehicle"
       ? [
