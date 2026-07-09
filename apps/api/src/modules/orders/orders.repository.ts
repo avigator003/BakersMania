@@ -404,23 +404,46 @@ export const ordersRepository = {
           GREATEST(ob."grandTotal" - op."paidTotal", 0) AS "dueAmount"
         FROM order_base ob
         JOIN order_paid op ON op.id = ob.id
+      ),
+      customer_counts AS (
+        SELECT "routeId", COUNT(*) AS "customerCount"
+        FROM "Customer"
+        WHERE "tenantId" = ${tenantId}
+          AND "routeId" IS NOT NULL
+        GROUP BY "routeId"
+      ),
+      price_counts AS (
+        SELECT "routeId", COUNT(DISTINCT "productId") AS "pricedProductCount"
+        FROM "RouteProductPrice"
+        WHERE "tenantId" = ${tenantId}
+        GROUP BY "routeId"
+      ),
+      route_totals AS (
+        SELECT
+          "routeId",
+          COALESCE(SUM(CASE WHEN "orderDate" >= ${start} AND "orderDate" < ${end} THEN "grandTotal" ELSE 0 END), 0) AS "orderAmount",
+          COALESCE(SUM(CASE WHEN "orderDate" < ${start} THEN "dueAmount" ELSE 0 END), 0) AS "oldDue",
+          COALESCE(SUM("paidToday"), 0) AS "paidAmount",
+          COALESCE(SUM(CASE WHEN "orderDate" < ${end} THEN "dueAmount" ELSE 0 END), 0) AS "totalDue"
+        FROM order_due
+        WHERE "routeId" IS NOT NULL
+        GROUP BY "routeId"
       )
       SELECT
         r.id AS "routeId",
         r.name AS "routeName",
-        COUNT(DISTINCT c.id) AS "customerCount",
-        COUNT(DISTINCT rpp."productId") AS "pricedProductCount",
-        COALESCE(SUM(CASE WHEN od."orderDate" >= ${start} AND od."orderDate" < ${end} THEN od."grandTotal" ELSE 0 END), 0) AS "orderAmount",
-        COALESCE(SUM(CASE WHEN od."orderDate" < ${start} THEN od."dueAmount" ELSE 0 END), 0) AS "oldDue",
-        COALESCE(SUM(od."paidToday"), 0) AS "paidAmount",
-        COALESCE(SUM(CASE WHEN od."orderDate" < ${end} THEN od."dueAmount" ELSE 0 END), 0) AS "totalDue"
+        COALESCE(cc."customerCount", 0) AS "customerCount",
+        COALESCE(pc."pricedProductCount", 0) AS "pricedProductCount",
+        COALESCE(rt."orderAmount", 0) AS "orderAmount",
+        COALESCE(rt."oldDue", 0) AS "oldDue",
+        COALESCE(rt."paidAmount", 0) AS "paidAmount",
+        COALESCE(rt."totalDue", 0) AS "totalDue"
       FROM "Route" r
-      LEFT JOIN "Customer" c ON c."routeId" = r.id AND c."tenantId" = r."tenantId"
-      LEFT JOIN "RouteProductPrice" rpp ON rpp."routeId" = r.id AND rpp."tenantId" = r."tenantId"
-      LEFT JOIN order_due od ON od."routeId" = r.id
+      LEFT JOIN customer_counts cc ON cc."routeId" = r.id
+      LEFT JOIN price_counts pc ON pc."routeId" = r.id
+      LEFT JOIN route_totals rt ON rt."routeId" = r.id
       WHERE r."tenantId" = ${tenantId}
         AND r.active = true
-      GROUP BY r.id, r.name
       ORDER BY r.name ASC
     `;
 
