@@ -8,7 +8,7 @@ import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
-import { apiFetch, authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
 type Product = {
   id: string;
@@ -109,8 +109,8 @@ export default function CustomerOrdersPage() {
     setLoading(true);
     try {
       const [productData, categoryData, orderData, summaryData] = await Promise.all([
-        apiFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
-        apiFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
+        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100`),
         authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${date}`)
       ]);

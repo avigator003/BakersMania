@@ -7,7 +7,7 @@ import { DateInput, localDateInput } from "../../components/date-input";
 import { LoadingSpinner } from "../../components/loading-spinner";
 import { SearchableSelect } from "../../components/searchable-select";
 import { useToast } from "../../components/toast-provider";
-import { apiFetch, authFetch, getStoredTenantSlug } from "../../lib/api";
+import { authFetch, getStoredTenantSlug } from "../../lib/api";
 
 type Product = {
   id: string;
@@ -59,8 +59,8 @@ export default function CustomerPage() {
     setLoading(true);
     try {
       const [productData, categoryData] = await Promise.all([
-        apiFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
-        apiFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`)
+        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`)
       ]);
       setProducts(productData.products.filter((product) => product.active !== false));
       setCategories(categoryData.categories);
