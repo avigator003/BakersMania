@@ -67,6 +67,13 @@ export const ordersController = {
     });
   },
 
+  async customerDaySummary(req: Request, res: Response) {
+    const today = new Date().toISOString().slice(0, 10);
+    res.json({
+      summary: await ordersService.customerDaySummary(req.tenant!.id, req.auth, req.query.date ? String(req.query.date) : today)
+    });
+  },
+
   async truckLoading(req: Request, res: Response) {
     const today = new Date().toISOString().slice(0, 10);
     res.json({

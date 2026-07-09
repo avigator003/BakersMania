@@ -13,6 +13,7 @@ ordersRouter.use(resolveTenant);
 ordersRouter.get("/", requireAuth, asyncHandler(ordersController.list));
 ordersRouter.get("/truck-loading", requireAuth, asyncHandler(ordersController.truckLoading));
 ordersRouter.get("/route-statement", requireAuth, asyncHandler(ordersController.routeStatement));
+ordersRouter.get("/customer-day-summary", requireAuth, asyncHandler(ordersController.customerDaySummary));
 ordersRouter.post("/", requireAuth, validateBody(createOrderSchema), asyncHandler(ordersController.create));
 ordersRouter.post("/repeat", requireAuth, validateBody(repeatOrdersSchema), asyncHandler(ordersController.repeat));
 ordersRouter.patch("/:orderId/status", requireAuth, validateBody(updateOrderStatusSchema), asyncHandler(ordersController.updateStatus));

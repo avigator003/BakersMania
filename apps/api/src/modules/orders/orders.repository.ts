@@ -314,6 +314,54 @@ export const ordersRepository = {
     });
   },
 
+  async customerDaySummary(tenantId: string, customerId: string, date: string) {
+    const start = new Date(`${date}T00:00:00.000Z`);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    const rows = await prisma.$queryRaw<Array<{
+      previousOrderAmount: unknown;
+      previousPaid: unknown;
+      todayOrderAmount: unknown;
+      todayPaid: unknown;
+    }>>`
+      WITH order_payments AS (
+        SELECT
+          o.id,
+          o."grandTotal",
+          COALESCE(o."dueAt", o."createdAt") AS "orderDate",
+          COALESCE(SUM(p.amount), 0) AS paid
+        FROM "Order" o
+        LEFT JOIN "Payment" p ON p."orderId" = o.id
+        WHERE o."tenantId" = ${tenantId}
+          AND o."customerId" = ${customerId}
+        GROUP BY o.id
+      )
+      SELECT
+        COALESCE(SUM(CASE WHEN "orderDate" < ${start} THEN "grandTotal" ELSE 0 END), 0) AS "previousOrderAmount",
+        COALESCE(SUM(CASE WHEN "orderDate" < ${start} THEN paid ELSE 0 END), 0) AS "previousPaid",
+        COALESCE(SUM(CASE WHEN "orderDate" >= ${start} AND "orderDate" < ${end} THEN "grandTotal" ELSE 0 END), 0) AS "todayOrderAmount",
+        COALESCE(SUM(CASE WHEN "orderDate" >= ${start} AND "orderDate" < ${end} THEN paid ELSE 0 END), 0) AS "todayPaid"
+      FROM order_payments
+    `;
+    const row = rows[0] || { previousOrderAmount: 0, previousPaid: 0, todayOrderAmount: 0, todayPaid: 0 };
+    const previousOrderAmount = Number(row.previousOrderAmount || 0);
+    const previousPaid = Number(row.previousPaid || 0);
+    const todayOrderAmount = Number(row.todayOrderAmount || 0);
+    const todayPaid = Number(row.todayPaid || 0);
+    const previousDue = Math.max(previousOrderAmount - previousPaid, 0);
+    const todaysDue = Math.max(todayOrderAmount - todayPaid, 0);
+    return {
+      date,
+      previousOrderAmount,
+      previousPaid,
+      previousDue,
+      todayOrderAmount,
+      todayPaid,
+      todaysDue,
+      totalDue: previousDue + todaysDue
+    };
+  },
+
   updateOrderStatus(input: {
     tenantId: string;
     orderId: string;

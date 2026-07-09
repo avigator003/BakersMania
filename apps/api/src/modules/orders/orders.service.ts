@@ -279,6 +279,13 @@ export const ordersService = {
     };
   },
 
+  customerDaySummary(tenantId: string, auth: AccessTokenPayload | undefined, date: string) {
+    if (auth?.actorType !== "customer" || !auth.customerId) {
+      throw new HttpError(403, "Customer access required");
+    }
+    return ordersRepository.customerDaySummary(tenantId, auth.customerId, date);
+  },
+
   async truckLoading(tenantId: string, filters: { date: string; categoryId?: string }, auth?: AccessTokenPayload) {
     const routeIds = await vehicleRouteIds(tenantId, auth);
     const orders = await ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined });
