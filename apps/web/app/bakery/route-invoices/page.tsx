@@ -64,6 +64,7 @@ export default function RouteInvoicesPage() {
   const toast = useToast();
   const [date, setDate] = useState(today);
   const [rows, setRows] = useState<RouteInvoiceRow[]>([]);
+  const [routeSearch, setRouteSearch] = useState("");
   const [totals, setTotals] = useState<RouteInvoiceResponse["routeInvoices"]["totals"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,6 +100,12 @@ export default function RouteInvoicesPage() {
     () => customers.filter((customer) => customer.routeId === customerRoute?.routeId),
     [customerRoute?.routeId, customers]
   );
+
+  const visibleRows = useMemo(() => {
+    const query = routeSearch.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) => row.routeName.toLowerCase().includes(query));
+  }, [routeSearch, rows]);
 
   function openPayment(row: RouteInvoiceRow) {
     setPaymentRoute(row);
@@ -162,7 +169,16 @@ export default function RouteInvoicesPage() {
   return (
     <AppShell title="Star Bakery" subtitle="Route invoices, dues, and payments" surface="bakery">
       <section className="rounded-lg border border-line bg-panel shadow-subtle">
-        <div className="grid gap-3 border-b border-line p-4 md:grid-cols-[180px_40px] md:items-end md:justify-end">
+        <div className="grid gap-3 border-b border-line p-4 md:grid-cols-[minmax(220px,1fr)_180px_40px] md:items-end">
+          <label className="grid gap-1 text-sm font-semibold">
+            Search Route
+            <input
+              className="h-10 rounded-md border border-line bg-panel2 px-3 outline-none focus:border-mint"
+              onChange={(event) => setRouteSearch(event.target.value)}
+              placeholder="Search routes"
+              value={routeSearch}
+            />
+          </label>
           <label className="grid gap-1 text-sm font-semibold">Date<DateInput className="h-10 rounded-md border border-line bg-panel2 px-3 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
           <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
         </div>
@@ -191,7 +207,7 @@ export default function RouteInvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.routeId}>
                   <td className="px-4 py-3 font-semibold">{row.routeName}</td>
                   <td className="px-4 py-3 text-right">{row.customerCount}</td>
@@ -209,7 +225,7 @@ export default function RouteInvoicesPage() {
                   </td>
                 </tr>
               ))}
-              {!loading && !rows.length ? (
+              {!loading && !visibleRows.length ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted" colSpan={8}>No routes found.</td>
                 </tr>
