@@ -362,6 +362,150 @@ export const ordersRepository = {
     };
   },
 
+  async routeInvoiceSummary(tenantId: string, date: string) {
+    const start = new Date(`${date}T00:00:00.000Z`);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+
+    const rows = await prisma.$queryRaw<Array<{
+      routeId: string;
+      routeName: string;
+      customerCount: unknown;
+      pricedProductCount: unknown;
+      orderAmount: unknown;
+      oldDue: unknown;
+      paidAmount: unknown;
+      totalDue: unknown;
+    }>>`
+      WITH order_base AS (
+        SELECT
+          o.id,
+          COALESCE(o."routeId", c."routeId") AS "routeId",
+          o."grandTotal",
+          COALESCE(o."dueAt", o."createdAt") AS "orderDate"
+        FROM "Order" o
+        JOIN "Customer" c ON c.id = o."customerId"
+        WHERE o."tenantId" = ${tenantId}
+      ),
+      order_paid AS (
+        SELECT
+          ob.id,
+          COALESCE(SUM(p.amount), 0) AS "paidTotal",
+          COALESCE(SUM(CASE WHEN p."paidAt" >= ${start} AND p."paidAt" < ${end} THEN p.amount ELSE 0 END), 0) AS "paidToday"
+        FROM order_base ob
+        LEFT JOIN "Payment" p ON p."orderId" = ob.id
+        GROUP BY ob.id
+      ),
+      order_due AS (
+        SELECT
+          ob.*,
+          op."paidTotal",
+          op."paidToday",
+          GREATEST(ob."grandTotal" - op."paidTotal", 0) AS "dueAmount"
+        FROM order_base ob
+        JOIN order_paid op ON op.id = ob.id
+      )
+      SELECT
+        r.id AS "routeId",
+        r.name AS "routeName",
+        COUNT(DISTINCT c.id) AS "customerCount",
+        COUNT(DISTINCT rpp."productId") AS "pricedProductCount",
+        COALESCE(SUM(CASE WHEN od."orderDate" >= ${start} AND od."orderDate" < ${end} THEN od."grandTotal" ELSE 0 END), 0) AS "orderAmount",
+        COALESCE(SUM(CASE WHEN od."orderDate" < ${start} THEN od."dueAmount" ELSE 0 END), 0) AS "oldDue",
+        COALESCE(SUM(od."paidToday"), 0) AS "paidAmount",
+        COALESCE(SUM(CASE WHEN od."orderDate" < ${end} THEN od."dueAmount" ELSE 0 END), 0) AS "totalDue"
+      FROM "Route" r
+      LEFT JOIN "Customer" c ON c."routeId" = r.id AND c."tenantId" = r."tenantId"
+      LEFT JOIN "RouteProductPrice" rpp ON rpp."routeId" = r.id AND rpp."tenantId" = r."tenantId"
+      LEFT JOIN order_due od ON od."routeId" = r.id
+      WHERE r."tenantId" = ${tenantId}
+        AND r.active = true
+      GROUP BY r.id, r.name
+      ORDER BY r.name ASC
+    `;
+
+    const normalizedRows = rows.map((row) => ({
+      routeId: row.routeId,
+      routeName: row.routeName,
+      customerCount: Number(row.customerCount || 0),
+      pricedProductCount: Number(row.pricedProductCount || 0),
+      orderAmount: Number(row.orderAmount || 0),
+      oldDue: Number(row.oldDue || 0),
+      paidAmount: Number(row.paidAmount || 0),
+      totalDue: Number(row.totalDue || 0)
+    }));
+
+    return {
+      date,
+      totals: {
+        routes: normalizedRows.length,
+        customers: normalizedRows.reduce((sum, row) => sum + row.customerCount, 0),
+        pricedProducts: normalizedRows.reduce((sum, row) => sum + row.pricedProductCount, 0),
+        orderAmount: normalizedRows.reduce((sum, row) => sum + row.orderAmount, 0),
+        oldDue: normalizedRows.reduce((sum, row) => sum + row.oldDue, 0),
+        paidAmount: normalizedRows.reduce((sum, row) => sum + row.paidAmount, 0),
+        totalDue: normalizedRows.reduce((sum, row) => sum + row.totalDue, 0)
+      },
+      rows: normalizedRows
+    };
+  },
+
+  async recordRoutePayment(tenantId: string, routeId: string, input: { amount: number; method: string; reference?: string }) {
+    return prisma.$transaction(async (tx) => {
+      const route = await tx.route.findFirst({ where: { id: routeId, tenantId } });
+      if (!route) return null;
+
+      const orders = await tx.order.findMany({
+        where: {
+          tenantId,
+          OR: [
+            { routeId },
+            { routeId: null, customer: { routeId } }
+          ]
+        },
+        include: { payments: true, invoice: true },
+        orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }]
+      });
+
+      let remaining = input.amount;
+      const payments: Array<{ orderId: string; amount: number }> = [];
+
+      for (const order of orders) {
+        if (remaining <= 0) break;
+        const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+        const due = Math.max(Number(order.grandTotal || 0) - paid, 0);
+        if (due <= 0) continue;
+
+        const amount = Math.min(due, remaining);
+        await tx.payment.create({
+          data: {
+            tenantId,
+            orderId: order.id,
+            amount,
+            method: input.method,
+            reference: input.reference
+          }
+        });
+
+        const nextPaid = paid + amount;
+        const paymentStatus: PaymentStatus = nextPaid >= Number(order.grandTotal || 0) ? "PAID" : "PARTIAL";
+        await tx.order.update({ where: { id: order.id }, data: { paymentStatus } });
+        if (order.invoice) {
+          await tx.invoice.update({ where: { id: order.invoice.id }, data: { paymentStatus } });
+        }
+        payments.push({ orderId: order.id, amount });
+        remaining -= amount;
+      }
+
+      return {
+        route,
+        appliedAmount: input.amount - remaining,
+        unappliedAmount: remaining,
+        payments
+      };
+    });
+  },
+
   updateOrderStatus(input: {
     tenantId: string;
     orderId: string;

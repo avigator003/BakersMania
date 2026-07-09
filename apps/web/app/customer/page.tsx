@@ -42,7 +42,7 @@ export default function CustomerPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [date, setDate] = useState(today);
   const [shopCategoryFilter, setShopCategoryFilter] = useState("");
-  const [shopSearch, setShopSearch] = useState("");
+  const [shopProductFilter, setShopProductFilter] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -52,6 +52,11 @@ export default function CustomerPage() {
   const categoryOptions = useMemo(
     () => categories.filter((category) => category.active !== false).map((category) => ({ value: category.id, label: category.name })),
     [categories]
+  );
+
+  const productOptions = useMemo(
+    () => products.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    [products]
   );
 
   async function loadData() {
@@ -76,11 +81,10 @@ export default function CustomerPage() {
   }, []);
 
   const shopProducts = useMemo(() => products.filter((product) => {
-    const query = shopSearch.trim().toLowerCase();
     if (shopCategoryFilter && product.categoryId !== shopCategoryFilter && product.categoryRef?.id !== shopCategoryFilter) return false;
-    if (query && ![product.name, productCategory(product)].some((value) => value.toLowerCase().includes(query))) return false;
+    if (shopProductFilter && product.id !== shopProductFilter) return false;
     return true;
-  }), [products, shopCategoryFilter, shopSearch]);
+  }), [products, shopCategoryFilter, shopProductFilter]);
 
   const cartTotals = useMemo(() => ({
     items: cart.length,
@@ -133,15 +137,7 @@ export default function CustomerPage() {
         <div className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="grid gap-3 border-b border-line p-4 md:grid-cols-[minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
             <SearchableSelect className="min-w-0" onChange={setShopCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={shopCategoryFilter} />
-            <label className="grid gap-1 text-sm font-semibold">
-              Search
-              <input
-                className="h-10 rounded-md border border-line bg-panel2 px-3 outline-none focus:border-mint"
-                onChange={(event) => setShopSearch(event.target.value)}
-                placeholder="Search products"
-                value={shopSearch}
-              />
-            </label>
+            <SearchableSelect className="min-w-0" onChange={setShopProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={shopProductFilter} />
           </div>
           {loading ? <LoadingSpinner label="Loading shop" /> : null}
           <div className="grid min-h-[220px] gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-3">

@@ -1,7 +1,7 @@
 import type { AccessTokenPayload } from "../../utils/tokens.js";
 import { HttpError } from "../../utils/http.js";
 import { ordersRepository } from "./orders.repository.js";
-import type { CreateOrderInput, RepeatOrdersInput, UpdateOrderStatusInput } from "./orders.schemas.js";
+import type { CreateOrderInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput } from "./orders.schemas.js";
 
 type OrderFilters = {
   startDate?: string;
@@ -277,6 +277,27 @@ export const ordersService = {
       },
       rows
     };
+  },
+
+  routeInvoiceSummary(tenantId: string, auth: AccessTokenPayload | undefined, date: string) {
+    if (auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Bakery access required");
+    }
+    return ordersRepository.routeInvoiceSummary(tenantId, date);
+  },
+
+  async recordRouteInvoicePayment(tenantId: string, auth: AccessTokenPayload | undefined, routeId: string, input: RouteInvoicePaymentInput) {
+    if (auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Bakery access required");
+    }
+    const result = await ordersRepository.recordRoutePayment(tenantId, routeId, input);
+    if (!result) {
+      throw new HttpError(404, "Route not found");
+    }
+    if (result.appliedAmount <= 0) {
+      throw new HttpError(422, "No due orders found for this route");
+    }
+    return result;
   },
 
   customerDaySummary(tenantId: string, auth: AccessTokenPayload | undefined, date: string) {

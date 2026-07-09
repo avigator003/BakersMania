@@ -35,6 +35,7 @@ import {
 const bakeryNav = [
   { href: "/bakery", label: "Dashboard", icon: Home },
   { href: "/bakery/orders", label: "Orders", icon: ClipboardList },
+  { href: "/bakery/route-invoices", label: "Route Invoices", icon: CreditCard },
   { href: "/bakery/truck-loading", label: "Truck Loading", icon: Truck },
   { href: "/bakery/customers", label: "Customers", icon: Users },
   { href: "/bakery/products", label: "Products", icon: Boxes },
@@ -227,6 +228,7 @@ export function AppShell({
       billing: "Billing",
       reports: "Reports",
       orders: "Orders",
+      "route-invoices": "Route Invoices",
       "truck-loading": "Truck Loading",
       customers: "Customers",
       categories: "Categories",

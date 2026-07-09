@@ -31,7 +31,14 @@ export const repeatOrdersSchema = z.object({
   routeId: z.string().optional()
 });
 
+export const routeInvoicePaymentSchema = z.object({
+  amount: z.coerce.number().positive(),
+  method: z.string().min(1).default("Cash"),
+  reference: z.string().optional()
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type RepeatOrdersInput = z.infer<typeof repeatOrdersSchema>;
+export type RouteInvoicePaymentInput = z.infer<typeof routeInvoicePaymentSchema>;

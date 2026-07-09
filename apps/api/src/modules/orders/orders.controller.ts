@@ -67,6 +67,19 @@ export const ordersController = {
     });
   },
 
+  async routeInvoices(req: Request, res: Response) {
+    const today = new Date().toISOString().slice(0, 10);
+    res.json({
+      routeInvoices: await ordersService.routeInvoiceSummary(req.tenant!.id, req.auth, req.query.date ? String(req.query.date) : today)
+    });
+  },
+
+  async recordRouteInvoicePayment(req: Request, res: Response) {
+    res.status(201).json({
+      result: await ordersService.recordRouteInvoicePayment(req.tenant!.id, req.auth, req.params.routeId, req.body)
+    });
+  },
+
   async customerDaySummary(req: Request, res: Response) {
     const today = new Date().toISOString().slice(0, 10);
     res.json({
