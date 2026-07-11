@@ -127,6 +127,7 @@ export default function VehicleRoutesPage() {
 
   const totals = useMemo(() => ({
     orders: orders.length,
+    previousDue: orders.reduce((sum, order) => sum + previousDue(order), 0),
     orderAmount: orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
     due: orders.reduce((sum, order) => sum + todayDue(order), 0),
     paid: orders.reduce((sum, order) => sum + orderPaid(order), 0)
@@ -171,12 +172,12 @@ export default function VehicleRoutesPage() {
   }
 
   function exportCollectionSheet() {
-    const headers = ["Customer", "Phone", "Order Amount", "Previous Due", "Today Due", "Paid Amount", "Payment Method", "Reference"];
+    const headers = ["Customer", "Phone", "Previous Due", "Order Amount", "Today Due", "Paid Amount", "Payment Method", "Reference"];
     const rows = orders.map((order) => [
       order.customer.name,
       order.customer.phone || "",
-      Number(order.grandTotal || 0),
       previousDue(order),
+      Number(order.grandTotal || 0),
       todayDue(order),
       "",
       "",
@@ -205,6 +206,7 @@ export default function VehicleRoutesPage() {
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
               <span>Orders: <span className="font-semibold text-ink">{totals.orders}</span></span>
+              <span>Previous due: <span className="font-semibold text-ink">{formatAmount(totals.previousDue)}</span></span>
               <span>Order amount: <span className="font-semibold text-ink">{formatAmount(totals.orderAmount)}</span></span>
               <span>Collected: <span className="font-semibold text-ink">{formatAmount(totals.paid)}</span></span>
               <span>Today due: <span className="font-semibold text-ink">{formatAmount(totals.due)}</span></span>
@@ -221,8 +223,8 @@ export default function VehicleRoutesPage() {
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3 text-right">Order Amount</th>
                   <th className="px-4 py-3 text-right">Previous Due</th>
+                  <th className="px-4 py-3 text-right">Order Amount</th>
                   <th className="px-4 py-3 text-right">Today's Due</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -236,13 +238,16 @@ export default function VehicleRoutesPage() {
                         <span className="block font-semibold">{order.customer.name}</span>
                         <span className="text-xs text-muted">{order.customer.phone || "No phone"}</span>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todayDue(order))}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
                           <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
                           <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Order details</button>
+                          {order.status === "PENDING" ? (
+                            <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => updateOrder(order, { status: "ACCEPTED" })} type="button">Accept</button>
+                          ) : null}
                           <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" disabled={saving || due <= 0} onClick={() => startPayment(order)} type="button">Record payment</button>
                         </div>
                       </td>

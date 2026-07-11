@@ -20,6 +20,7 @@ export const catalogController = {
   async listProducts(req: Request, res: Response) {
     const result = await catalogService.listProducts(req.tenant!.id, {
       includeInactive: req.auth?.actorType === "bakery_user",
+      customerIdForPreferences: req.auth?.actorType === "customer" ? req.auth.customerId : undefined,
       page: numberQueryParam(req.query.page),
       pageSize: numberQueryParam(req.query.pageSize),
       search: req.query.search ? String(req.query.search) : undefined,
@@ -30,6 +31,12 @@ export const catalogController = {
 
   async getProduct(req: Request, res: Response) {
     res.json({ product: await catalogService.getProduct(req.tenant!.id, req.params.productId) });
+  },
+
+  async setProductPreference(req: Request, res: Response) {
+    res.json({
+      preference: await catalogService.setProductPreference(req.tenant!.id, req.auth, req.params.productId, req.body)
+    });
   },
 
   async listPriceHistory(req: Request, res: Response) {

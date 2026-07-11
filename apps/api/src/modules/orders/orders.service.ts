@@ -83,6 +83,14 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
   };
 }
 
+async function assertOneOrderPerCustomerDate(tenantId: string, customerId: string, input: CreateOrderInput, excludeOrderId?: string) {
+  const orderDate = input.dueAt || new Date();
+  const existing = await ordersRepository.findCustomerOrderOnDate(tenantId, customerId, orderDate, excludeOrderId);
+  if (existing) {
+    throw new HttpError(409, "Only one order is allowed per customer for the selected order date");
+  }
+}
+
 export const ordersService = {
   listOrders(tenantId: string, auth: AccessTokenPayload | undefined, filters: OrderFilters = {}) {
     if (auth?.actorType === "customer") {
@@ -109,6 +117,7 @@ export const ordersService = {
       throw new HttpError(422, "customerId is required for staff-created orders");
     }
 
+    await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, input);
     const payload = await buildOrderPayload(tenantId, resolvedCustomerId, input);
 
     return ordersRepository.createOrder({
@@ -122,16 +131,28 @@ export const ordersService = {
   },
 
   async updateOrder(tenantId: string, auth: AccessTokenPayload | undefined, orderId: string, input: CreateOrderInput) {
-    if (auth?.actorType === "customer" || auth?.actorType === "vehicle") {
-      throw new HttpError(403, "Only bakery staff can edit orders");
+    if (auth?.actorType === "vehicle") {
+      throw new HttpError(403, "Vehicles cannot edit orders");
     }
 
     const existing = await ordersRepository.findOrder(tenantId, orderId);
     if (!existing) {
       throw new HttpError(404, "Order not found");
     }
+    if (existing.status !== "PENDING") {
+      throw new HttpError(422, "Only pending orders can be edited");
+    }
+    if (auth?.actorType === "customer") {
+      if (existing.customerId !== auth.customerId) {
+        throw new HttpError(403, "This order does not belong to this customer");
+      }
+      if (input.customerId && input.customerId !== auth.customerId) {
+        throw new HttpError(403, "Customers cannot move orders to another customer");
+      }
+    }
 
-    const resolvedCustomerId = input.customerId || existing.customerId;
+    const resolvedCustomerId = auth?.actorType === "customer" ? existing.customerId : input.customerId || existing.customerId;
+    await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, input, orderId);
     const payload = await buildOrderPayload(tenantId, resolvedCustomerId, input);
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     const paymentStatus = paid >= payload.totals.grandTotal && payload.totals.grandTotal > 0
@@ -176,6 +197,12 @@ export const ordersService = {
     const routeIds = await vehicleRouteIds(tenantId, auth);
     if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
       throw new HttpError(403, "This order is not assigned to this vehicle");
+    }
+    if (auth?.actorType === "vehicle" && input.status && input.status !== "ACCEPTED") {
+      throw new HttpError(403, "Vehicles can only accept assigned orders");
+    }
+    if (auth?.actorType === "vehicle" && input.status === "ACCEPTED" && existing.status !== "PENDING") {
+      throw new HttpError(422, "Only pending orders can be accepted");
     }
 
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);

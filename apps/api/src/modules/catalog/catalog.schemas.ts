@@ -34,9 +34,14 @@ export const routePriceSchema = z.object({
   notes: z.string().optional()
 });
 
+export const productPreferenceSchema = z.object({
+  preferred: z.boolean().default(true)
+});
+
 export type CategoryInput = z.infer<typeof categorySchema>;
 export type CategoryUpdateInput = z.infer<typeof categoryUpdateSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type CustomerPriceInput = z.infer<typeof customerPriceSchema>;
 export type RoutePriceInput = z.infer<typeof routePriceSchema>;
+export type ProductPreferenceInput = z.infer<typeof productPreferenceSchema>;

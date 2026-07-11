@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -23,6 +23,7 @@ type Category = { id: string; name: string; active?: boolean };
 type Payment = { id: string; amount: string | number; method?: string | null; reference?: string | null; paidAt?: string | null };
 type OrderItem = {
   id: string;
+  productId: string;
   name: string;
   quantity: string | number;
   unitPrice: string | number;
@@ -31,13 +32,21 @@ type OrderItem = {
 };
 type Order = {
   id: string;
+  source: string;
   status: string;
   paymentStatus: string;
+  fulfillmentType: string;
   grandTotal: string | number;
   dueAt?: string | null;
+  notes?: string | null;
   createdAt: string;
   items: OrderItem[];
   payments?: Payment[];
+};
+type OrderFormState = {
+  dueAt: string;
+  notes: string;
+  items: { id: string; productId: string; quantity: string }[];
 };
 type DaySummary = {
   previousDue: number;
@@ -48,7 +57,7 @@ type DaySummary = {
 };
 
 const today = localDateInput();
-const paymentMethods = ["Cash", "UPI"];
+const emptyOrderForm: OrderFormState = { dueAt: today, notes: "", items: [{ id: "row-1", productId: "", quantity: "" }] };
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -89,8 +98,8 @@ export default function CustomerOrdersPage() {
   const [productFilter, setProductFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "Cash", reference: "" });
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -147,40 +156,65 @@ export default function CustomerOrdersPage() {
     return {
       products: rows.length,
       quantity: rows.reduce((sum, row) => sum + Number(row.item.quantity || 0), 0),
+      previousDue: summary?.previousDue || 0,
       orderAmount: rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0),
       paid: uniqueOrders.reduce((sum, order) => sum + paid(order), 0),
-      previousDue: summary?.previousDue || 0,
       todaysDue: summary?.todaysDue || uniqueOrders.reduce((sum, order) => sum + due(order), 0),
       totalDue: summary?.totalDue || uniqueOrders.reduce((sum, order) => sum + due(order), 0)
     };
   }, [rows, summary]);
 
-  function openPayment(order: Order) {
-    setPaymentOrder(order);
-    setPaymentForm({ amount: String(due(order) || ""), method: "Cash", reference: "" });
+  function openEditOrder(order: Order) {
+    setEditOrder(order);
+    setEditForm({
+      dueAt: (order.dueAt || order.createdAt).slice(0, 10),
+      notes: order.notes || "",
+      items: order.items.map((item) => ({ id: item.id, productId: item.productId || item.product?.id || "", quantity: String(item.quantity) }))
+    });
   }
 
-  async function recordPayment(event: FormEvent<HTMLFormElement>) {
+  function updateFormItem(rowId: string, patch: Partial<{ productId: string; quantity: string }>) {
+    setEditForm((current) => ({
+      ...current,
+      items: current.items.map((item) => item.id === rowId ? { ...item, ...patch } : item)
+    }));
+  }
+
+  function addFormItem() {
+    setEditForm((current) => ({ ...current, items: [...current.items, { id: `row-${Date.now()}`, productId: "", quantity: "" }] }));
+  }
+
+  function removeFormItem(rowId: string) {
+    setEditForm((current) => ({ ...current, items: current.items.length === 1 ? current.items : current.items.filter((item) => item.id !== rowId) }));
+  }
+
+  async function updateOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!apiBase || !paymentOrder) return;
+    if (!apiBase || !editOrder) return;
+    const items = editForm.items
+      .filter((item) => item.productId && Number(item.quantity) > 0)
+      .map((item) => ({ productId: item.productId, quantity: Number(item.quantity) }));
+    if (!items.length) {
+      toast.warning("No products selected", "Add at least one product quantity.");
+      return;
+    }
     setSaving(true);
     try {
-      const amount = Number(paymentForm.amount || 0);
-      const dueAmount = due(paymentOrder);
-      await authFetch(`${apiBase}/orders/${paymentOrder.id}/status`, {
+      await authFetch(`${apiBase}/orders/${editOrder.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          paymentStatus: amount >= dueAmount ? "PAID" : "PARTIAL",
-          paymentAmount: amount >= dueAmount ? undefined : amount,
-          paymentMethod: paymentForm.method,
-          reference: paymentForm.reference || undefined
+          source: editOrder.source,
+          fulfillmentType: editOrder.fulfillmentType,
+          dueAt: editForm.dueAt,
+          notes: editForm.notes || undefined,
+          items
         })
       });
-      toast.success("Payment updated", "The payment status was changed.");
-      setPaymentOrder(null);
+      toast.success("Order updated", "Pending order quantities were recalculated.");
+      setEditOrder(null);
       await loadData();
     } catch (error) {
-      toast.error("Payment failed", error instanceof Error ? error.message : "Could not update payment.");
+      toast.error("Order update failed", error instanceof Error ? error.message : "Could not update order.");
     } finally {
       setSaving(false);
     }
@@ -201,9 +235,9 @@ export default function CustomerOrdersPage() {
         <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-3 lg:grid-cols-7">
           <span className="rounded-md bg-panel2 p-3">Products<br /><strong>{totals.products}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Quantity<br /><strong>{formatQty(totals.quantity)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Previous Due<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals.orderAmount)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Paid<br /><strong>{formatAmount(totals.paid)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Previous Due<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Today&apos;s Due<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Total Due<br /><strong>{formatAmount(totals.totalDue)}</strong></span>
         </div>
@@ -214,11 +248,11 @@ export default function CustomerOrdersPage() {
                 <th className="px-4 py-3">Product</th>
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3 text-right">Quantity</th>
+                <th className="px-4 py-3 text-right">Previous Due</th>
                 <th className="px-4 py-3 text-right">Order Amount</th>
                 <th className="px-4 py-3 text-right">Paid</th>
-                <th className="px-4 py-3 text-right">Previous Due</th>
                 <th className="px-4 py-3 text-right">Today&apos;s Due</th>
-                <th className="px-4 py-3">Payment</th>
+                <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -227,14 +261,16 @@ export default function CustomerOrdersPage() {
                   <td className="px-4 py-3 font-semibold">{row.item.name}</td>
                   <td className="px-4 py-3 text-muted">{row.category}</td>
                   <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
+                  <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
                   <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
-                  <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.dueAmount)}</td>
                   <td className="px-4 py-3">
-                    <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold disabled:opacity-50" disabled={!row.dueAmount || saving} onClick={() => openPayment(row.order)} type="button">
-                      {row.dueAmount ? "Record Payment" : "Paid"}
-                    </button>
+                    {row.order.status === "PENDING" ? (
+                      <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(row.order)} type="button">
+                        <Pencil size={14} /> Edit
+                      </button>
+                    ) : <span className="text-xs text-muted">{row.order.status}</span>}
                   </td>
                 </tr>
               ))}
@@ -248,15 +284,30 @@ export default function CustomerOrdersPage() {
         </div>
       </section>
 
-      <Modal open={Boolean(paymentOrder)} title="Record payment" description={paymentOrder ? `Due ${formatAmount(due(paymentOrder))}` : ""} onClose={() => setPaymentOrder(null)}>
-        {paymentOrder ? (
-          <form className="grid gap-4" onSubmit={recordPayment}>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={due(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required type="number" value={paymentForm.amount} /></label>
-            <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
-            <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
+      <Modal open={Boolean(editOrder)} title="Edit pending order" description="Pending orders can be changed until the bakery or vehicle accepts them." onClose={() => setEditOrder(null)}>
+        {editOrder ? (
+          <form className="grid gap-4" onSubmit={updateOrder}>
+            <label className="grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setEditForm((current) => ({ ...current, dueAt: value }))} value={editForm.dueAt} /></label>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Products</p>
+                <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold" onClick={addFormItem} type="button"><Plus size={15} /> Add Product</button>
+              </div>
+              {editForm.items.map((item) => (
+                <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[1fr_120px_40px]" key={item.id}>
+                  <select className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => updateFormItem(item.id, { productId: event.target.value })} required value={item.productId}>
+                    <option value="">Select product</option>
+                    {products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatAmount(product.unitPrice)}</option>)}
+                  </select>
+                  <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" min="0.001" onChange={(event) => updateFormItem(item.id, { quantity: event.target.value })} placeholder="Qty" required step="0.001" type="number" value={item.quantity} />
+                  <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" disabled={editForm.items.length === 1} onClick={() => removeFormItem(item.id)} title="Remove product" type="button"><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
+            <label className="grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} value={editForm.notes} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPaymentOrder(null)} type="button">Cancel</button>
-              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setEditOrder(null)} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Order"}</button>
             </div>
           </form>
         ) : null}

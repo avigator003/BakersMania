@@ -1,7 +1,8 @@
 import { catalogRepository } from "./catalog.repository.js";
 import type { PriceHistoryFilters, ProductListFilters } from "./catalog.repository.js";
-import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
+import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductPreferenceInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
 import { HttpError } from "../../utils/http.js";
+import type { AccessTokenPayload } from "../../utils/tokens.js";
 
 export const catalogService = {
   listCategories(tenantId: string) {
@@ -30,6 +31,17 @@ export const catalogService = {
       throw new HttpError(404, "Product not found");
     }
     return product;
+  },
+
+  async setProductPreference(tenantId: string, auth: AccessTokenPayload | undefined, productId: string, input: ProductPreferenceInput) {
+    if (auth?.actorType !== "customer" || !auth.customerId) {
+      throw new HttpError(403, "Customer access required");
+    }
+    const product = await catalogRepository.findProduct(tenantId, productId);
+    if (!product) {
+      throw new HttpError(404, "Product not found");
+    }
+    return catalogRepository.setProductPreference(tenantId, auth.customerId, productId, input.preferred);
   },
 
   async listPriceHistory(tenantId: string, productId: string, filters: PriceHistoryFilters = {}) {

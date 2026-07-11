@@ -4,6 +4,7 @@ import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInp
 
 export type ProductListFilters = PaginationInput & {
   includeInactive?: boolean;
+  customerIdForPreferences?: string;
   search?: string;
   categoryId?: string;
 };
@@ -112,13 +113,37 @@ export const catalogRepository = {
       prisma.product.findMany({
         where,
         orderBy: [{ active: "desc" }, { name: "asc" }],
-        include: { categoryRef: true },
+        include: {
+          categoryRef: true,
+          ...(filters.customerIdForPreferences
+            ? { customerPreferences: { where: { customerId: filters.customerIdForPreferences }, select: { id: true } } }
+            : {})
+        },
         skip,
         take: pageSize
       }),
       prisma.product.count({ where })
     ]);
-    return { products, pagination: paginationMeta(total, page, pageSize) };
+    return {
+      products: products.map((product) => ({
+        ...product,
+        isPreferred: "customerPreferences" in product ? product.customerPreferences.length > 0 : false
+      })),
+      pagination: paginationMeta(total, page, pageSize)
+    };
+  },
+
+  async setProductPreference(tenantId: string, customerId: string, productId: string, preferred: boolean) {
+    if (!preferred) {
+      await prisma.customerProductPreference.deleteMany({ where: { tenantId, customerId, productId } });
+      return { tenantId, customerId, productId, preferred: false };
+    }
+    const preference = await prisma.customerProductPreference.upsert({
+      where: { tenantId_productId_customerId: { tenantId, productId, customerId } },
+      update: {},
+      create: { tenantId, productId, customerId }
+    });
+    return { ...preference, preferred: true };
   },
 
   async createProduct(tenantId: string, input: ProductInput) {

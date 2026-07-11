@@ -16,6 +16,7 @@ import {
   Menu,
   Settings,
   ShoppingBag,
+  ShoppingCart,
   Truck,
   Users,
   X
@@ -192,6 +193,7 @@ export function AppShell({
   const nav = surface === "customer"
     ? [
         { href: `${routeBase}/customer`, label: "Shop", icon: ShoppingBag },
+        { href: `${routeBase}/customer/cart`, label: "Cart", icon: ShoppingCart },
         { href: `${routeBase}/customer/orders`, label: "Orders", icon: ClipboardList },
         { href: `${routeBase}/customer/billing`, label: "Invoices", icon: CreditCard }
       ]

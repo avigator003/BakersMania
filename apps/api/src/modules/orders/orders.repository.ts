@@ -175,6 +175,24 @@ export const ordersRepository = {
     });
   },
 
+  findCustomerOrderOnDate(tenantId: string, customerId: string, date: Date, excludeOrderId?: string) {
+    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return prisma.order.findFirst({
+      where: {
+        tenantId,
+        customerId,
+        ...(excludeOrderId ? { id: { not: excludeOrderId } } : {}),
+        OR: [
+          { dueAt: { gte: start, lt: end } },
+          { dueAt: null, createdAt: { gte: start, lt: end } }
+        ]
+      },
+      select: { id: true }
+    });
+  },
+
   truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[] }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);

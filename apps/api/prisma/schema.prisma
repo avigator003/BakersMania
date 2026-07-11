@@ -97,6 +97,7 @@ model Tenant {
   productCategories ProductCategory[]
   products       Product[]
   customerProductPrices CustomerProductPrice[]
+  customerProductPreferences CustomerProductPreference[]
   customerProductPriceHistory CustomerProductPriceHistory[]
   routeProductPrices RouteProductPrice[]
   orders         Order[]
@@ -191,6 +192,7 @@ model Customer {
   route     Route?   @relation(fields: [routeId], references: [id])
   orders    Order[]
   productPrices CustomerProductPrice[]
+  productPreferences CustomerProductPreference[]
   productPriceHistory CustomerProductPriceHistory[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -232,6 +234,7 @@ model Product {
   tenant      Tenant      @relation(fields: [tenantId], references: [id])
   categoryRef ProductCategory? @relation(fields: [categoryId], references: [id])
   customerPrices CustomerProductPrice[]
+  customerPreferences CustomerProductPreference[]
   customerPriceHistory CustomerProductPriceHistory[]
   routePrices RouteProductPrice[]
   orderItems  OrderItem[]
@@ -252,6 +255,23 @@ model CustomerProductPrice {
   customerId String
   price      Decimal  @db.Decimal(12, 2)
   notes      String?
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, productId, customerId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, productId])
+  @@index([tenantId, customerId, productId])
+}
+
+model CustomerProductPreference {
+  id         String   @id @default(cuid())
+  tenantId   String
+  productId  String
+  customerId String
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   product    Product  @relation(fields: [productId], references: [id])
   customer   Customer @relation(fields: [customerId], references: [id])

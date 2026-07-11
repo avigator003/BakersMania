@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { Plus, ShoppingCart, Star, Trash2 } from "lucide-react";
 import { AppShell } from "../../components/shell";
-import { DateInput, localDateInput } from "../../components/date-input";
+import { DateInput, addLocalDays, localDateInput } from "../../components/date-input";
 import { LoadingSpinner } from "../../components/loading-spinner";
 import { SearchableSelect } from "../../components/searchable-select";
 import { useToast } from "../../components/toast-provider";
@@ -17,11 +17,12 @@ type Product = {
   categoryRef?: { id: string; name: string } | null;
   unitPrice: string | number;
   active: boolean;
+  isPreferred?: boolean;
 };
 type Category = { id: string; name: string; active?: boolean };
 type CartItem = { id: string; name: string; unitPrice: string | number; quantity: number };
 
-const today = localDateInput();
+const tomorrow = localDateInput(addLocalDays(new Date(), 1));
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -40,7 +41,7 @@ export default function CustomerPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(tomorrow);
   const [shopCategoryFilter, setShopCategoryFilter] = useState("");
   const [shopProductFilter, setShopProductFilter] = useState("");
   const [notes, setNotes] = useState("");
@@ -54,9 +55,14 @@ export default function CustomerPage() {
     [categories]
   );
 
-  const productOptions = useMemo(
-    () => products.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+  const sortedProducts = useMemo(
+    () => [...products].sort((a, b) => Number(Boolean(b.isPreferred)) - Number(Boolean(a.isPreferred)) || a.name.localeCompare(b.name)),
     [products]
+  );
+
+  const productOptions = useMemo(
+    () => sortedProducts.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    [sortedProducts]
   );
 
   async function loadData() {
@@ -80,11 +86,11 @@ export default function CustomerPage() {
     loadData();
   }, []);
 
-  const shopProducts = useMemo(() => products.filter((product) => {
+  const shopProducts = useMemo(() => sortedProducts.filter((product) => {
     if (shopCategoryFilter && product.categoryId !== shopCategoryFilter && product.categoryRef?.id !== shopCategoryFilter) return false;
     if (shopProductFilter && product.id !== shopProductFilter) return false;
     return true;
-  }), [products, shopCategoryFilter, shopProductFilter]);
+  }), [shopCategoryFilter, shopProductFilter, sortedProducts]);
 
   const cartTotals = useMemo(() => ({
     items: cart.length,
@@ -104,6 +110,21 @@ export default function CustomerPage() {
 
   function updateQuantity(productId: string, quantity: number) {
     setCart((current) => current.map((item) => item.id === productId ? { ...item, quantity } : item).filter((item) => item.quantity > 0));
+  }
+
+  async function togglePreference(product: Product) {
+    if (!apiBase) return;
+    const preferred = !product.isPreferred;
+    setProducts((current) => current.map((item) => item.id === product.id ? { ...item, isPreferred: preferred } : item));
+    try {
+      await authFetch(`${apiBase}/catalog/products/${product.id}/preference`, {
+        method: "PATCH",
+        body: JSON.stringify({ preferred })
+      });
+    } catch (error) {
+      setProducts((current) => current.map((item) => item.id === product.id ? { ...item, isPreferred: product.isPreferred } : item));
+      toast.error("Preference failed", error instanceof Error ? error.message : "Could not update product preference.");
+    }
   }
 
   async function placeOrder(event: FormEvent<HTMLFormElement>) {
@@ -143,8 +164,19 @@ export default function CustomerPage() {
           <div className="grid min-h-[220px] gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-3">
             {shopProducts.map((product) => (
               <article className="rounded-lg border border-line bg-panel2 p-4" key={product.id}>
-                <p className="text-sm text-mint">{productCategory(product)}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-mint">{productCategory(product)}</p>
+                  <button
+                    className={`focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${product.isPreferred ? "border-amber-300 bg-amber-100 text-amber-700" : "border-line bg-panel"}`}
+                    onClick={() => togglePreference(product)}
+                    title={product.isPreferred ? "Remove preference" : "Add as preference"}
+                    type="button"
+                  >
+                    <Star fill={product.isPreferred ? "currentColor" : "none"} size={16} />
+                  </button>
+                </div>
                 <h2 className="mt-1 min-h-12 font-semibold">{product.name}</h2>
+                {product.isPreferred ? <p className="mt-2 text-xs font-semibold uppercase text-amber-700">Preferred</p> : null}
                 <p className="mt-3 text-xl font-bold">{formatAmount(product.unitPrice)}</p>
                 <button className="focus-ring mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-mint px-4 py-3 font-semibold text-white" onClick={() => addProduct(product)} type="button">
                   <Plus size={18} />

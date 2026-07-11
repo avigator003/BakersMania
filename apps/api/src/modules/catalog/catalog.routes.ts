@@ -4,7 +4,7 @@ import { resolveTenant } from "../../middleware/tenant.js";
 import { validateBody } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/http.js";
 import { catalogController } from "./catalog.controller.js";
-import { categorySchema, categoryUpdateSchema, customerPriceSchema, productSchema, productUpdateSchema, routePriceSchema } from "./catalog.schemas.js";
+import { categorySchema, categoryUpdateSchema, customerPriceSchema, productPreferenceSchema, productSchema, productUpdateSchema, routePriceSchema } from "./catalog.schemas.js";
 
 export const catalogRouter = Router({ mergeParams: true });
 
@@ -16,6 +16,7 @@ catalogRouter.patch("/categories/:categoryId", requireAuth, validateBody(categor
 catalogRouter.get("/products", asyncHandler(catalogController.listProducts));
 catalogRouter.post("/products", requireAuth, validateBody(productSchema), asyncHandler(catalogController.createProduct));
 catalogRouter.get("/products/:productId", requireAuth, asyncHandler(catalogController.getProduct));
+catalogRouter.patch("/products/:productId/preference", requireAuth, validateBody(productPreferenceSchema), asyncHandler(catalogController.setProductPreference));
 catalogRouter.get("/products/:productId/price-history", requireAuth, asyncHandler(catalogController.listPriceHistory));
 catalogRouter.patch("/products/:productId", requireAuth, validateBody(productUpdateSchema), asyncHandler(catalogController.updateProduct));
 catalogRouter.post("/customer-prices", requireAuth, validateBody(customerPriceSchema), asyncHandler(catalogController.upsertCustomerPrice));

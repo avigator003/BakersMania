@@ -61,13 +61,14 @@ type PaginatedOrdersResponse = {
 };
 
 const today = localDateInput();
+const tomorrow = localDateInput(addLocalDays(new Date(), 1));
 const orderStatuses = ["PENDING", "ACCEPTED", "COMPLETED"];
 const paymentStatuses = ["UNPAID", "PARTIAL", "PAID"];
 const emptyOrderForm: OrderFormState = {
   customerId: "",
   source: "STAFF_CREATED",
   fulfillmentType: "DELIVERY",
-  dueAt: today,
+  dueAt: tomorrow,
   notes: "",
   items: [{ id: "row-1", productId: "", quantity: "" }]
 };
@@ -195,7 +196,7 @@ export default function BakeryOrdersPage() {
       amount: orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
       paid: orders.reduce((sum, order) => sum + orderPaid(order), 0),
       due: orders.reduce((sum, order) => sum + orderDue(order), 0),
-      todaysDue: orders.reduce((sum, order) => sum + (isCarryForwardDue(order) ? orderDue(order) : 0), 0)
+      previousDue: orders.reduce((sum, order) => sum + (isCarryForwardDue(order) ? orderDue(order) : 0), 0)
     };
   }, [orders]);
 
@@ -268,6 +269,10 @@ export default function BakeryOrdersPage() {
   }
 
   function openEditOrder(order: Order) {
+    if (order.status !== "PENDING") {
+      toast.warning("Order already accepted", "Only pending orders can be edited.");
+      return;
+    }
     setEditOrder(order);
     setEditForm({
       customerId: order.customer.id,
@@ -587,9 +592,9 @@ export default function BakeryOrdersPage() {
                 setPageSize={setPageSize}
                 summary={[
                   { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
-                  { label: "Total", value: formatAmount(orderTotals.amount) },
-                  { label: "Due", value: formatAmount(orderTotals.due) },
-                  { label: "Today due", value: formatAmount(orderTotals.todaysDue) }
+                  { label: "Previous Due", value: formatAmount(orderTotals.previousDue) },
+                  { label: "Order Amount", value: formatAmount(orderTotals.amount) },
+                  { label: "Total Due", value: formatAmount(orderTotals.due) }
                 ]}
                 total={ordersTotal}
               />
@@ -597,7 +602,7 @@ export default function BakeryOrdersPage() {
                 {orders.map((order) => {
                   const paid = orderPaid(order);
                   const due = orderDue(order);
-                  const todaysDue = isCarryForwardDue(order) ? due : 0;
+                  const previousDue = isCarryForwardDue(order) ? due : 0;
                   return (
                     <article key={order.id} className="rounded-lg border border-line bg-panel2 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -608,6 +613,10 @@ export default function BakeryOrdersPage() {
                         <span className="shrink-0 rounded-md bg-panel px-2 py-1 text-xs font-semibold">{order.items.length} items</span>
                       </div>
                       <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                        <span>
+                          <span className="block text-xs text-muted">Previous Due</span>
+                          <span className="font-semibold">{formatAmount(previousDue)}</span>
+                        </span>
                         <span>
                           <span className="block text-xs text-muted">Order</span>
                           <span className="font-semibold">{formatAmount(order.grandTotal)}</span>
@@ -621,8 +630,8 @@ export default function BakeryOrdersPage() {
                           <span className="font-semibold text-berry">{formatAmount(due)}</span>
                         </span>
                       </div>
-                      {todaysDue ? (
-                        <p className="mt-3 rounded-md bg-panel px-3 py-2 text-xs font-semibold">Today's Due: {formatAmount(todaysDue)}</p>
+                      {previousDue ? (
+                        <p className="mt-3 rounded-md bg-panel px-3 py-2 text-xs font-semibold">Previous Due: {formatAmount(previousDue)}</p>
                       ) : null}
                       <div className="mt-3">
                         <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
@@ -649,7 +658,7 @@ export default function BakeryOrdersPage() {
                         <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => setViewOrder(order)} title="View order details" type="button">
                           <Eye size={15} />
                         </button>
-                        <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openEditOrder(order)} title="Edit order" type="button">
+                        <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel disabled:opacity-50" disabled={order.status !== "PENDING"} onClick={() => openEditOrder(order)} title="Edit order" type="button">
                           <Pencil size={15} />
                         </button>
                         <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => exportOrderInvoice(order)} title="Export invoice" type="button">
@@ -668,10 +677,10 @@ export default function BakeryOrdersPage() {
                     <tr>
                       <th className="px-4 py-3">Customer (Route)</th>
                       <th className="px-4 py-3 text-right">Products No.</th>
-                      <th className="px-4 py-3 text-right">Order</th>
+                      <th className="px-4 py-3 text-right">Previous Due</th>
+                      <th className="px-4 py-3 text-right">Order Amount</th>
                       <th className="px-4 py-3 text-right">Due</th>
                       <th className="px-4 py-3 text-right">Paid</th>
-                      <th className="px-4 py-3 text-right">Today's Due</th>
                       <th className="px-4 py-3">Order Date</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Payment Status</th>
@@ -681,7 +690,7 @@ export default function BakeryOrdersPage() {
                     {orders.map((order) => {
                       const paid = orderPaid(order);
                       const due = orderDue(order);
-                      const todaysDue = isCarryForwardDue(order) ? due : 0;
+                      const previousDue = isCarryForwardDue(order) ? due : 0;
                       return (
                       <tr className="align-top" key={order.id}>
                         <td className="px-4 py-3">
@@ -690,7 +699,7 @@ export default function BakeryOrdersPage() {
                               <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2" onClick={() => setViewOrder(order)} title="View order details" type="button">
                                 <Eye size={15} />
                               </button>
-                              <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2" onClick={() => openEditOrder(order)} title="Edit order" type="button">
+                              <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={order.status !== "PENDING"} onClick={() => openEditOrder(order)} title="Edit order" type="button">
                                 <Pencil size={15} />
                               </button>
                               <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderInvoice(order)} title="Export invoice" type="button">
@@ -704,10 +713,10 @@ export default function BakeryOrdersPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right">{order.items.length}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{previousDue ? formatAmount(previousDue) : "-"}</td>
                         <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
                         <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(due)}</td>
                         <td className="px-4 py-3 text-right">{formatAmount(paid)}</td>
-                        <td className="px-4 py-3 text-right font-semibold">{todaysDue ? formatAmount(todaysDue) : "-"}</td>
                         <td className="px-4 py-3">{formatDate(order.dueAt || order.createdAt)}</td>
                         <td className="px-4 py-3">
                           <select
