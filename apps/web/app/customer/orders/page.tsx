@@ -266,11 +266,15 @@ export default function CustomerOrdersPage() {
                   <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.dueAmount)}</td>
                   <td className="px-4 py-3">
-                    {row.order.status === "PENDING" ? (
-                      <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(row.order)} type="button">
-                        <Pencil size={14} /> Edit
-                      </button>
-                    ) : <span className="text-xs text-muted">{row.order.status}</span>}
+                    <button
+                      className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                      disabled={saving || row.order.status !== "PENDING"}
+                      onClick={() => openEditOrder(row.order)}
+                      title={row.order.status === "PENDING" ? "Edit order" : `Cannot edit ${row.order.status.toLowerCase()} order`}
+                      type="button"
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
                   </td>
                 </tr>
               ))}
