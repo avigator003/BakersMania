@@ -8,6 +8,7 @@ import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
 import { PhotoPicker } from "../../../components/photo-picker";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -120,6 +121,8 @@ export default function BakeryRoutesPage() {
   const [vehiclesPageSize, setVehiclesPageSize] = useState(25);
   const [vehiclesPageCount, setVehiclesPageCount] = useState(1);
   const [vehiclesTotal, setVehiclesTotal] = useState(0);
+  const [routeFilter, setRouteFilter] = useState<string[]>([]);
+  const [vehicleFilter, setVehicleFilter] = useState<string[]>([]);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
@@ -146,6 +149,39 @@ export default function BakeryRoutesPage() {
 
   function selectedVehicleConflict(currentRouteId?: string) {
     return routeForm.vehicleId ? assignedRouteForVehicle(routeForm.vehicleId, currentRouteId) : null;
+  }
+
+  const routeOptions = useMemo(() => routes.map((route) => ({
+    value: route.id,
+    label: route.name,
+    description: route.vehicle ? `${route.vehicle.name} · ${route.vehicle.number || "No number"}` : "No vehicle"
+  })), [routes]);
+
+  const vehicleOptions = useMemo(() => vehicles.map((vehicle) => ({
+    value: vehicle.id,
+    label: vehicle.name,
+    description: [vehicle.number, vehicle.driverName, vehicle.driverPhone].filter(Boolean).join(" · ") || "No details"
+  })), [vehicles]);
+
+  const visibleRoutes = useMemo(
+    () => routeFilter.length ? routes.filter((route) => routeFilter.includes(route.id)) : routes,
+    [routeFilter, routes]
+  );
+
+  const visibleVehicles = useMemo(
+    () => vehicleFilter.length ? vehicles.filter((vehicle) => vehicleFilter.includes(vehicle.id)) : vehicles,
+    [vehicleFilter, vehicles]
+  );
+
+  function assignableVehicleOptions(currentRouteId?: string) {
+    return vehicles
+      .filter((vehicle) => vehicle.active || vehicle.id === routeForm.vehicleId)
+      .filter((vehicle) => !assignedRouteForVehicle(vehicle.id, currentRouteId))
+      .map((vehicle) => ({
+        value: vehicle.id,
+        label: vehicle.name,
+        description: [vehicle.number || "No number", vehicle.driverName, vehicle.driverPhone].filter(Boolean).join(" · ")
+      }));
   }
 
   async function loadData() {
@@ -348,6 +384,9 @@ export default function BakeryRoutesPage() {
 
           {activeTab === "routes" ? (
             <>
+            <div className="border-b border-line p-3">
+              <SearchableSelect multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
+            </div>
             <PaginationControls
               page={routesPage}
               pageCount={routesPageCount}
@@ -356,13 +395,13 @@ export default function BakeryRoutesPage() {
               setPageSize={setRoutesPageSize}
               total={routesTotal}
               summary={[
-                { label: "Active routes", value: routes.filter((route) => route.active).length },
+                { label: "Active routes", value: visibleRoutes.filter((route) => route.active).length },
                 { label: "Vehicles", value: vehiclesTotal },
                 { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
               ]}
             />
             <div className="grid gap-3 p-3 sm:hidden">
-              {routes.map((route) => (
+              {visibleRoutes.map((route) => (
                 <article key={route.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -382,7 +421,7 @@ export default function BakeryRoutesPage() {
                   </div>
                 </article>
               ))}
-              {!loading && !routes.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No routes found.</p> : null}
+              {!loading && !visibleRoutes.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No routes found.</p> : null}
             </div>
             <div className="hidden max-h-[680px] w-full max-w-full overflow-auto sm:block">
               <table className="w-full min-w-[860px] border-collapse text-left text-sm">
@@ -396,7 +435,7 @@ export default function BakeryRoutesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {routes.map((route) => (
+                  {visibleRoutes.map((route) => (
                     <tr key={route.id}>
                       <td className="px-4 py-3 font-semibold">{route.name}</td>
                       <td className="px-4 py-3">
@@ -418,7 +457,7 @@ export default function BakeryRoutesPage() {
                       </td>
                     </tr>
                   ))}
-                  {!loading && !routes.length ? (
+                  {!loading && !visibleRoutes.length ? (
                     <tr>
                       <td className="px-4 py-6 text-center text-sm text-muted" colSpan={5}>No routes found.</td>
                     </tr>
@@ -429,6 +468,9 @@ export default function BakeryRoutesPage() {
             </>
           ) : (
             <>
+            <div className="border-b border-line p-3">
+              <SearchableSelect multiple onChange={setVehicleFilter} options={vehicleOptions} placeholder="All vehicles" searchPlaceholder="Search vehicles" value={vehicleFilter} />
+            </div>
             <PaginationControls
               page={vehiclesPage}
               pageCount={vehiclesPageCount}
@@ -439,11 +481,11 @@ export default function BakeryRoutesPage() {
               summary={[
                 { label: "Routes", value: routesTotal },
                 { label: "Active routes", value: routes.filter((route) => route.active).length },
-                { label: "Active vehicles", value: vehicles.filter((vehicle) => vehicle.active).length }
+                { label: "Active vehicles", value: visibleVehicles.filter((vehicle) => vehicle.active).length }
               ]}
             />
             <div className="grid gap-3 p-3 sm:hidden">
-              {vehicles.map((vehicle) => (
+              {visibleVehicles.map((vehicle) => (
                 <article key={vehicle.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -468,7 +510,7 @@ export default function BakeryRoutesPage() {
                   </div>
                 </article>
               ))}
-              {!loading && !vehicles.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No vehicles found.</p> : null}
+              {!loading && !visibleVehicles.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No vehicles found.</p> : null}
             </div>
             <div className="hidden max-h-[680px] w-full max-w-full overflow-auto sm:block">
               <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
@@ -485,7 +527,7 @@ export default function BakeryRoutesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {vehicles.map((vehicle) => (
+                  {visibleVehicles.map((vehicle) => (
                     <tr key={vehicle.id} className="align-top">
                       <td className="px-4 py-3">
                         <span className="block font-semibold">{vehicle.name}</span>
@@ -512,7 +554,7 @@ export default function BakeryRoutesPage() {
                       </td>
                     </tr>
                   ))}
-                  {!loading && !vehicles.length ? (
+                  {!loading && !visibleVehicles.length ? (
                     <tr>
                       <td className="px-4 py-6 text-center text-sm text-muted" colSpan={8}>No vehicles found.</td>
                     </tr>
@@ -532,17 +574,7 @@ export default function BakeryRoutesPage() {
             </label>
             <label className="grid gap-1">
               <span className="text-sm font-medium">Vehicle</span>
-              <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRouteForm((current) => ({ ...current, vehicleId: event.target.value }))} value={routeForm.vehicleId}>
-                <option value="">No vehicle</option>
-                {vehicles.filter((vehicle) => vehicle.active).map((vehicle) => {
-                  const assignedRoute = assignedRouteForVehicle(vehicle.id);
-                  return (
-                    <option disabled={Boolean(assignedRoute)} key={vehicle.id} value={vehicle.id}>
-                      {vehicle.name} · {vehicle.number || "No number"}{assignedRoute ? ` · Assigned to ${assignedRoute.name}` : ""}
-                    </option>
-                  );
-                })}
-              </select>
+              <SearchableSelect onChange={(value) => setRouteForm((current) => ({ ...current, vehicleId: value }))} options={assignableVehicleOptions()} placeholder="No vehicle" searchPlaceholder="Search vehicles" value={routeForm.vehicleId} />
               {selectedVehicleConflict() ? <span className="text-xs font-medium text-berry">This vehicle is already assigned to {selectedVehicleConflict()?.name}.</span> : null}
             </label>
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -572,17 +604,7 @@ export default function BakeryRoutesPage() {
             </label>
             <label className="grid gap-1">
               <span className="text-sm font-medium">Vehicle</span>
-              <select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setRouteForm((current) => ({ ...current, vehicleId: event.target.value }))} value={routeForm.vehicleId}>
-                <option value="">No vehicle</option>
-                {vehicles.filter((vehicle) => vehicle.active || vehicle.id === routeForm.vehicleId).map((vehicle) => {
-                  const assignedRoute = assignedRouteForVehicle(vehicle.id, editRoute?.id);
-                  return (
-                    <option disabled={Boolean(assignedRoute)} key={vehicle.id} value={vehicle.id}>
-                      {vehicle.name} · {vehicle.number || "No number"}{assignedRoute ? ` · Assigned to ${assignedRoute.name}` : ""}
-                    </option>
-                  );
-                })}
-              </select>
+              <SearchableSelect onChange={(value) => setRouteForm((current) => ({ ...current, vehicleId: value }))} options={assignableVehicleOptions(editRoute?.id)} placeholder="No vehicle" searchPlaceholder="Search vehicles" value={routeForm.vehicleId} />
               {selectedVehicleConflict(editRoute?.id) ? <span className="text-xs font-medium text-berry">This vehicle is already assigned to {selectedVehicleConflict(editRoute?.id)?.name}.</span> : null}
             </label>
             <label className="flex items-center gap-2 text-sm font-semibold">

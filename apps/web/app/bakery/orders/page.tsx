@@ -63,7 +63,12 @@ type PaginatedOrdersResponse = {
 const today = localDateInput();
 const tomorrow = localDateInput(addLocalDays(new Date(), 1));
 const orderStatuses = ["PENDING", "ACCEPTED", "COMPLETED"];
-const paymentStatuses = ["UNPAID", "PARTIAL", "PAID"];
+const paymentMethods = ["Cash", "UPI"];
+const paymentTypes = [
+  { value: "PARTIAL", label: "Partial" },
+  { value: "ORDER_FULL", label: "Order Full Payment" },
+  { value: "DUE_FULL", label: "Due Full Payment" }
+];
 const emptyOrderForm: OrderFormState = {
   customerId: "",
   source: "STAFF_CREATED",
@@ -93,6 +98,14 @@ function orderPaid(order: Order) {
 
 function orderDue(order: Order) {
   return paymentDue(order.grandTotal, order.payments);
+}
+
+function totalAmount(previousDue: number, orderAmount: string | number) {
+  return Number(previousDue || 0) + Number(orderAmount || 0);
+}
+
+function todaysDueAmount(previousDue: number, orderAmount: string | number, paidAmount: string | number) {
+  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
 }
 
 function isCarryForwardDue(order: Order) {
@@ -144,6 +157,17 @@ function downloadFile(content: string, type: string, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+function printInvoicePdf(html: string) {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+  if (!printWindow) return false;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  return true;
+}
+
 export default function BakeryOrdersPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -157,7 +181,7 @@ export default function BakeryOrdersPage() {
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "Cash", reference: "" });
+  const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
   const [search, setSearch] = useState("");
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
@@ -190,13 +214,19 @@ export default function BakeryOrdersPage() {
   })), [routes]);
 
   const orderTotals = useMemo(() => {
+    const previousDue = orders.reduce((sum, order) => sum + (isCarryForwardDue(order) ? orderDue(order) : 0), 0);
+    const amount = orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
+    const paid = orders.reduce((sum, order) => sum + orderPaid(order), 0);
+    const fullAmount = totalAmount(previousDue, amount);
     return {
       orders: orders.length,
       quantity: orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
-      amount: orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
-      paid: orders.reduce((sum, order) => sum + orderPaid(order), 0),
+      amount,
+      paid,
       due: orders.reduce((sum, order) => sum + orderDue(order), 0),
-      previousDue: orders.reduce((sum, order) => sum + (isCarryForwardDue(order) ? orderDue(order) : 0), 0)
+      previousDue,
+      totalAmount: fullAmount,
+      todaysDue: Math.max(fullAmount - paid, 0)
     };
   }, [orders]);
 
@@ -365,7 +395,7 @@ export default function BakeryOrdersPage() {
       });
       toast.success("Order updated", patch.paymentStatus ? "Payment status was updated." : "Order status was updated.");
       setPaymentOrder(null);
-      setPaymentForm({ amount: "", method: "Cash", reference: "" });
+      setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
       await loadData();
     } catch (error) {
       toast.error("Update failed", error instanceof Error ? error.message : "Could not update order.");
@@ -374,31 +404,63 @@ export default function BakeryOrdersPage() {
     }
   }
 
-  function handlePaymentStatusChange(order: Order, nextStatus: string) {
-    if (nextStatus === paymentStatus(order)) return;
-    if (nextStatus === "PARTIAL") {
-      const due = orderDue(order);
-      setPaymentOrder(order);
-      setPaymentForm({ amount: due ? String(due) : "", method: "Cash", reference: "" });
-      return;
-    }
-    updateOrderStatus(order, { paymentStatus: nextStatus });
+  function previousDueForOrder(order: Order) {
+    return isCarryForwardDue(order) ? orderDue(order) : 0;
   }
 
-  async function recordPartialPayment(event: FormEvent<HTMLFormElement>) {
+  function todayDueForOrder(order: Order) {
+    return todaysDueAmount(previousDueForOrder(order), order.grandTotal, orderPaid(order));
+  }
+
+  function paymentAmountForType(order: Order, type: string) {
+    if (type === "ORDER_FULL") return Number(order.grandTotal || 0);
+    if (type === "DUE_FULL") return todayDueForOrder(order);
+    return 0;
+  }
+
+  function openPaymentEditor(order: Order, type = "PARTIAL") {
+    const existingPayment = order.payments?.[0];
+    const amount = existingPayment ? Number(existingPayment.amount || 0) : paymentAmountForType(order, type);
+    setPaymentOrder(order);
+    setPaymentForm({
+      type,
+      amount: amount ? String(amount) : "",
+      method: existingPayment?.method || "Cash",
+      reference: existingPayment?.reference || ""
+    });
+  }
+
+  async function recordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!paymentOrder) return;
     const amount = Number(paymentForm.amount);
-    if (!amount || amount <= 0) {
+    if (paymentForm.type === "PARTIAL" && (!amount || amount <= 0)) {
       toast.warning("Amount required", "Enter the partial payment amount.");
       return;
     }
-    await updateOrderStatus(paymentOrder, {
-      paymentStatus: "PARTIAL",
-      paymentAmount: amount,
-      paymentMethod: paymentForm.method,
-      reference: paymentForm.reference || undefined
-    });
+    if (!apiBase || !paymentOrder.customer.id) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/orders/customers/${paymentOrder.customer.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          mode: paymentForm.type,
+          orderId: paymentOrder.id,
+          date: (paymentOrder.dueAt || paymentOrder.createdAt).slice(0, 10),
+          amount: paymentForm.type === "PARTIAL" ? amount : undefined,
+          method: paymentForm.method,
+          reference: paymentForm.reference || undefined
+        })
+      });
+      toast.success("Payment saved", `${paymentOrder.customer.name} payment was updated.`);
+      setPaymentOrder(null);
+      setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
+      await loadData();
+    } catch (error) {
+      toast.error("Payment failed", error instanceof Error ? error.message : "Could not save this payment.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function exportOrderInvoice(order: Order) {
@@ -408,7 +470,9 @@ export default function BakeryOrdersPage() {
         method: "POST"
       });
       const paid = orderPaid(order);
-      const due = orderDue(order);
+      const previousDue = isCarryForwardDue(order) ? orderDue(order) : 0;
+      const fullAmount = totalAmount(previousDue, order.grandTotal);
+      const due = todaysDueAmount(previousDue, order.grandTotal, paid);
       const productRows = order.items.map((item) => `
         <tr>
           <td>${escapeHtml(item.name)}</td>
@@ -463,9 +527,11 @@ export default function BakeryOrdersPage() {
     <tbody>${productRows}</tbody>
   </table>
   <div class="totals">
-    <div><span>Order</span><span>${escapeHtml(formatAmount(order.grandTotal))}</span></div>
-    <div><span>Paid</span><span>${escapeHtml(formatAmount(paid))}</span></div>
-    <div class="strong"><span>Due</span><span>${escapeHtml(formatAmount(due))}</span></div>
+    <div><span>Previous Due Amount</span><span>${escapeHtml(formatAmount(previousDue))}</span></div>
+    <div><span>Order Amount</span><span>${escapeHtml(formatAmount(order.grandTotal))}</span></div>
+    <div><span>Total Amount</span><span>${escapeHtml(formatAmount(fullAmount))}</span></div>
+    <div><span>Paid Amount</span><span>${escapeHtml(formatAmount(paid))}</span></div>
+    <div class="strong"><span>Today's Due Amount</span><span>${escapeHtml(formatAmount(due))}</span></div>
     <div><span>Payment status</span><span>${escapeHtml(paymentStatus(order))}</span></div>
   </div>
   <h2>Payment History</h2>
@@ -477,36 +543,11 @@ export default function BakeryOrdersPage() {
   </table>
 </body>
 </html>`;
-      const fileBase = `${invoice.invoiceNumber}-${order.customer.name.replaceAll(" ", "-").toLowerCase()}`;
-      const csvRows = [
-        ["Invoice Number", invoice.invoiceNumber],
-        ["Order ID", order.id],
-        ["Customer", order.customer.name],
-        ["Route", getOrderRouteName(order)],
-        ["Order Date", formatDate(order.dueAt || order.createdAt)],
-        ["Order Status", order.status],
-        ["Payment Status", paymentStatus(order)],
-        [],
-        ["Product", "Quantity", "Unit Price", "Line Total"],
-        ...order.items.map((item) => [item.name, formatQty(item.quantity) || "0", Number(item.unitPrice || 0), Number(item.lineTotal || 0)]),
-        [],
-        ["Order Total", "", "", Number(order.grandTotal || 0)],
-        ["Paid", "", "", paid],
-        ["Due", "", "", due],
-        [],
-        ["Payment #", "Date", "Method", "Reference", "Amount"],
-        ...(order.payments || []).map((payment, index) => [
-          index + 1,
-          formatDate(payment.paidAt),
-          payment.method || "Cash",
-          payment.reference || "",
-          Number(payment.amount || 0)
-        ])
-      ];
-      const csv = csvRows.map((row) => row.map(csvCell).join(",")).join("\n");
-      downloadFile(html, "text/html;charset=utf-8", `${fileBase}.html`);
-      downloadFile(csv, "text/csv;charset=utf-8", `${fileBase}.csv`);
-      toast.success("Invoice exported", `${invoice.invoiceNumber} HTML and CSV downloaded.`);
+      if (!printInvoicePdf(html)) {
+        toast.error("PDF export blocked", "Allow pop-ups to print or save this invoice as PDF.");
+        return;
+      }
+      toast.success("Invoice ready", `${invoice.invoiceNumber} opened for PDF printing.`);
       await loadData();
     } catch (error) {
       toast.error("Invoice export failed", error instanceof Error ? error.message : "Could not export invoice.");
@@ -547,12 +588,14 @@ export default function BakeryOrdersPage() {
         ["End Date", statement.endDate],
         ["Customers", statement.totals.customers],
         ["Orders", statement.totals.orders],
-        ["Order Total", statement.totals.orderTotal],
-        ["Paid", statement.totals.paidTotal],
-        ["Due", statement.totals.dueTotal],
+        ["Previous Due Amount", 0],
+        ["Order Amount", statement.totals.orderTotal],
+        ["Total Amount", statement.totals.orderTotal],
+        ["Paid Amount", statement.totals.paidTotal],
+        ["Today's Due Amount", statement.totals.dueTotal],
         [],
-        ["Route", "Customer", "Orders", "Order Total", "Paid", "Due"],
-        ...statement.rows.map((row) => [row.routeName, row.customerName, row.orderCount, row.orderTotal, row.paidTotal, row.dueTotal])
+        ["Route", "Customer", "Orders", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount"],
+        ...statement.rows.map((row) => [row.routeName, row.customerName, row.orderCount, 0, row.orderTotal, row.orderTotal, row.paidTotal, row.dueTotal])
       ];
       downloadFile(rows.map((row) => row.map(csvCell).join(",")).join("\n"), "text/csv;charset=utf-8", `route-statement-${statement.startDate}-to-${statement.endDate}.csv`);
       toast.success("Statement exported", `${statement.rows.length} customer row${statement.rows.length === 1 ? "" : "s"} downloaded.`);
@@ -592,9 +635,11 @@ export default function BakeryOrdersPage() {
                 setPageSize={setPageSize}
                 summary={[
                   { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
-                  { label: "Previous Due", value: formatAmount(orderTotals.previousDue) },
+                  { label: "Previous Due Amount", value: formatAmount(orderTotals.previousDue) },
                   { label: "Order Amount", value: formatAmount(orderTotals.amount) },
-                  { label: "Total Due", value: formatAmount(orderTotals.due) }
+                  { label: "Total Amount", value: formatAmount(orderTotals.totalAmount) },
+                  { label: "Paid Amount", value: formatAmount(orderTotals.paid) },
+                  { label: "Today's Due Amount", value: formatAmount(orderTotals.todaysDue) }
                 ]}
                 total={ordersTotal}
               />
@@ -603,6 +648,7 @@ export default function BakeryOrdersPage() {
                   const paid = orderPaid(order);
                   const due = orderDue(order);
                   const previousDue = isCarryForwardDue(order) ? due : 0;
+                  const fullAmount = totalAmount(previousDue, order.grandTotal);
                   return (
                     <article key={order.id} className="rounded-lg border border-line bg-panel2 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -612,26 +658,30 @@ export default function BakeryOrdersPage() {
                         </div>
                         <span className="shrink-0 rounded-md bg-panel px-2 py-1 text-xs font-semibold">{order.items.length} items</span>
                       </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                         <span>
-                          <span className="block text-xs text-muted">Previous Due</span>
+                          <span className="block text-xs text-muted">Previous Due Amount</span>
                           <span className="font-semibold">{formatAmount(previousDue)}</span>
                         </span>
                         <span>
-                          <span className="block text-xs text-muted">Order</span>
+                          <span className="block text-xs text-muted">Order Amount</span>
                           <span className="font-semibold">{formatAmount(order.grandTotal)}</span>
                         </span>
                         <span>
-                          <span className="block text-xs text-muted">Paid</span>
+                          <span className="block text-xs text-muted">Total Amount</span>
+                          <span className="font-semibold">{formatAmount(fullAmount)}</span>
+                        </span>
+                        <span>
+                          <span className="block text-xs text-muted">Paid Amount</span>
                           <span className="font-semibold">{formatAmount(paid)}</span>
                         </span>
                         <span>
-                          <span className="block text-xs text-muted">Due</span>
-                          <span className="font-semibold text-berry">{formatAmount(due)}</span>
+                          <span className="block text-xs text-muted">Today&apos;s Due Amount</span>
+                          <span className="font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, order.grandTotal, paid))}</span>
                         </span>
                       </div>
                       {previousDue ? (
-                        <p className="mt-3 rounded-md bg-panel px-3 py-2 text-xs font-semibold">Previous Due: {formatAmount(previousDue)}</p>
+                        <p className="mt-3 rounded-md bg-panel px-3 py-2 text-xs font-semibold">Previous Due Amount: {formatAmount(previousDue)}</p>
                       ) : null}
                       <div className="mt-3">
                         <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
@@ -645,14 +695,8 @@ export default function BakeryOrdersPage() {
                         >
                           {orderStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                         </select>
-                        <select
-                          className={`focus-ring rounded-md border px-2 py-2 text-xs font-semibold outline-none ${paymentStatusClass(paymentStatus(order))}`}
-                          disabled={saving}
-                          onChange={(event) => handlePaymentStatusChange(order, event.target.value)}
-                          value={paymentStatus(order)}
-                        >
-                          {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                        </select>
+                        <span className={`rounded-md border px-2 py-2 text-xs font-semibold ${paymentStatusClass(paymentStatus(order))}`}>{paymentStatus(order)}</span>
+                        <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={saving || (todayDueForOrder(order) <= 0 && !order.payments?.length)} onClick={() => openPaymentEditor(order)} type="button">{order.payments?.length ? "Edit payment" : "Record payment"}</button>
                       </div>
                       <div className="mt-3 grid grid-cols-3 gap-2">
                         <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => setViewOrder(order)} title="View order details" type="button">
@@ -672,15 +716,16 @@ export default function BakeryOrdersPage() {
               </div>
 
               <div className="hidden max-h-[680px] w-full max-w-full overflow-auto sm:block">
-                <table className="min-w-[1120px] text-left text-sm">
+                <table className="min-w-[1260px] text-left text-sm">
                   <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                     <tr>
                       <th className="px-4 py-3">Customer (Route)</th>
                       <th className="px-4 py-3 text-right">Products No.</th>
-                      <th className="px-4 py-3 text-right">Previous Due</th>
+                      <th className="px-4 py-3 text-right">Previous Due Amount</th>
                       <th className="px-4 py-3 text-right">Order Amount</th>
-                      <th className="px-4 py-3 text-right">Due</th>
-                      <th className="px-4 py-3 text-right">Paid</th>
+                      <th className="px-4 py-3 text-right">Total Amount</th>
+                      <th className="px-4 py-3 text-right">Paid Amount</th>
+                      <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
                       <th className="px-4 py-3">Order Date</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Payment Status</th>
@@ -691,6 +736,7 @@ export default function BakeryOrdersPage() {
                       const paid = orderPaid(order);
                       const due = orderDue(order);
                       const previousDue = isCarryForwardDue(order) ? due : 0;
+                      const fullAmount = totalAmount(previousDue, order.grandTotal);
                       return (
                       <tr className="align-top" key={order.id}>
                         <td className="px-4 py-3">
@@ -715,8 +761,9 @@ export default function BakeryOrdersPage() {
                         <td className="px-4 py-3 text-right">{order.items.length}</td>
                         <td className="px-4 py-3 text-right font-semibold">{previousDue ? formatAmount(previousDue) : "-"}</td>
                         <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(due)}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{formatAmount(fullAmount)}</td>
                         <td className="px-4 py-3 text-right">{formatAmount(paid)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, order.grandTotal, paid))}</td>
                         <td className="px-4 py-3">{formatDate(order.dueAt || order.createdAt)}</td>
                         <td className="px-4 py-3">
                           <select
@@ -730,21 +777,15 @@ export default function BakeryOrdersPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="grid gap-2">
-                            <select
-                              className={`focus-ring rounded-md border px-2 py-1 text-xs font-semibold outline-none ${paymentStatusClass(paymentStatus(order))}`}
-                              disabled={saving}
-                              onChange={(event) => handlePaymentStatusChange(order, event.target.value)}
-                              value={paymentStatus(order)}
-                            >
-                              {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                            </select>
+                            <span className={`rounded-md border px-2 py-1 text-center text-xs font-semibold ${paymentStatusClass(paymentStatus(order))}`}>{paymentStatus(order)}</span>
+                            <button className="focus-ring rounded-md bg-mint px-2 py-1 text-xs font-semibold text-white disabled:opacity-50" disabled={saving || (todayDueForOrder(order) <= 0 && !order.payments?.length)} onClick={() => openPaymentEditor(order)} type="button">{order.payments?.length ? "Edit payment" : "Record payment"}</button>
                             <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
                           </div>
                         </td>
                       </tr>
                       );
                     })}
-                    {!loading && !orders.length ? <tr><td className="px-4 py-8 text-center text-muted" colSpan={9}>No orders found.</td></tr> : null}
+                    {!loading && !orders.length ? <tr><td className="px-4 py-8 text-center text-muted" colSpan={10}>No orders found.</td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -816,13 +857,13 @@ export default function BakeryOrdersPage() {
                 <p className="text-sm text-muted">{viewOrder.source} · {viewOrder.fulfillmentType}</p>
               </div>
               <div>
-                <p className="text-xs uppercase text-muted">Order</p>
+                <p className="text-xs uppercase text-muted">Order Amount</p>
                 <p className="mt-1 font-semibold">{formatAmount(viewOrder.grandTotal)}</p>
               </div>
               <div>
                 <p className="text-xs uppercase text-muted">Payment</p>
                 <p className="mt-1 font-semibold">{paymentStatus(viewOrder)}</p>
-                <p className="text-sm text-muted">Paid {formatAmount(orderPaid(viewOrder))} · Due {formatAmount(orderDue(viewOrder))}</p>
+                <p className="text-sm text-muted">Paid Amount {formatAmount(orderPaid(viewOrder))} · Today&apos;s Due Amount {formatAmount(todaysDueAmount(isCarryForwardDue(viewOrder) ? orderDue(viewOrder) : 0, viewOrder.grandTotal, orderPaid(viewOrder)))}</p>
               </div>
             </div>
 
@@ -913,36 +954,64 @@ export default function BakeryOrdersPage() {
         </form>
       </Modal>
 
-      <Modal open={Boolean(paymentOrder)} title="Record partial payment" description="Add the amount received for this order." onClose={() => setPaymentOrder(null)}>
+      <Modal open={Boolean(paymentOrder)} title={paymentOrder?.payments?.length ? "Edit payment" : "Record payment"} description="Save the single payment amount for this order." onClose={() => setPaymentOrder(null)}>
         {paymentOrder ? (
-          <form className="grid gap-4" onSubmit={recordPartialPayment}>
-            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-3">
+          <form className="grid gap-4" onSubmit={recordPayment}>
+            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-5">
               <div>
-                <p className="text-xs uppercase text-muted">Order</p>
+                <p className="text-xs uppercase text-muted">Previous Due Amount</p>
+                <p className="mt-1 font-semibold">{formatAmount(previousDueForOrder(paymentOrder))}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-muted">Order Amount</p>
                 <p className="mt-1 font-semibold">{formatAmount(paymentOrder.grandTotal)}</p>
               </div>
               <div>
-                <p className="text-xs uppercase text-muted">Paid</p>
+                <p className="text-xs uppercase text-muted">Total Amount</p>
+                <p className="mt-1 font-semibold">{formatAmount(totalAmount(previousDueForOrder(paymentOrder), paymentOrder.grandTotal))}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-muted">Paid Amount</p>
                 <p className="mt-1 font-semibold">{formatAmount(orderPaid(paymentOrder))}</p>
               </div>
               <div>
-                <p className="text-xs uppercase text-muted">Due</p>
-                <p className="mt-1 font-semibold text-berry">{formatAmount(orderDue(paymentOrder))}</p>
+                <p className="text-xs uppercase text-muted">Today&apos;s Due Amount</p>
+                <p className="mt-1 font-semibold text-berry">{formatAmount(todayDueForOrder(paymentOrder))}</p>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-sm font-semibold">
-                Partial amount
+                Payment type
+                <select
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(event) => {
+                    const type = event.target.value;
+                    setPaymentForm((current) => ({
+                      ...current,
+                      type,
+                      amount: type === "PARTIAL" ? "" : String(paymentAmountForType(paymentOrder, type) || "")
+                    }));
+                  }}
+                  value={paymentForm.type}
+                >
+                  {paymentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm font-semibold">
+                Amount
                 <input
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
-                  max={orderDue(paymentOrder)}
+                  max={paymentForm.type === "PARTIAL" ? totalAmount(previousDueForOrder(paymentOrder), paymentOrder.grandTotal) : undefined}
                   min="1"
                   onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))}
+                  readOnly={paymentForm.type !== "PARTIAL"}
                   required
                   type="number"
                   value={paymentForm.amount}
                 />
               </label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-sm font-semibold">
                 Method
                 <select
@@ -950,8 +1019,7 @@ export default function BakeryOrdersPage() {
                   onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))}
                   value={paymentForm.method}
                 >
-                  <option value="Cash">Cash</option>
-                  <option value="UPI">UPI</option>
+                  {paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
                 </select>
               </label>
             </div>
@@ -966,7 +1034,7 @@ export default function BakeryOrdersPage() {
             </label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPaymentOrder(null)} type="button">Cancel</button>
-              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Record Payment"}</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
             </div>
           </form>
         ) : null}

@@ -14,6 +14,7 @@ export const staffRepository = {
     const nextDay = new Date(day);
     nextDay.setDate(nextDay.getDate() + 1);
     const monthStart = new Date(day.getFullYear(), day.getMonth(), 1);
+    const nextMonth = new Date(day.getFullYear(), day.getMonth() + 1, 1);
     const { page, pageSize, skip } = pagination(filters);
     const search = filters.search?.trim();
     const labourWhere = {
@@ -35,8 +36,8 @@ export const staffRepository = {
         where: labourWhere,
         orderBy: [{ active: "desc" }, { createdAt: "desc" }],
         include: {
-          attendance: { orderBy: { workDate: "desc" }, take: 5 },
-          salaryPayments: { orderBy: { paidAt: "desc" }, take: 5 }
+          attendance: { where: { workDate: { lt: nextMonth } }, orderBy: { workDate: "desc" } },
+          salaryPayments: { where: { paidAt: { lt: nextMonth } }, orderBy: { paidAt: "desc" } }
         },
         skip,
         take: pageSize
@@ -50,7 +51,7 @@ export const staffRepository = {
         orderBy: { createdAt: "desc" }
       }),
       prisma.salaryPayment.findMany({
-        where: { tenantId, paidAt: { gte: monthStart } },
+        where: { tenantId, paidAt: { gte: monthStart, lt: nextMonth } },
         include: { labour: true },
         orderBy: { paidAt: "desc" }
       }),
@@ -116,6 +117,14 @@ export const staffRepository = {
       prisma.salaryPayment.findMany({
         where: { tenantId, labourId, paidAt: { gte: from, lt: to } },
         orderBy: { paidAt: "desc" }
+      }),
+      prisma.attendance.findMany({
+        where: { tenantId, labourId, workDate: { lt: to } },
+        orderBy: { workDate: "asc" }
+      }),
+      prisma.salaryPayment.findMany({
+        where: { tenantId, labourId, paidAt: { lt: to } },
+        orderBy: { paidAt: "asc" }
       })
     ]);
   },

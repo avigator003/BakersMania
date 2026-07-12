@@ -61,6 +61,11 @@ enum OrderStatus {
   CANCELED
 }
 
+enum VehicleOrderStatus {
+  PENDING
+  ACCEPTED
+}
+
 enum PaymentStatus {
   UNPAID
   PARTIAL
@@ -327,6 +332,7 @@ model Order {
   customerId      String
   source          OrderSource
   status          OrderStatus     @default(PENDING)
+  vehicleStatus   VehicleOrderStatus @default(PENDING)
   paymentStatus   PaymentStatus   @default(UNPAID)
   fulfillmentType FulfillmentType @default(PICKUP)
   dueAt           DateTime?
@@ -346,6 +352,7 @@ model Order {
   updatedAt       DateTime        @updatedAt
 
   @@index([tenantId, status])
+  @@index([tenantId, vehicleStatus])
   @@index([tenantId, customerId])
   @@index([tenantId, createdAt])
   @@index([tenantId, dueAt])
@@ -408,6 +415,7 @@ model Payment {
   @@index([tenantId, paidAt])
   @@index([tenantId, orderId])
   @@index([tenantId, invoiceId])
+  @@unique([tenantId, orderId])
 }
 
 model InventoryItem {

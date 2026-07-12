@@ -18,6 +18,7 @@ type TruckLoading = {
 };
 
 const today = localDateInput();
+const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 
 function formatQty(value?: string | number | null) {
   const amount = Number(value || 0);
@@ -26,6 +27,10 @@ function formatQty(value?: string | number | null) {
 
 function csvCell(value: string | number | null | undefined) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
+  return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
 }
 
 export default function BakeryTruckLoadingPage() {
@@ -79,7 +84,7 @@ export default function BakeryTruckLoadingPage() {
       const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
       const productMatches = !productFilter.length || productFilter.includes(product.id);
       return categoryMatches && productMatches;
-    });
+    }).sort(productSort);
   }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {

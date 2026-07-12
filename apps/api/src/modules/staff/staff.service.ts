@@ -14,6 +14,18 @@ function monthRange(month?: string) {
   };
 }
 
+function dayStart(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function daysBetween(from: Date, to: Date) {
+  return Math.max(0, Math.round((dayStart(to).getTime() - dayStart(from).getTime()) / 86400000));
+}
+
+function nextMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
+}
+
 function yearRange(year?: string) {
   const parsedYear = Number(year);
   const now = new Date();
@@ -36,6 +48,81 @@ function emptyPaymentCounts() {
   return Object.fromEntries(paymentTypes.map((type) => [type, 0])) as Record<(typeof paymentTypes)[number], number>;
 }
 
+function payableAttendanceDays(attendance: Array<{ workDate: Date; status: string }>, joinedAt: Date, monthStart: Date, monthEnd: Date) {
+  const eligibleStart = dayStart(joinedAt) > dayStart(monthStart) ? dayStart(joinedAt) : dayStart(monthStart);
+  return attendance.reduce((sum, item) => {
+    const workDate = dayStart(item.workDate);
+    if (workDate < eligibleStart || workDate >= monthEnd) return sum;
+    if (item.status === "PRESENT" || item.status === "PAID_LEAVE") return sum + 1;
+    if (item.status === "HALF_DAY") return sum + 0.5;
+    return sum;
+  }, 0);
+}
+
+function salaryCalculation(input: {
+  monthlySalary?: unknown;
+  joinedAt: Date;
+  attendance: Array<{ workDate: Date; status: string }>;
+  payments: Array<{ amount: unknown; paidAt: Date }>;
+  monthStart: Date;
+  monthEnd: Date;
+}) {
+  const monthlySalary = Number(input.monthlySalary || 0);
+  let cursor = new Date(input.joinedAt.getFullYear(), input.joinedAt.getMonth(), 1);
+  let carryForwardAmount = 0;
+  let selected = {
+    daysInMonth: daysBetween(input.monthStart, input.monthEnd),
+    eligibleDays: 0,
+    payableDays: 0,
+    dailySalary: 0,
+    payableAmount: 0,
+    paidAmount: 0,
+    openingAdvanceAmount: 0,
+    advanceAppliedAmount: 0,
+    carryForwardAmount: 0,
+    balanceAmount: 0
+  };
+
+  while (cursor < input.monthEnd) {
+    const cursorEnd = nextMonth(cursor);
+    const eligibleStart = dayStart(input.joinedAt) > dayStart(cursor) ? dayStart(input.joinedAt) : dayStart(cursor);
+    const eligibleDays = input.joinedAt >= cursorEnd ? 0 : daysBetween(eligibleStart, cursorEnd);
+    const payableDays = payableAttendanceDays(input.attendance, input.joinedAt, cursor, cursorEnd);
+    const daysInMonth = daysBetween(cursor, cursorEnd);
+    const dailySalary = daysInMonth ? monthlySalary / daysInMonth : 0;
+    const payableAmount = Math.round(dailySalary * payableDays);
+    const paidAmount = input.payments
+      .filter((payment) => payment.paidAt >= cursor && payment.paidAt < cursorEnd)
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const openingAdvanceAmount = carryForwardAmount;
+    const advanceAppliedAmount = Math.min(openingAdvanceAmount, payableAmount);
+    const balanceAmount = Math.max(payableAmount - advanceAppliedAmount - paidAmount, 0);
+    carryForwardAmount = Math.max(openingAdvanceAmount + paidAmount - payableAmount, 0);
+
+    if (cursor.getFullYear() === input.monthStart.getFullYear() && cursor.getMonth() === input.monthStart.getMonth()) {
+      selected = {
+        daysInMonth,
+        eligibleDays,
+        payableDays,
+        dailySalary,
+        payableAmount,
+        paidAmount,
+        openingAdvanceAmount,
+        advanceAppliedAmount,
+        carryForwardAmount,
+        balanceAmount
+      };
+    }
+
+    cursor = cursorEnd;
+  }
+
+  return {
+    monthlySalary,
+    ...selected
+  };
+}
+
 export const staffService = {
   async listLabourDashboard(tenantId: string, attendanceDate?: Date, filters: LabourDashboardFilters = {}) {
     const dashboard = await staffRepository.listLabourDashboard(tenantId, attendanceDate, filters);
@@ -55,7 +142,20 @@ export const staffService = {
         .reduce((sum, payment) => sum + Number(payment.amount), 0)
     };
 
-    return { stats, labours, todayAttendance, recentAttendance, recentPayments, pagination: dashboard.pagination };
+    const selectedMonth = monthRange(attendanceDate ? `${attendanceDate.getFullYear()}-${String(attendanceDate.getMonth() + 1).padStart(2, "0")}` : undefined);
+    const laboursWithSalary = labours.map((labour) => ({
+      ...labour,
+      salaryCalculation: salaryCalculation({
+        monthlySalary: labour.monthlySalary,
+        joinedAt: labour.joinedAt,
+        attendance: labour.attendance,
+        payments: labour.salaryPayments,
+        monthStart: selectedMonth.from,
+        monthEnd: selectedMonth.to
+      })
+    }));
+
+    return { stats, labours: laboursWithSalary, todayAttendance, recentAttendance, recentPayments, pagination: dashboard.pagination };
   },
 
   createLabour(tenantId: string, input: LabourInput) {
@@ -185,17 +285,36 @@ export const staffService = {
 
   async getLabourDetail(tenantId: string, labourId: string, month?: string) {
     const range = monthRange(month);
-    const [labour, attendance, payments] = await staffRepository.getLabourDetail(tenantId, labourId, range.from, range.to);
+    const [labour, attendance, payments, calculationAttendance, calculationPayments] = await staffRepository.getLabourDetail(tenantId, labourId, range.from, range.to);
 
     if (!labour) {
       return null;
     }
+
+    const calculation = salaryCalculation({
+      monthlySalary: labour.monthlySalary,
+      joinedAt: labour.joinedAt,
+      attendance: calculationAttendance,
+      payments: calculationPayments,
+      monthStart: range.from,
+      monthEnd: range.to
+    });
 
     const stats = {
       presentDays: attendance.filter((item) => item.status === "PRESENT").length,
       halfDays: attendance.filter((item) => item.status === "HALF_DAY").length,
       absentDays: attendance.filter((item) => item.status === "ABSENT").length,
       leaveDays: attendance.filter((item) => item.status === "PAID_LEAVE" || item.status === "UNPAID_LEAVE").length,
+      daysInMonth: calculation.daysInMonth,
+      eligibleDays: calculation.eligibleDays,
+      payableDays: calculation.payableDays,
+      dailySalary: calculation.dailySalary,
+      payableAmount: calculation.payableAmount,
+      paidAmount: calculation.paidAmount,
+      openingAdvanceAmount: calculation.openingAdvanceAmount,
+      advanceAppliedAmount: calculation.advanceAppliedAmount,
+      carryForwardAmount: calculation.carryForwardAmount,
+      balanceAmount: calculation.balanceAmount,
       totalPaid: payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
       advancePaid: payments.filter((payment) => payment.paymentType === "ADVANCE").reduce((sum, payment) => sum + Number(payment.amount), 0),
       partialPaid: payments.filter((payment) => payment.paymentType === "PARTIAL").reduce((sum, payment) => sum + Number(payment.amount), 0),

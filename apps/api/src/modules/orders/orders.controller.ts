@@ -80,6 +80,12 @@ export const ordersController = {
     });
   },
 
+  async recordCustomerPayment(req: Request, res: Response) {
+    res.status(201).json({
+      result: await ordersService.recordCustomerPayment(req.tenant!.id, req.auth, req.params.customerId, req.body)
+    });
+  },
+
   async customerDaySummary(req: Request, res: Response) {
     const today = new Date().toISOString().slice(0, 10);
     res.json({

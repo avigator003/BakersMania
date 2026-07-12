@@ -1,6 +1,6 @@
-import { OrderSource, OrderStatus, PaymentStatus, type Prisma } from "@prisma/client";
+import { OrderSource, OrderStatus, PaymentStatus, Prisma, VehicleOrderStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
-import type { CreateOrderInput } from "./orders.schemas.js";
+import type { CreateOrderInput, CustomerPaymentInput } from "./orders.schemas.js";
 
 type OrderListFilters = {
   startDate?: string;
@@ -135,6 +135,38 @@ type CalculatedOrderItem = {
 };
 
 export const ordersRepository = {
+  async cleanupExpiredPendingOrders(cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)) {
+    return prisma.$transaction(async (tx) => {
+      const expiredOrders = await tx.order.findMany({
+        where: {
+          status: "PENDING",
+          OR: [
+            { dueAt: { lt: cutoff } },
+            { dueAt: null, createdAt: { lt: cutoff } }
+          ]
+        },
+        select: { id: true }
+      });
+      const orderIds = expiredOrders.map((order) => order.id);
+      if (!orderIds.length) {
+        return { deleted: 0 };
+      }
+
+      await tx.payment.deleteMany({
+        where: {
+          OR: [
+            { orderId: { in: orderIds } },
+            { invoice: { orderId: { in: orderIds } } }
+          ]
+        }
+      });
+      await tx.invoice.deleteMany({ where: { orderId: { in: orderIds } } });
+      await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+      await tx.order.deleteMany({ where: { id: { in: orderIds } } });
+      return { deleted: orderIds.length };
+    });
+  },
+
   listForStaff(tenantId: string, filters: OrderListFilters = {}) {
     return paginatedOrders(buildOrderWhere(tenantId, filters), filters, { createdAt: "desc" });
   },
@@ -215,12 +247,77 @@ export const ordersRepository = {
       include: {
         route: true,
         customer: { include: { route: true } },
+        payments: true,
         items: {
           where: filters.categoryId && filters.categoryId !== "all" ? { product: { categoryId: filters.categoryId } } : {},
           include: { product: { include: { categoryRef: true } } }
         }
       },
       orderBy: [{ route: { name: "asc" } }, { createdAt: "asc" }]
+    });
+  },
+
+  async truckLoadingRouteTotals(tenantId: string, filters: { date: string; routeIds?: string[] }) {
+    const start = new Date(`${filters.date}T00:00:00.000Z`);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    const routeFilter = filters.routeIds?.length
+      ? Prisma.sql`AND COALESCE(o."routeId", c."routeId") IN (${Prisma.join(filters.routeIds)})`
+      : Prisma.empty;
+    const rows = await prisma.$queryRaw<Array<{
+      routeId: string;
+      previousDue: unknown;
+      orderAmount: unknown;
+      paidAmount: unknown;
+    }>>`
+      WITH order_base AS (
+        SELECT
+          o.id,
+          COALESCE(o."routeId", c."routeId") AS "routeId",
+          o."grandTotal",
+          COALESCE(o."dueAt", o."createdAt") AS "orderDate"
+        FROM "Order" o
+        JOIN "Customer" c ON c.id = o."customerId"
+        WHERE o."tenantId" = ${tenantId}
+          AND COALESCE(o."routeId", c."routeId") IS NOT NULL
+          ${routeFilter}
+      ),
+      order_paid AS (
+        SELECT
+          ob.id,
+          COALESCE(SUM(p.amount), 0) AS "paidTotal",
+          COALESCE(SUM(CASE WHEN p."paidAt" >= ${start} AND p."paidAt" < ${end} THEN p.amount ELSE 0 END), 0) AS "paidToday"
+        FROM order_base ob
+        LEFT JOIN "Payment" p ON p."orderId" = ob.id
+        GROUP BY ob.id
+      ),
+      order_due AS (
+        SELECT
+          ob.*,
+          op."paidToday",
+          GREATEST(ob."grandTotal" - op."paidTotal", 0) AS "dueAmount"
+        FROM order_base ob
+        JOIN order_paid op ON op.id = ob.id
+      )
+      SELECT
+        "routeId",
+        COALESCE(SUM(CASE WHEN "orderDate" < ${start} THEN "dueAmount" ELSE 0 END), 0) AS "previousDue",
+        COALESCE(SUM(CASE WHEN "orderDate" >= ${start} AND "orderDate" < ${end} THEN "grandTotal" ELSE 0 END), 0) AS "orderAmount",
+        COALESCE(SUM("paidToday"), 0) AS "paidAmount"
+      FROM order_due
+      GROUP BY "routeId"
+    `;
+    return rows.map((row) => {
+      const previousDue = Number(row.previousDue || 0);
+      const orderAmount = Number(row.orderAmount || 0);
+      const paidAmount = Number(row.paidAmount || 0);
+      return {
+        routeId: row.routeId,
+        previousDue,
+        orderAmount,
+        paidAmount,
+        todaysDue: Math.max(previousDue + orderAmount - paidAmount, 0)
+      };
     });
   },
 
@@ -518,17 +615,30 @@ export const ordersRepository = {
         if (due <= 0) continue;
 
         const amount = Math.min(due, remaining);
-        await tx.payment.create({
-          data: {
-            tenantId,
-            orderId: order.id,
-            amount,
-            method: input.method,
-            reference: input.reference
-          }
-        });
+        const existingPayment = order.payments[0];
+        const nextPaid = existingPayment ? Math.min(Number(order.grandTotal || 0), paid + amount) : amount;
+        if (existingPayment) {
+          await tx.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              amount: nextPaid,
+              method: input.method,
+              reference: input.reference,
+              paidAt: new Date()
+            }
+          });
+        } else {
+          await tx.payment.create({
+            data: {
+              tenantId,
+              orderId: order.id,
+              amount,
+              method: input.method,
+              reference: input.reference
+            }
+          });
+        }
 
-        const nextPaid = paid + amount;
         const paymentStatus: PaymentStatus = nextPaid >= Number(order.grandTotal || 0) ? "PAID" : "PARTIAL";
         await tx.order.update({ where: { id: order.id }, data: { paymentStatus } });
         if (order.invoice) {
@@ -547,24 +657,128 @@ export const ordersRepository = {
     });
   },
 
+  async recordCustomerPayment(tenantId: string, customerId: string, input: CustomerPaymentInput) {
+    return prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findFirst({ where: { id: customerId, tenantId } });
+      if (!customer) return null;
+
+      const date = input.date || new Date().toISOString().slice(0, 10);
+      const end = new Date(`${date}T00:00:00.000Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      const orderWhere: Prisma.OrderWhereInput = {
+        tenantId,
+        customerId,
+        ...(input.mode === "DUE_FULL" ? {
+          OR: [
+            { dueAt: { lt: end } },
+            { dueAt: null, createdAt: { lt: end } }
+          ]
+        } : input.orderId ? { id: input.orderId } : {})
+      };
+
+      const orders = await tx.order.findMany({
+        where: orderWhere,
+        include: { payments: true, invoice: true },
+        orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }]
+      });
+
+      const dueByOrder = orders.map((order) => {
+        const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+        const due = Math.max(Number(order.grandTotal || 0) - paid, 0);
+        const existingPayment = order.payments[0];
+        const capacity = input.mode === "PARTIAL"
+          ? Number(order.grandTotal || 0)
+          : existingPayment
+            ? due
+            : Number(order.grandTotal || 0);
+        return { order, paid, due, existingPayment, capacity };
+      }).filter((row) => input.mode === "PARTIAL" ? row.capacity > 0 : row.due > 0);
+
+      const computedAmount = input.mode === "DUE_FULL"
+        ? dueByOrder.reduce((sum, row) => sum + row.due, 0)
+        : dueByOrder[0]?.due || 0;
+      let remaining = input.mode === "PARTIAL" ? Number(input.amount || 0) : computedAmount;
+      const payments: Array<{ orderId: string; amount: number }> = [];
+
+      for (const { order, paid, due, existingPayment } of dueByOrder) {
+        if (remaining <= 0) break;
+        const amount = input.mode === "PARTIAL" ? Math.min(Number(order.grandTotal || 0), remaining) : Math.min(due, remaining);
+        const nextPaid = input.mode === "PARTIAL" ? amount : Math.min(Number(order.grandTotal || 0), paid + amount);
+        if (existingPayment) {
+          await tx.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              amount: nextPaid,
+              method: input.method,
+              reference: input.reference,
+              paidAt: new Date()
+            }
+          });
+        } else {
+          await tx.payment.create({
+            data: {
+              tenantId,
+              orderId: order.id,
+              amount: nextPaid,
+              method: input.method,
+              reference: input.reference
+            }
+          });
+        }
+
+        const paymentStatus: PaymentStatus = nextPaid >= Number(order.grandTotal || 0) ? "PAID" : "PARTIAL";
+        await tx.order.update({ where: { id: order.id }, data: { paymentStatus } });
+        if (order.invoice) {
+          await tx.invoice.update({ where: { id: order.invoice.id }, data: { paymentStatus } });
+        }
+        payments.push({ orderId: order.id, amount });
+        remaining -= amount;
+      }
+
+      return {
+        customer,
+        requestedAmount: input.mode === "PARTIAL" ? Number(input.amount || 0) : computedAmount,
+        appliedAmount: (input.mode === "PARTIAL" ? Number(input.amount || 0) : computedAmount) - remaining,
+        unappliedAmount: remaining,
+        payments
+      };
+    });
+  },
+
   updateOrderStatus(input: {
     tenantId: string;
     orderId: string;
     status?: OrderStatus;
+    vehicleStatus?: VehicleOrderStatus;
     paymentStatus?: PaymentStatus;
     payment?: { amount: number; method: string; reference?: string };
   }) {
     return prisma.$transaction(async (tx) => {
       if (input.payment) {
-        await tx.payment.create({
-          data: {
-            tenantId: input.tenantId,
-            orderId: input.orderId,
-            amount: input.payment.amount,
-            method: input.payment.method,
-            reference: input.payment.reference
-          }
+        const existingPayment = await tx.payment.findFirst({
+          where: { tenantId: input.tenantId, orderId: input.orderId }
         });
+        if (existingPayment) {
+          await tx.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              amount: input.payment.amount,
+              method: input.payment.method,
+              reference: input.payment.reference,
+              paidAt: new Date()
+            }
+          });
+        } else {
+          await tx.payment.create({
+            data: {
+              tenantId: input.tenantId,
+              orderId: input.orderId,
+              amount: input.payment.amount,
+              method: input.payment.method,
+              reference: input.payment.reference
+            }
+          });
+        }
       }
 
       const order = await tx.order.findUniqueOrThrow({
@@ -582,6 +796,7 @@ export const ordersRepository = {
         where: { id: input.orderId },
         data: {
           ...(input.status ? { status: input.status } : {}),
+          ...(input.vehicleStatus ? { vehicleStatus: input.vehicleStatus } : {}),
           paymentStatus: nextPaymentStatus
         },
         include: { items: true, customer: { include: { route: true } }, route: true, invoice: true, payments: true }

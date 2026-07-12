@@ -7,6 +7,7 @@ import { DateInput, addLocalDays, localDateInput } from "../../../components/dat
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/payment-history";
+import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
@@ -14,6 +15,7 @@ type Payment = { id: string; amount: string | number; method?: string | null; re
 type Order = {
   id: string;
   status: string;
+  vehicleStatus?: string;
   paymentStatus: string;
   grandTotal: string | number;
   dueAt?: string | null;
@@ -32,7 +34,11 @@ type Order = {
 };
 
 const paymentMethods = ["Cash", "UPI"];
-const paymentTypes = ["Partial", "Full", "Advance"];
+const paymentTypes = [
+  { value: "PARTIAL", label: "Partial" },
+  { value: "ORDER_FULL", label: "Order Full Payment" },
+  { value: "DUE_FULL", label: "Due Full Payment" }
+];
 
 const today = localDateInput();
 
@@ -51,6 +57,14 @@ function orderPaid(order: Order) {
 
 function orderDue(order: Order) {
   return paymentDue(order.grandTotal, order.payments);
+}
+
+function totalAmount(previousDue: number, orderAmount: string | number) {
+  return Number(previousDue || 0) + Number(orderAmount || 0);
+}
+
+function todaysDueAmount(previousDue: number, orderAmount: string | number, paidAmount: string | number) {
+  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
 }
 
 function customerKey(order: Order) {
@@ -81,7 +95,8 @@ export default function VehicleRoutesPage() {
   const [saving, setSaving] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ type: "Partial", amount: "", method: "Cash", reference: "" });
+  const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
+  const [customerFilter, setCustomerFilter] = useState<string[]>([]);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -122,25 +137,46 @@ export default function VehicleRoutesPage() {
   }
 
   function todayDue(order: Order) {
-    return previousDue(order) + orderDue(order);
+    return todaysDueAmount(previousDue(order), order.grandTotal, orderPaid(order));
   }
 
-  const totals = useMemo(() => ({
-    orders: orders.length,
-    previousDue: orders.reduce((sum, order) => sum + previousDue(order), 0),
-    orderAmount: orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
-    due: orders.reduce((sum, order) => sum + todayDue(order), 0),
-    paid: orders.reduce((sum, order) => sum + orderPaid(order), 0)
-  }), [orders, previousDueByCustomer]);
+  const customerOptions = useMemo(() => {
+    const customers = new Map<string, { value: string; label: string; description?: string }>();
+    orders.forEach((order) => {
+      const value = customerKey(order);
+      if (!customers.has(value)) {
+        customers.set(value, {
+          value,
+          label: order.customer.name,
+          description: [order.customer.phone, order.route?.name || order.customer.route?.name].filter(Boolean).join(" · ") || undefined
+        });
+      }
+    });
+    return Array.from(customers.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [orders]);
 
-  async function updateOrder(order: Order, patch: { status?: string; paymentStatus?: string; paymentAmount?: number; paymentMethod?: string; reference?: string }) {
+  const visibleOrders = useMemo(
+    () => customerFilter.length ? orders.filter((order) => customerFilter.includes(customerKey(order))) : orders,
+    [customerFilter, orders]
+  );
+
+  const totals = useMemo(() => ({
+    orders: visibleOrders.length,
+    previousDue: visibleOrders.reduce((sum, order) => sum + previousDue(order), 0),
+    orderAmount: visibleOrders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
+    totalAmount: visibleOrders.reduce((sum, order) => sum + totalAmount(previousDue(order), order.grandTotal), 0),
+    paid: visibleOrders.reduce((sum, order) => sum + orderPaid(order), 0)
+  }), [visibleOrders, previousDueByCustomer]);
+  const todayDueTotal = Math.max(totals.totalAmount - totals.paid, 0);
+
+  async function updateOrder(order: Order, patch: { status?: string; vehicleStatus?: string; paymentStatus?: string; paymentAmount?: number; paymentMethod?: string; reference?: string }) {
     if (!apiBase) return;
     setSaving(true);
     try {
       await authFetch(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
       toast.success("Order updated", `${order.customer.name} has been updated.`);
       setPaymentOrder(null);
-      setPaymentForm({ type: "Partial", amount: "", method: "Cash", reference: "" });
+      setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
       await loadData();
     } catch (error) {
       toast.error("Update failed", error instanceof Error ? error.message : "Could not update this order.");
@@ -149,37 +185,61 @@ export default function VehicleRoutesPage() {
     }
   }
 
-  function startPayment(order: Order, type = "Partial") {
-    const due = orderDue(order);
+  function paymentAmountForType(order: Order, type: string) {
+    if (type === "ORDER_FULL") return Number(order.grandTotal || 0);
+    if (type === "DUE_FULL") return todayDue(order);
+    return 0;
+  }
+
+  function startPayment(order: Order, type = "PARTIAL") {
+    const existingPayment = order.payments?.[0];
+    const amount = existingPayment ? Number(existingPayment.amount || 0) : paymentAmountForType(order, type);
     setPaymentOrder(order);
     setPaymentForm({
       type,
-      amount: type === "Full" ? String(due || "") : "",
-      method: "Cash",
-      reference: ""
+      amount: amount ? String(amount) : "",
+      method: existingPayment?.method || "Cash",
+      reference: existingPayment?.reference || ""
     });
   }
 
   async function recordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!paymentOrder) return;
-    await updateOrder(paymentOrder, {
-      paymentStatus: paymentForm.type === "Full" ? "PAID" : "PARTIAL",
-      paymentAmount: paymentForm.type === "Full" ? undefined : Number(paymentForm.amount),
-      paymentMethod: paymentForm.method,
-      reference: paymentForm.reference || undefined
-    });
+    if (!apiBase || !paymentOrder?.customer.id) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/orders/customers/${paymentOrder.customer.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          mode: paymentForm.type,
+          orderId: paymentOrder.id,
+          date,
+          amount: paymentForm.type === "PARTIAL" ? Number(paymentForm.amount) : undefined,
+          method: paymentForm.method,
+          reference: paymentForm.reference || undefined
+        })
+      });
+      toast.success("Payment recorded", `${paymentOrder.customer.name} payment was saved.`);
+      setPaymentOrder(null);
+      setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
+      await loadData();
+    } catch (error) {
+      toast.error("Payment failed", error instanceof Error ? error.message : "Could not record this payment.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function exportCollectionSheet() {
-    const headers = ["Customer", "Phone", "Previous Due", "Order Amount", "Today Due", "Paid Amount", "Payment Method", "Reference"];
-    const rows = orders.map((order) => [
+    const headers = ["Customer", "Phone", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount", "Payment Method", "Reference"];
+    const rows = visibleOrders.map((order) => [
       order.customer.name,
       order.customer.phone || "",
       previousDue(order),
       Number(order.grandTotal || 0),
+      totalAmount(previousDue(order), order.grandTotal),
+      orderPaid(order),
       todayDue(order),
-      "",
       "",
       ""
     ]);
@@ -206,33 +266,35 @@ export default function VehicleRoutesPage() {
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
               <span>Orders: <span className="font-semibold text-ink">{totals.orders}</span></span>
-              <span>Previous due: <span className="font-semibold text-ink">{formatAmount(totals.previousDue)}</span></span>
-              <span>Order amount: <span className="font-semibold text-ink">{formatAmount(totals.orderAmount)}</span></span>
-              <span>Collected: <span className="font-semibold text-ink">{formatAmount(totals.paid)}</span></span>
-              <span>Today due: <span className="font-semibold text-ink">{formatAmount(totals.due)}</span></span>
+              <span>Previous Due Amount: <span className="font-semibold text-ink">{formatAmount(totals.previousDue)}</span></span>
+              <span>Order Amount: <span className="font-semibold text-ink">{formatAmount(totals.orderAmount)}</span></span>
+              <span>Total Amount: <span className="font-semibold text-ink">{formatAmount(totals.totalAmount)}</span></span>
+              <span>Paid Amount: <span className="font-semibold text-ink">{formatAmount(totals.paid)}</span></span>
+              <span>Today&apos;s Due Amount: <span className="font-semibold text-ink">{formatAmount(todayDueTotal)}</span></span>
             </div>
-            <div className="flex gap-2">
+            <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_auto_auto]">
+              <SearchableSelect className="min-w-0" multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
               <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setDate} value={date} />
-              <button className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" disabled={!orders.length} onClick={exportCollectionSheet} type="button"><Download size={16} /> Export</button>
+              <button className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" disabled={!visibleOrders.length} onClick={exportCollectionSheet} type="button"><Download size={16} /> Export</button>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
             </div>
           </div>
           {loading ? <LoadingSpinner label="Loading assigned orders" /> : null}
           <div className="max-h-[700px] w-full max-w-full overflow-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1160px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3 text-right">Previous Due</th>
+                  <th className="px-4 py-3 text-right">Previous Due Amount</th>
                   <th className="px-4 py-3 text-right">Order Amount</th>
-                  <th className="px-4 py-3 text-right">Today's Due</th>
+                  <th className="px-4 py-3 text-right">Total Amount</th>
+                  <th className="px-4 py-3 text-right">Paid Amount</th>
+                  <th className="px-4 py-3 text-right">Today's Due Amount</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {orders.map((order) => {
-                  const due = orderDue(order);
-                  return (
+                {visibleOrders.map((order) => (
                     <tr className="align-top" key={order.id}>
                       <td className="px-4 py-3">
                         <span className="block font-semibold">{order.customer.name}</span>
@@ -240,23 +302,30 @@ export default function VehicleRoutesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(previousDue(order), order.grandTotal))}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(orderPaid(order))}</td>
                       <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todayDue(order))}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
                           <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
                           <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Order details</button>
-                          {order.status === "PENDING" ? (
-                            <button className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => updateOrder(order, { status: "ACCEPTED" })} type="button">Accept</button>
-                          ) : null}
-                          <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" disabled={saving || due <= 0} onClick={() => startPayment(order)} type="button">Record payment</button>
+                          <select
+                            className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${order.vehicleStatus === "ACCEPTED" ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
+                            disabled={saving}
+                            onChange={(event) => updateOrder(order, { vehicleStatus: event.target.value })}
+                            value={order.vehicleStatus || "PENDING"}
+                          >
+                            <option value="PENDING">Pending</option>
+                            <option value="ACCEPTED">Accepted</option>
+                          </select>
+                          <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" disabled={saving || (todayDue(order) <= 0 && !order.payments?.length)} onClick={() => startPayment(order)} type="button">{order.payments?.length ? "Edit payment" : "Record payment"}</button>
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-                {!loading && !orders.length ? (
+                ))}
+                {!loading && !visibleOrders.length ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={5}>No customers for this date.</td>
+                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={7}>No customers for this date.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -265,7 +334,7 @@ export default function VehicleRoutesPage() {
         </section>
       </div>
 
-      <Modal open={Boolean(paymentOrder)} title="Record payment" description="Save payment type, method, reference, and amount." onClose={() => setPaymentOrder(null)}>
+      <Modal open={Boolean(paymentOrder)} title={paymentOrder?.payments?.length ? "Edit payment" : "Record payment"} description="Save the single payment amount for this order." onClose={() => setPaymentOrder(null)}>
         {paymentOrder ? (
           <form className="grid gap-4" onSubmit={recordPayment}>
             <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => {
@@ -273,11 +342,11 @@ export default function VehicleRoutesPage() {
               setPaymentForm((current) => ({
                 ...current,
                 type,
-                amount: type === "Full" ? String(orderDue(paymentOrder) || "") : "",
+                amount: type === "PARTIAL" ? "" : String(paymentAmountForType(paymentOrder, type) || ""),
                 method: current.method
               }));
-            }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={orderDue(paymentOrder)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type === "Full"} required type="number" value={paymentForm.amount} /></label>
+            }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={paymentForm.type === "PARTIAL" ? totalAmount(previousDue(paymentOrder), paymentOrder.grandTotal) : undefined} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type !== "PARTIAL"} required type="number" value={paymentForm.amount} /></label>
             <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

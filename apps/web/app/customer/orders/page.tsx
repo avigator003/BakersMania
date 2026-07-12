@@ -6,6 +6,7 @@ import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
+import { PaymentHistory } from "../../../components/payment-history";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -56,6 +57,12 @@ type DaySummary = {
   totalDue: number;
 };
 
+const paymentMethods = ["Cash", "UPI"];
+const paymentTypes = [
+  { value: "PARTIAL", label: "Partial" },
+  { value: "ORDER_FULL", label: "Order Full Payment" },
+  { value: "DUE_FULL", label: "Due Full Payment" }
+];
 const today = localDateInput();
 const emptyOrderForm: OrderFormState = { dueAt: today, notes: "", items: [{ id: "row-1", productId: "", quantity: "" }] };
 
@@ -73,6 +80,14 @@ function paid(order: Order) {
 
 function due(order: Order) {
   return Math.max(Number(order.grandTotal || 0) - paid(order), 0);
+}
+
+function totalAmount(previousDue: number, orderAmount: string | number) {
+  return Number(previousDue || 0) + Number(orderAmount || 0);
+}
+
+function todaysDueAmount(previousDue: number, orderAmount: string | number, paidAmount: string | number) {
+  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
 }
 
 function productCategory(product: Product) {
@@ -100,6 +115,8 @@ export default function CustomerOrdersPage() {
   const [saving, setSaving] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -153,14 +170,18 @@ export default function CustomerOrdersPage() {
 
   const totals = useMemo(() => {
     const uniqueOrders = Array.from(new Map(rows.map((row) => [row.order.id, row.order])).values());
+    const previousDue = summary?.previousDue || 0;
+    const orderAmount = rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0);
+    const paidAmount = uniqueOrders.reduce((sum, order) => sum + paid(order), 0);
+    const total = totalAmount(previousDue, orderAmount);
     return {
       products: rows.length,
       quantity: rows.reduce((sum, row) => sum + Number(row.item.quantity || 0), 0),
-      previousDue: summary?.previousDue || 0,
-      orderAmount: rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0),
-      paid: uniqueOrders.reduce((sum, order) => sum + paid(order), 0),
-      todaysDue: summary?.todaysDue || uniqueOrders.reduce((sum, order) => sum + due(order), 0),
-      totalDue: summary?.totalDue || uniqueOrders.reduce((sum, order) => sum + due(order), 0)
+      previousDue,
+      orderAmount,
+      paid: paidAmount,
+      totalAmount: total,
+      todaysDue: Math.max(total - paidAmount, 0)
     };
   }, [rows, summary]);
 
@@ -170,6 +191,24 @@ export default function CustomerOrdersPage() {
       dueAt: (order.dueAt || order.createdAt).slice(0, 10),
       notes: order.notes || "",
       items: order.items.map((item) => ({ id: item.id, productId: item.productId || item.product?.id || "", quantity: String(item.quantity) }))
+    });
+  }
+
+  function paymentAmountForType(order: Order, type: string) {
+    if (type === "ORDER_FULL") return Number(order.grandTotal || 0);
+    if (type === "DUE_FULL") return todaysDueAmount(totals.previousDue, order.grandTotal, paid(order));
+    return 0;
+  }
+
+  function startPayment(order: Order, type = "PARTIAL") {
+    const existingPayment = order.payments?.[0];
+    const amount = existingPayment ? Number(existingPayment.amount || 0) : paymentAmountForType(order, type);
+    setPaymentOrder(order);
+    setPaymentForm({
+      type,
+      amount: amount ? String(amount) : "",
+      method: existingPayment?.method || "Cash",
+      reference: existingPayment?.reference || ""
     });
   }
 
@@ -220,6 +259,33 @@ export default function CustomerOrdersPage() {
     }
   }
 
+  async function recordPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase || !paymentOrder) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/orders/customers/me/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          mode: paymentForm.type,
+          orderId: paymentOrder.id,
+          date,
+          amount: paymentForm.type === "PARTIAL" ? Number(paymentForm.amount) : undefined,
+          method: paymentForm.method,
+          reference: paymentForm.reference || undefined
+        })
+      });
+      toast.success("Payment saved", "Your payment was updated for this order.");
+      setPaymentOrder(null);
+      setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
+      await loadData();
+    } catch (error) {
+      toast.error("Payment failed", error instanceof Error ? error.message : "Could not save this payment.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AppShell title="Customer Portal" subtitle="Orders, dues, and payments" surface="customer">
       <section className="rounded-lg border border-line bg-panel shadow-subtle">
@@ -235,23 +301,24 @@ export default function CustomerOrdersPage() {
         <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-3 lg:grid-cols-7">
           <span className="rounded-md bg-panel2 p-3">Products<br /><strong>{totals.products}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Quantity<br /><strong>{formatQty(totals.quantity)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Previous Due<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals.orderAmount)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Paid<br /><strong>{formatAmount(totals.paid)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Today&apos;s Due<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Total Due<br /><strong>{formatAmount(totals.totalDue)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Total Amount<br /><strong>{formatAmount(totals.totalAmount)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Paid Amount<br /><strong>{formatAmount(totals.paid)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Today&apos;s Due Amount<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
         </div>
         <div className="max-h-[calc(100vh-360px)] w-full max-w-full overflow-auto">
-          <table className="w-full min-w-[1040px] text-left text-sm">
+          <table className="w-full min-w-[1160px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3">Product</th>
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3 text-right">Quantity</th>
-                <th className="px-4 py-3 text-right">Previous Due</th>
+                <th className="px-4 py-3 text-right">Previous Due Amount</th>
                 <th className="px-4 py-3 text-right">Order Amount</th>
-                <th className="px-4 py-3 text-right">Paid</th>
-                <th className="px-4 py-3 text-right">Today&apos;s Due</th>
+                <th className="px-4 py-3 text-right">Total Amount</th>
+                <th className="px-4 py-3 text-right">Paid Amount</th>
+                <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
                 <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
@@ -263,24 +330,36 @@ export default function CustomerOrdersPage() {
                   <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
                   <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(totals.previousDue, row.item.lineTotal))}</td>
                   <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.dueAmount)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, row.item.lineTotal, row.paidAmount))}</td>
                   <td className="px-4 py-3">
-                    <button
-                      className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                      disabled={saving || row.order.status !== "PENDING"}
-                      onClick={() => openEditOrder(row.order)}
-                      title={row.order.status === "PENDING" ? "Edit order" : `Cannot edit ${row.order.status.toLowerCase()} order`}
-                      type="button"
-                    >
-                      <Pencil size={14} /> Edit
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <PaymentHistory compact payments={row.order.payments} total={row.order.grandTotal} />
+                      <button
+                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                        disabled={saving || row.order.status !== "PENDING"}
+                        onClick={() => openEditOrder(row.order)}
+                        title={row.order.status === "PENDING" ? "Edit order" : `Cannot edit ${row.order.status.toLowerCase()} order`}
+                        type="button"
+                      >
+                        <Pencil size={14} /> Edit
+                      </button>
+                      <button
+                        className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                        disabled={saving || (todaysDueAmount(totals.previousDue, row.order.grandTotal, paid(row.order)) <= 0 && !row.order.payments?.length)}
+                        onClick={() => startPayment(row.order)}
+                        type="button"
+                      >
+                        {row.order.payments?.length ? "Edit payment" : "Record payment"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {!loading && !rows.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted" colSpan={8}>No products found for this date/filter.</td>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={9}>No products found for this date/filter.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -312,6 +391,29 @@ export default function CustomerOrdersPage() {
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setEditOrder(null)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Order"}</button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(paymentOrder)} title={paymentOrder?.payments?.length ? "Edit payment" : "Record payment"} description="Save the single payment amount for this order." onClose={() => setPaymentOrder(null)}>
+        {paymentOrder ? (
+          <form className="grid gap-4" onSubmit={recordPayment}>
+            <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => {
+              const type = event.target.value;
+              setPaymentForm((current) => ({
+                ...current,
+                type,
+                amount: type === "PARTIAL" ? "" : String(paymentAmountForType(paymentOrder, type) || ""),
+                method: current.method
+              }));
+            }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={paymentForm.type === "PARTIAL" ? totalAmount(totals.previousDue, paymentOrder.grandTotal) : undefined} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type !== "PARTIAL"} required type="number" value={paymentForm.amount} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPaymentOrder(null)} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
             </div>
           </form>
         ) : null}

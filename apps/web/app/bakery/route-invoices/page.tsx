@@ -56,6 +56,14 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
+function totalAmount(previousDue: number, orderAmount: number) {
+  return Number(previousDue || 0) + Number(orderAmount || 0);
+}
+
+function todaysDueAmount(previousDue: number, orderAmount: number, paidAmount: number) {
+  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
+}
+
 function productCategory(price: RoutePrice) {
   return price.product.categoryRef?.name || price.product.category || "General";
 }
@@ -109,7 +117,8 @@ export default function RouteInvoicesPage() {
 
   function openPayment(row: RouteInvoiceRow) {
     setPaymentRoute(row);
-    setPaymentForm({ amount: row.totalDue ? String(row.totalDue) : "", method: "Cash", reference: "" });
+    const todaysDue = todaysDueAmount(row.oldDue, row.orderAmount, row.paidAmount);
+    setPaymentForm({ amount: todaysDue ? String(todaysDue) : "", method: "Cash", reference: "" });
   }
 
   async function recordPayment(event: FormEvent<HTMLFormElement>) {
@@ -186,11 +195,11 @@ export default function RouteInvoicesPage() {
         <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-2 lg:grid-cols-7">
           <span className="rounded-md bg-panel2 p-3">Routes<br /><strong>{totals?.routes || 0}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Customers<br /><strong>{totals?.customers || 0}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Priced Products<br /><strong>{totals?.pricedProducts || 0}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Previous Due Amount<br /><strong>{formatAmount(totals?.oldDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals?.orderAmount)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Old Due<br /><strong>{formatAmount(totals?.oldDue)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Total Amount<br /><strong>{formatAmount(totalAmount(Number(totals?.oldDue || 0), Number(totals?.orderAmount || 0)))}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Paid Amount<br /><strong>{formatAmount(totals?.paidAmount)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Total Due<br /><strong>{formatAmount(totals?.totalDue)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(Number(totals?.oldDue || 0), Number(totals?.orderAmount || 0), Number(totals?.paidAmount || 0)))}</strong></span>
         </div>
         <div className="w-full max-w-full overflow-auto">
           <table className="w-full min-w-[1120px] text-left text-sm">
@@ -198,33 +207,37 @@ export default function RouteInvoicesPage() {
               <tr>
                 <th className="px-4 py-3">Route</th>
                 <th className="px-4 py-3 text-right">Customers</th>
-                <th className="px-4 py-3 text-right">Products Priced</th>
+                <th className="px-4 py-3 text-right">Previous Due Amount</th>
                 <th className="px-4 py-3 text-right">Order Amount</th>
-                <th className="px-4 py-3 text-right">Old Due</th>
+                <th className="px-4 py-3 text-right">Total Amount</th>
                 <th className="px-4 py-3 text-right">Paid Amount</th>
-                <th className="px-4 py-3 text-right">Total Due</th>
+                <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {visibleRows.map((row) => (
+              {visibleRows.map((row) => {
+                const fullAmount = totalAmount(row.oldDue, row.orderAmount);
+                const todaysDue = todaysDueAmount(row.oldDue, row.orderAmount, row.paidAmount);
+                return (
                 <tr key={row.routeId}>
                   <td className="px-4 py-3 font-semibold">{row.routeName}</td>
                   <td className="px-4 py-3 text-right">{row.customerCount}</td>
-                  <td className="px-4 py-3 text-right">{row.pricedProductCount}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.orderAmount)}</td>
                   <td className="px-4 py-3 text-right">{formatAmount(row.oldDue)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.orderAmount)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(fullAmount)}</td>
                   <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.totalDue)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDue)}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
-                      <button className="focus-ring inline-flex items-center gap-1 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={!row.totalDue || saving} onClick={() => openPayment(row)} type="button"><Eye size={14} /> Record Payment</button>
+                      <button className="focus-ring inline-flex items-center gap-1 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={!todaysDue || saving} onClick={() => openPayment(row)} type="button"><Eye size={14} /> Record Payment</button>
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => openCustomers(row)} type="button"><Users size={14} /> Customers</button>
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => openProducts(row)} type="button"><PackageSearch size={14} /> Products</button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!loading && !visibleRows.length ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted" colSpan={8}>No routes found.</td>
@@ -235,10 +248,10 @@ export default function RouteInvoicesPage() {
         </div>
       </section>
 
-      <Modal open={Boolean(paymentRoute)} title="Record route payment" description={paymentRoute ? `${paymentRoute.routeName} due ${formatAmount(paymentRoute.totalDue)}` : ""} onClose={() => setPaymentRoute(null)}>
+      <Modal open={Boolean(paymentRoute)} title="Record route payment" description={paymentRoute ? `${paymentRoute.routeName} today's due amount ${formatAmount(todaysDueAmount(paymentRoute.oldDue, paymentRoute.orderAmount, paymentRoute.paidAmount))}` : ""} onClose={() => setPaymentRoute(null)}>
         {paymentRoute ? (
           <form className="grid gap-4" onSubmit={recordPayment}>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={paymentRoute.totalDue} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required type="number" value={paymentForm.amount} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={todaysDueAmount(paymentRoute.oldDue, paymentRoute.orderAmount, paymentRoute.paidAmount)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required type="number" value={paymentForm.amount} /></label>
             <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

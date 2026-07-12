@@ -30,6 +30,16 @@ type LabourDetail = {
     halfDays: number;
     absentDays: number;
     leaveDays: number;
+    daysInMonth: number;
+    eligibleDays: number;
+    payableDays: number;
+    dailySalary: number;
+    payableAmount: number;
+    paidAmount: number;
+    openingAdvanceAmount: number;
+    advanceAppliedAmount: number;
+    carryForwardAmount: number;
+    balanceAmount: number;
     totalPaid: number;
     advancePaid: number;
     partialPaid: number;
@@ -136,6 +146,8 @@ export default function LabourDetailPage() {
                 <span>Present: <span className="font-semibold text-ink">{detail?.stats.presentDays ?? 0}</span></span>
                 <span>Half: <span className="font-semibold text-ink">{detail?.stats.halfDays ?? 0}</span></span>
                 <span>Absent: <span className="font-semibold text-ink">{detail?.stats.absentDays ?? 0}</span></span>
+                <span>Payable: <span className="font-semibold text-ink">{formatAmount(detail?.stats.payableAmount ?? 0)}</span></span>
+                <span>Balance: <span className="font-semibold text-ink">{formatAmount(detail?.stats.balanceAmount ?? 0)}</span></span>
                 <span>Paid: <span className="font-semibold text-ink">{formatAmount(detail?.stats.totalPaid ?? 0)}</span></span>
               </div>
               <label className="grid gap-1">
@@ -158,6 +170,31 @@ export default function LabourDetailPage() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-line bg-panel shadow-subtle">
+            <div className="flex items-center gap-2 border-b border-line p-4">
+              <IndianRupee className="text-mint" size={20} />
+              <h2 className="font-semibold">Salary Calculation</h2>
+            </div>
+            <div className="grid gap-3 p-4 sm:grid-cols-2">
+              {[
+                ["Monthly Salary", formatAmount(detail?.labour.monthlySalary)],
+                ["Daily Salary", formatAmount(detail?.stats.dailySalary ?? 0)],
+                ["Payable Days", `${detail?.stats.payableDays ?? 0}/${detail?.stats.eligibleDays ?? 0}`],
+                ["Payable Amount", formatAmount(detail?.stats.payableAmount ?? 0)],
+                ["Opening Advance", formatAmount(detail?.stats.openingAdvanceAmount ?? 0)],
+                ["Advance Applied", formatAmount(detail?.stats.advanceAppliedAmount ?? 0)],
+                ["Paid Amount", formatAmount(detail?.stats.totalPaid ?? 0)],
+                ["Carry Forward", formatAmount(detail?.stats.carryForwardAmount ?? 0)],
+                ["Balance Amount", formatAmount(detail?.stats.balanceAmount ?? 0)]
+              ].map(([label, value]) => (
+                <div className="rounded-lg border border-line bg-panel2 p-3" key={label}>
+                  <p className="text-xs font-semibold uppercase text-muted">{label}</p>
+                  <p className="mt-1 font-semibold">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="rounded-lg border border-line bg-panel shadow-subtle">
             <div className="flex items-center gap-2 border-b border-line p-4">
               <CalendarDays className="text-mint" size={20} />

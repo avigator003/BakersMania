@@ -27,8 +27,22 @@ type Labour = {
   skill?: string | null;
   dailyWage?: string | null;
   monthlySalary?: string | null;
+  joinedAt: string;
   active: boolean;
   salaryPayments: SalaryPayment[];
+  salaryCalculation?: {
+    monthlySalary: number;
+    daysInMonth: number;
+    eligibleDays: number;
+    payableDays: number;
+    dailySalary: number;
+    payableAmount: number;
+    paidAmount: number;
+    openingAdvanceAmount: number;
+    advanceAppliedAmount: number;
+    carryForwardAmount: number;
+    balanceAmount: number;
+  };
 };
 
 type LabourDashboard = {
@@ -116,7 +130,7 @@ export default function LabourPaymentsPage() {
 
     setLoading(true);
     try {
-      const response = await authFetch<LabourDashboard>(`${apiPath}/labour`);
+      const response = await authFetch<LabourDashboard>(`${apiPath}/labour?date=${periodMonth}-01`);
       const active = response.labours.filter((labour) => labour.active);
       setLabours(response.labours);
       setDraft(Object.fromEntries(active.map((labour) => [labour.id, emptyDraft()])));
@@ -129,7 +143,7 @@ export default function LabourPaymentsPage() {
 
   useEffect(() => {
     loadPayments();
-  }, []);
+  }, [periodMonth]);
 
   function updateDraft(labourId: string, patch: Partial<PaymentDraft>) {
     setDraft((current) => ({
@@ -255,6 +269,16 @@ export default function LabourPaymentsPage() {
                     <p className="mt-1 text-xs text-muted">
                       {formatAmount(labour.dailyWage)} daily · {formatAmount(labour.monthlySalary)} monthly
                     </p>
+                    <p className="mt-1 text-xs text-muted">
+                      Payable: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.payableAmount)}</span> ·
+                      Balance: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.balanceAmount)}</span> ·
+                      Days: <span className="font-semibold text-ink">{labour.salaryCalculation?.payableDays ?? 0}/{labour.salaryCalculation?.eligibleDays ?? 0}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      Opening advance: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.openingAdvanceAmount)}</span> ·
+                      Applied: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.advanceAppliedAmount)}</span> ·
+                      Carry forward: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.carryForwardAmount)}</span>
+                    </p>
                   </div>
                   <label className="grid gap-1">
                     <span className="text-xs font-semibold text-muted">Amount</span>
@@ -278,7 +302,10 @@ export default function LabourPaymentsPage() {
                         <button
                           key={type}
                           className={`focus-ring rounded-md border px-3 py-2 text-sm font-semibold ${active ? paymentClass(type as PaymentType) : "border-line bg-panel2 text-muted"}`}
-                          onClick={() => updateDraft(labour.id, { paymentType: type as PaymentType })}
+                          onClick={() => updateDraft(labour.id, {
+                            paymentType: type as PaymentType,
+                            ...(type === "FULL" ? { amount: String(labour.salaryCalculation?.balanceAmount || "") } : {})
+                          })}
                           type="button"
                         >
                           {label}

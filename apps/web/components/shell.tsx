@@ -9,10 +9,8 @@ import {
   Building2,
   ClipboardList,
   CreditCard,
-  Gauge,
   Home,
   IndianRupee,
-  LogOut,
   Menu,
   Settings,
   ShoppingBag,
@@ -48,6 +46,14 @@ const bakeryNav = [
   { href: "/bakery/routes", label: "Routes", icon: Truck },
 ];
 
+type CustomerRouteSummary = {
+  routeName: string;
+  vehicleName: string;
+  vehicleNumber: string;
+  driverName: string;
+  driverPhone: string;
+};
+
 export function AppShell({
   title,
   subtitle,
@@ -70,6 +76,7 @@ export function AppShell({
   });
   const [workspaceName, setWorkspaceName] = useState(surface === "bakery" || surface === "customer" || surface === "vehicle" ? getStoredTenantName() || "" : "");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [customerRoute, setCustomerRoute] = useState<CustomerRouteSummary | null>(null);
 
   const requiredActor =
     surface === "admin" ? "platform_admin" : surface === "customer" ? "customer" : surface === "vehicle" ? "vehicle" : "bakery_user";
@@ -190,6 +197,51 @@ export function AppShell({
     };
   }, [surface, tenantSlug, title, workspaceName]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCustomerRoute() {
+      if (surface !== "customer" || !tenantSlug) {
+        setCustomerRoute(null);
+        return;
+      }
+
+      try {
+        const data = await authFetch<{
+          profile: {
+            route?: {
+              name?: string | null;
+              vehicle?: {
+                name?: string | null;
+                number?: string | null;
+                driverName?: string | null;
+                driverPhone?: string | null;
+              } | null;
+            } | null;
+          };
+        }>(`/t/${tenantSlug}/customers/me`);
+        const route = data.profile.route;
+        const vehicle = route?.vehicle;
+        if (!cancelled) {
+          setCustomerRoute({
+            routeName: route?.name || "No route assigned",
+            vehicleName: vehicle?.name || "No vehicle assigned",
+            vehicleNumber: vehicle?.number || "",
+            driverName: vehicle?.driverName || "No driver assigned",
+            driverPhone: vehicle?.driverPhone || ""
+          });
+        }
+      } catch {
+        if (!cancelled) setCustomerRoute(null);
+      }
+    }
+
+    loadCustomerRoute();
+    return () => {
+      cancelled = true;
+    };
+  }, [surface, tenantSlug]);
+
   const nav = surface === "customer"
     ? [
         { href: `${routeBase}/customer`, label: "Shop", icon: ShoppingBag },
@@ -199,8 +251,8 @@ export function AppShell({
       ]
     : surface === "vehicle"
       ? [
-        { href: `${routeBase}/vehicle`, label: "Overview", icon: Gauge },
         { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList },
+        { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck },
         { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee }
       ]
     : surface === "admin"
@@ -267,6 +319,18 @@ export function AppShell({
     router.replace("/login");
   }
 
+  const sidebarFooter = surface === "customer" && customerRoute
+    ? {
+        title: customerRoute.routeName,
+        body: [
+          customerRoute.driverName,
+          customerRoute.driverPhone,
+          customerRoute.vehicleName,
+          customerRoute.vehicleNumber
+        ].filter(Boolean).join(" · ")
+      }
+    : footerCopy;
+
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
@@ -282,7 +346,7 @@ export function AppShell({
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-night pb-24 text-ink lg:pb-0">
       <PwaRegister />
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 bg-sidebar px-4 py-5 text-white lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col bg-sidebar px-4 py-5 text-white lg:flex">
         <Link href="/" className="flex items-center gap-3 rounded-md px-2">
           <span className="grid h-11 w-11 place-items-center rounded-md bg-mint text-lg font-bold text-white">
             BM
@@ -293,7 +357,7 @@ export function AppShell({
           </span>
         </Link>
 
-        <nav className="mt-8 grid gap-1">
+        <nav className="mt-8 grid flex-1 gap-1 overflow-y-auto pr-1">
           {nav.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -315,16 +379,9 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="absolute inset-x-4 bottom-5 rounded-lg border border-white/10 bg-sidebar2 p-4">
-          <p className="text-sm font-semibold">{footerCopy.title}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-300">{footerCopy.body}</p>
-          <button
-            className="focus-ring mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-white/15 px-3 py-2 text-sm font-semibold text-slate-100"
-            onClick={handleLogout}
-          >
-            <LogOut size={16} />
-            Sign out
-          </button>
+        <div className="mt-4 shrink-0 rounded-lg border border-white/10 bg-sidebar2 p-4">
+          <p className="text-sm font-semibold">{sidebarFooter.title}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>
         </div>
       </aside>
 
@@ -401,16 +458,8 @@ export function AppShell({
             </nav>
 
             <div className="mt-auto rounded-lg border border-white/10 bg-sidebar2 p-4">
-              <p className="text-sm font-semibold">{footerCopy.title}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-300">{footerCopy.body}</p>
-              <button
-                className="focus-ring mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-white/15 px-3 py-2 text-sm font-semibold text-slate-100"
-                onClick={handleLogout}
-                type="button"
-              >
-                <LogOut size={16} />
-                Sign out
-              </button>
+              <p className="text-sm font-semibold">{sidebarFooter.title}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>
             </div>
           </aside>
         </div>

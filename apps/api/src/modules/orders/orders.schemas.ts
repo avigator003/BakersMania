@@ -1,4 +1,4 @@
-import { OrderSource, OrderStatus, PaymentStatus } from "@prisma/client";
+import { OrderSource, OrderStatus, PaymentStatus, VehicleOrderStatus } from "@prisma/client";
 import { z } from "zod";
 
 export const orderItemSchema = z.object({
@@ -19,6 +19,7 @@ export const updateOrderSchema = createOrderSchema;
 
 export const updateOrderStatusSchema = z.object({
   status: z.nativeEnum(OrderStatus).optional(),
+  vehicleStatus: z.nativeEnum(VehicleOrderStatus).optional(),
   paymentStatus: z.nativeEnum(PaymentStatus).optional(),
   paymentAmount: z.coerce.number().positive().optional(),
   paymentMethod: z.string().min(1).optional().default("Cash"),
@@ -37,8 +38,18 @@ export const routeInvoicePaymentSchema = z.object({
   reference: z.string().optional()
 });
 
+export const customerPaymentSchema = z.object({
+  amount: z.coerce.number().positive().optional(),
+  mode: z.enum(["PARTIAL", "ORDER_FULL", "DUE_FULL"]),
+  orderId: z.string().optional(),
+  date: z.string().min(10).optional(),
+  method: z.string().min(1).default("Cash"),
+  reference: z.string().optional()
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type RepeatOrdersInput = z.infer<typeof repeatOrdersSchema>;
 export type RouteInvoicePaymentInput = z.infer<typeof routeInvoicePaymentSchema>;
+export type CustomerPaymentInput = z.infer<typeof customerPaymentSchema>;

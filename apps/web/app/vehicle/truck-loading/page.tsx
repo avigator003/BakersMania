@@ -13,19 +13,41 @@ type TruckLoading = {
   date: string;
   orderCount: number;
   products: { id: string; name: string; category: string }[];
-  routes: { id: string; name: string; quantities: Record<string, number>; total: number }[];
+  routes: {
+    id: string;
+    name: string;
+    quantities: Record<string, number>;
+    total: number;
+    previousDue: number;
+    orderAmount: number;
+    paidAmount: number;
+    todaysDue: number;
+  }[];
   totals: Record<string, number>;
 };
 
 const today = localDateInput();
+const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 
 function formatQty(value?: string | number | null) {
   const amount = Number(value || 0);
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
 }
 
+function formatAmount(value?: string | number | null) {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function totalAmount(previousDue: number, orderAmount: number) {
+  return Number(previousDue || 0) + Number(orderAmount || 0);
+}
+
 function csvCell(value: string | number | null | undefined) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
+  return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
 }
 
 export default function VehicleTruckLoadingPage() {
@@ -79,7 +101,7 @@ export default function VehicleTruckLoadingPage() {
       const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
       const productMatches = !productFilter.length || productFilter.includes(product.id);
       return categoryMatches && productMatches;
-    });
+    }).sort(productSort);
   }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {
@@ -99,16 +121,37 @@ export default function VehicleTruckLoadingPage() {
   }, [visibleProducts, visibleRoutes]);
 
   const totalQuantity = useMemo(() => visibleRoutes.reduce((sum, route) => sum + routeTotal(route), 0), [visibleProducts, visibleRoutes]);
+  const amountTotals = useMemo(() => ({
+    previousDue: visibleRoutes.reduce((sum, route) => sum + Number(route.previousDue || 0), 0),
+    orderAmount: visibleRoutes.reduce((sum, route) => sum + Number(route.orderAmount || 0), 0),
+    totalAmount: visibleRoutes.reduce((sum, route) => sum + totalAmount(Number(route.previousDue || 0), Number(route.orderAmount || 0)), 0),
+    paidAmount: visibleRoutes.reduce((sum, route) => sum + Number(route.paidAmount || 0), 0),
+    todaysDue: visibleRoutes.reduce((sum, route) => sum + Number(route.todaysDue || 0), 0)
+  }), [visibleRoutes]);
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const header = ["Route Name", ...visibleProducts.map((product) => product.name), "Total"];
+    const header = ["Route Name", ...visibleProducts.map((product) => product.name), "Total Qty", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount"];
     const rows = visibleRoutes.map((route) => [
       route.name,
       ...visibleProducts.map((product) => route.quantities[product.id] || ""),
-      routeTotal(route) || ""
+      routeTotal(route) || "",
+      route.previousDue || "",
+      route.orderAmount || "",
+      totalAmount(Number(route.previousDue || 0), Number(route.orderAmount || 0)) || "",
+      route.paidAmount || "",
+      route.todaysDue || ""
     ]);
-    const totalRow = ["Total", ...visibleProducts.map((product) => productTotals[product.id] || ""), totalQuantity || ""];
+    const totalRow = [
+      "Total",
+      ...visibleProducts.map((product) => productTotals[product.id] || ""),
+      totalQuantity || "",
+      amountTotals.previousDue || "",
+      amountTotals.orderAmount || "",
+      amountTotals.totalAmount || "",
+      amountTotals.paidAmount || "",
+      amountTotals.todaysDue || ""
+    ];
     const csv = [header, ...rows, totalRow].map((row) => row.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -132,6 +175,7 @@ export default function VehicleTruckLoadingPage() {
               <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
               <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
               <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
+              <span>Today&apos;s Due Amount: <span className="font-semibold text-ink">{formatAmount(amountTotals.todaysDue)}</span></span>
             </div>
             <SearchableSelect className="min-w-56" multiple onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
@@ -155,7 +199,12 @@ export default function VehicleTruckLoadingPage() {
                     <span className="mt-1 block text-[11px] normal-case text-muted">{product.category}</span>
                   </th>
                 ))}
-                <th className="sticky right-0 z-40 min-w-24 border-b border-line bg-panel2 px-4 py-3 shadow-[-8px_0_12px_rgba(23,32,51,0.08)]">Total</th>
+                <th className="min-w-24 border-b border-r border-line bg-panel2 px-4 py-3">Total Qty</th>
+                <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Previous Due Amount</th>
+                <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Order Amount</th>
+                <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Total Amount</th>
+                <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Paid Amount</th>
+                <th className="sticky right-0 z-40 min-w-32 border-b border-line bg-panel2 px-4 py-3 shadow-[-8px_0_12px_rgba(23,32,51,0.08)]">Today&apos;s Due Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -170,14 +219,24 @@ export default function VehicleTruckLoadingPage() {
                       </td>
                     );
                   })}
-                  <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 font-bold text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatQty(routeTotal(route)) || "-"}</td>
+                  <td className="border-b border-r border-line px-4 py-3 font-bold text-mint">{formatQty(routeTotal(route)) || "-"}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.previousDue)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.orderAmount)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(Number(route.previousDue || 0), Number(route.orderAmount || 0)))}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.paidAmount)}</td>
+                  <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 text-right font-bold text-berry shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatAmount(route.todaysDue)}</td>
                 </tr>
               ))}
               {truckLoading && visibleProducts.length ? (
                 <tr className="bg-mint/10 font-bold">
                   <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
                   {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(productTotals[product.id]) || "-"}</td>)}
-                  <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatQty(totalQuantity) || "-"}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-mint">{formatQty(totalQuantity) || "-"}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.previousDue)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.orderAmount)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.totalAmount)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.paidAmount)}</td>
+                  <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-right text-berry shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatAmount(amountTotals.todaysDue)}</td>
                 </tr>
               ) : null}
               {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (

@@ -84,7 +84,7 @@ export const customersRepository = {
     return prisma.customer.findFirst({
       where: { tenantId, id: customerId },
       include: {
-        route: true,
+        route: { include: { vehicle: true } },
         orders: {
           include: { items: true, payments: true, invoice: true },
           orderBy: { createdAt: "desc" }
@@ -98,7 +98,7 @@ export const customersRepository = {
     return prisma.customer.findFirst({
       where: { tenantId, userId },
       include: {
-        route: true,
+        route: { include: { vehicle: true } },
         orders: {
           include: { items: true, payments: true, invoice: true },
           orderBy: { createdAt: "desc" }

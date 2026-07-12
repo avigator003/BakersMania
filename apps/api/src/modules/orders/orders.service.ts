@@ -1,7 +1,7 @@
 import type { AccessTokenPayload } from "../../utils/tokens.js";
 import { HttpError } from "../../utils/http.js";
 import { ordersRepository } from "./orders.repository.js";
-import type { CreateOrderInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput } from "./orders.schemas.js";
+import type { CreateOrderInput, CustomerPaymentInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput } from "./orders.schemas.js";
 
 type OrderFilters = {
   startDate?: string;
@@ -26,6 +26,12 @@ async function vehicleRouteIds(tenantId: string, auth: AccessTokenPayload | unde
 
 function orderRouteId(order: Awaited<ReturnType<typeof ordersRepository.findOrder>>) {
   return order?.routeId || order?.customer.routeId || null;
+}
+
+const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
+
+function productSort(a: { name: string; category: string }, b: { name: string; category: string }) {
+  return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
 }
 
 async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput) {
@@ -92,7 +98,13 @@ async function assertOneOrderPerCustomerDate(tenantId: string, customerId: strin
 }
 
 export const ordersService = {
-  listOrders(tenantId: string, auth: AccessTokenPayload | undefined, filters: OrderFilters = {}) {
+  cleanupExpiredPendingOrders() {
+    return ordersRepository.cleanupExpiredPendingOrders();
+  },
+
+  async listOrders(tenantId: string, auth: AccessTokenPayload | undefined, filters: OrderFilters = {}) {
+    await ordersRepository.cleanupExpiredPendingOrders();
+
     if (auth?.actorType === "customer") {
       return ordersRepository.listForCustomer(tenantId, auth.customerId!, filters);
     }
@@ -198,29 +210,32 @@ export const ordersService = {
     if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
       throw new HttpError(403, "This order is not assigned to this vehicle");
     }
-    if (auth?.actorType === "vehicle" && input.status && input.status !== "ACCEPTED") {
-      throw new HttpError(403, "Vehicles can only accept assigned orders");
+    if (auth?.actorType === "vehicle" && input.status) {
+      throw new HttpError(403, "Vehicles cannot change bakery order status");
     }
-    if (auth?.actorType === "vehicle" && input.status === "ACCEPTED" && existing.status !== "PENDING") {
-      throw new HttpError(422, "Only pending orders can be accepted");
+    if (auth?.actorType !== "vehicle" && input.vehicleStatus) {
+      throw new HttpError(403, "Only vehicles can change vehicle order status");
     }
 
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    const due = Math.max(Number(existing.grandTotal || 0) - paid, 0);
+    const grandTotal = Number(existing.grandTotal || 0);
+    const due = Math.max(grandTotal - paid, 0);
+    const hasExistingPayment = existing.payments.length > 0;
     let payment: { amount: number; method: string; reference?: string } | undefined;
 
     if (input.paymentStatus === "PARTIAL") {
       if (!input.paymentAmount) {
         throw new HttpError(422, "Partial payment amount is required");
       }
-      if (input.paymentAmount > due) {
-        throw new HttpError(422, "Partial payment amount cannot be greater than due amount");
+      const maxPaymentAmount = hasExistingPayment ? grandTotal : due;
+      if (input.paymentAmount > maxPaymentAmount) {
+        throw new HttpError(422, `Partial payment amount cannot be greater than ${hasExistingPayment ? "order amount" : "due amount"}`);
       }
       payment = { amount: input.paymentAmount, method: input.paymentMethod || "Cash", reference: input.reference };
     }
 
-    if (input.paymentStatus === "PAID" && due > 0) {
-      payment = { amount: due, method: input.paymentMethod || "Cash", reference: input.reference };
+    if (input.paymentStatus === "PAID" && (due > 0 || hasExistingPayment)) {
+      payment = { amount: grandTotal, method: input.paymentMethod || "Cash", reference: input.reference };
     }
 
     if (input.paymentStatus === "UNPAID" && paid > 0) {
@@ -231,6 +246,7 @@ export const ordersService = {
       tenantId,
       orderId,
       status: input.status,
+      vehicleStatus: input.vehicleStatus,
       paymentStatus: input.paymentStatus,
       payment
     });
@@ -327,6 +343,40 @@ export const ordersService = {
     return result;
   },
 
+  async recordCustomerPayment(tenantId: string, auth: AccessTokenPayload | undefined, customerId: string, input: CustomerPaymentInput) {
+    if (auth?.actorType !== "bakery_user" && auth?.actorType !== "vehicle" && auth?.actorType !== "customer") {
+      throw new HttpError(403, "Bakery, vehicle, or customer access required");
+    }
+    if (auth?.actorType === "customer") {
+      if (!auth.customerId) {
+        throw new HttpError(403, "Customer access required");
+      }
+      customerId = auth.customerId;
+    }
+    if (auth?.actorType === "vehicle") {
+      const routeIds = await vehicleRouteIds(tenantId, auth);
+      const customer = await ordersRepository.findCustomer(tenantId, customerId);
+      if (!customer?.routeId || !routeIds?.includes(customer.routeId)) {
+        throw new HttpError(403, "This customer is not assigned to this vehicle");
+      }
+    }
+    if ((input.mode === "PARTIAL" || input.mode === "ORDER_FULL") && !input.orderId) {
+      throw new HttpError(422, "Order is required for this payment type");
+    }
+    if (input.mode === "PARTIAL" && !input.amount) {
+      throw new HttpError(422, "Partial payment amount is required");
+    }
+
+    const result = await ordersRepository.recordCustomerPayment(tenantId, customerId, input);
+    if (!result) {
+      throw new HttpError(404, "Customer not found");
+    }
+    if (result.appliedAmount <= 0) {
+      throw new HttpError(422, "No due orders found for this customer");
+    }
+    return result;
+  },
+
   customerDaySummary(tenantId: string, auth: AccessTokenPayload | undefined, date: string) {
     if (auth?.actorType !== "customer" || !auth.customerId) {
       throw new HttpError(403, "Customer access required");
@@ -336,16 +386,30 @@ export const ordersService = {
 
   async truckLoading(tenantId: string, filters: { date: string; categoryId?: string }, auth?: AccessTokenPayload) {
     const routeIds = await vehicleRouteIds(tenantId, auth);
-    const orders = await ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined });
+    const [orders, routeTotals] = await Promise.all([
+      ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined }),
+      ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined })
+    ]);
     const productMap = new Map<string, { id: string; name: string; category: string }>();
-    const routeMap = new Map<string, { id: string; name: string; quantities: Record<string, number>; total: number }>();
+    const routeTotalsMap = new Map(routeTotals.map((row) => [row.routeId, row]));
+    const routeMap = new Map<string, { id: string; name: string; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number }>();
 
     orders.forEach((order) => {
       const route = order.route || order.customer.route;
       const routeId = route?.id || "no-route";
       const routeName = route?.name || "No route";
       if (!routeMap.has(routeId)) {
-        routeMap.set(routeId, { id: routeId, name: routeName, quantities: {}, total: 0 });
+        const totals = routeTotalsMap.get(routeId);
+        routeMap.set(routeId, {
+          id: routeId,
+          name: routeName,
+          quantities: {},
+          total: 0,
+          previousDue: totals?.previousDue || 0,
+          orderAmount: totals?.orderAmount || 0,
+          paidAmount: totals?.paidAmount || 0,
+          todaysDue: totals?.todaysDue || 0
+        });
       }
       const row = routeMap.get(routeId)!;
       order.items.forEach((item) => {
@@ -360,7 +424,7 @@ export const ordersService = {
       });
     });
 
-    const products = Array.from(productMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const products = Array.from(productMap.values()).sort(productSort);
     const routes = Array.from(routeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     return {
       date: filters.date,
