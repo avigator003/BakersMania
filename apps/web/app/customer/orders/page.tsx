@@ -35,6 +35,7 @@ type Order = {
   id: string;
   source: string;
   status: string;
+  vehicleStatus?: string | null;
   paymentStatus: string;
   fulfillmentType: string;
   grandTotal: string | number;
@@ -88,6 +89,10 @@ function due(order: Order) {
   return Math.max(Number(order.grandTotal || 0) - paid(order), 0);
 }
 
+function driverAccepted(order: Order) {
+  return order.vehicleStatus === "ACCEPTED";
+}
+
 function totalAmount(previousDue: number, orderAmount: string | number) {
   return Number(previousDue || 0) + Number(orderAmount || 0);
 }
@@ -118,6 +123,34 @@ function formatPdfAmount(value?: string | number | null) {
 
 function pdfLine(value: string, x: number, y: number, size = 10) {
   return `BT /F1 ${size} Tf ${x} ${y} Td (${pdfText(value)}) Tj ET\n`;
+}
+
+type PdfColumn = { x: number; width: number; align?: "left" | "right" };
+
+function pdfBox(x: number, y: number, width: number, height: number, fill = false) {
+  const fillCommand = fill ? `q 0.95 0.96 0.98 rg ${x} ${y} ${width} ${height} re f Q\n` : "";
+  return `${fillCommand}q 0.74 0.78 0.84 RG 0.7 w ${x} ${y} ${width} ${height} re S Q\n`;
+}
+
+function pdfTableRow(values: string[], columns: PdfColumn[], topY: number, height = 20, options?: { fill?: boolean; size?: number }) {
+  const size = options?.size || 9;
+  const tableX = columns[0].x;
+  const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+  const bottomY = topY - height;
+  let content = pdfBox(tableX, bottomY, tableWidth, height, options?.fill);
+  let separatorX = tableX;
+  columns.slice(0, -1).forEach((column) => {
+    separatorX += column.width;
+    content += `q 0.74 0.78 0.84 RG 0.7 w ${separatorX} ${bottomY} m ${separatorX} ${topY} l S Q\n`;
+  });
+  values.forEach((value, index) => {
+    const column = columns[index];
+    const text = value.length > 34 && column.width < 210 ? `${value.slice(0, 31)}...` : value;
+    const estimatedWidth = Math.min(column.width - 10, text.length * size * 0.48);
+    const textX = column.align === "right" ? column.x + column.width - 6 - estimatedWidth : column.x + 6;
+    content += pdfLine(text, Math.max(column.x + 4, textX), bottomY + 7, size);
+  });
+  return content;
 }
 
 function buildPdf(content: string) {
@@ -278,6 +311,22 @@ export default function CustomerOrdersPage() {
     const paidAmount = paid(order);
     const fullAmount = totalAmount(previousDueAmount, orderAmount);
     const todaysDue = todaysDueAmount(previousDueAmount, orderAmount, paidAmount);
+    const productColumns: PdfColumn[] = [
+      { x: 48, width: 250 },
+      { x: 298, width: 58, align: "right" },
+      { x: 356, width: 88, align: "right" },
+      { x: 444, width: 103, align: "right" }
+    ];
+    const totalColumns: PdfColumn[] = [
+      { x: 298, width: 150 },
+      { x: 448, width: 99, align: "right" }
+    ];
+    const paymentColumns: PdfColumn[] = [
+      { x: 48, width: 132 },
+      { x: 180, width: 100 },
+      { x: 280, width: 168 },
+      { x: 448, width: 99, align: "right" }
+    ];
     let y = 800;
     let content = "";
     content += pdfLine(invoiceNumber, 48, y, 18); y -= 22;
@@ -285,23 +334,25 @@ export default function CustomerOrdersPage() {
     content += pdfLine(`Order date: ${formatDate(order.dueAt || order.createdAt)}`, 360, y, 9); y -= 16;
     content += pdfLine(`Payment status: ${order.invoice?.paymentStatus || order.paymentStatus}`, 360, y, 9); y -= 30;
     content += pdfLine("Products", 48, y, 13); y -= 18;
-    content += pdfLine("Product", 48, y, 9);
-    content += pdfLine("Qty", 310, y, 9);
-    content += pdfLine("Price", 370, y, 9);
-    content += pdfLine("Total", 455, y, 9); y -= 14;
-    order.items.slice(0, 18).forEach((item) => {
-      content += pdfLine(item.name.slice(0, 42), 48, y, 9);
-      content += pdfLine(formatQty(item.quantity), 310, y, 9);
-      content += pdfLine(formatPdfAmount(item.unitPrice), 370, y, 9);
-      content += pdfLine(formatPdfAmount(item.lineTotal), 455, y, 9);
-      y -= 14;
+    content += pdfTableRow(["Product", "Qty", "Price", "Total"], productColumns, y, 22, { fill: true, size: 9 });
+    y -= 22;
+    order.items.slice(0, 16).forEach((item) => {
+      content += pdfTableRow([
+        item.name,
+        formatQty(item.quantity),
+        formatPdfAmount(item.unitPrice),
+        formatPdfAmount(item.lineTotal)
+      ], productColumns, y, 20, { size: 9 });
+      y -= 20;
     });
-    if (order.items.length > 18) {
-      content += pdfLine(`Plus ${order.items.length - 18} more item(s)`, 48, y, 9);
-      y -= 14;
+    if (order.items.length > 16) {
+      content += pdfTableRow([`Plus ${order.items.length - 16} more item(s)`, "", "", ""], productColumns, y, 20, { size: 9 });
+      y -= 20;
     }
-    y -= 18;
-    content += pdfLine("Totals", 360, y, 13); y -= 18;
+    y -= 22;
+    content += pdfLine("Totals", 298, y, 13); y -= 18;
+    content += pdfTableRow(["Description", "Amount"], totalColumns, y, 22, { fill: true, size: 9 });
+    y -= 22;
     [
       ["Previous Due Amount", previousDueAmount],
       ["Order Amount", orderAmount],
@@ -309,20 +360,25 @@ export default function CustomerOrdersPage() {
       ["Paid Amount", paidAmount],
       ["Today's Due Amount", todaysDue]
     ].forEach(([label, value]) => {
-      content += pdfLine(String(label), 360, y, 9);
-      content += pdfLine(formatPdfAmount(value as number), 475, y, 9);
-      y -= 14;
+      content += pdfTableRow([String(label), formatPdfAmount(value as number)], totalColumns, y, 20, { size: 9 });
+      y -= 20;
     });
-    y -= 18;
+    y -= 24;
     content += pdfLine("Payment History", 48, y, 13); y -= 18;
     const payments = order.payments || [];
+    content += pdfTableRow(["Date", "Method", "Reference", "Amount"], paymentColumns, y, 22, { fill: true, size: 9 });
+    y -= 22;
     if (!payments.length) {
-      content += pdfLine("No payment recorded.", 48, y, 9);
+      content += pdfTableRow(["No payment recorded.", "", "", ""], paymentColumns, y, 20, { size: 9 });
     } else {
       payments.slice(0, 8).forEach((payment, index) => {
-        content += pdfLine(`${index + 1}. ${formatDate(payment.paidAt)} ${payment.method || "Cash"} ${payment.reference || ""}`, 48, y, 9);
-        content += pdfLine(formatPdfAmount(payment.amount), 455, y, 9);
-        y -= 14;
+        content += pdfTableRow([
+          formatDate(payment.paidAt),
+          payment.method || "Cash",
+          payment.reference || `Payment ${index + 1}`,
+          formatPdfAmount(payment.amount)
+        ], paymentColumns, y, 20, { size: 9 });
+        y -= 20;
       });
     }
     const fileName = `${invoiceNumber.replace(/[^a-z0-9-]+/gi, "-").toLowerCase()}.pdf`;
@@ -443,12 +499,17 @@ export default function CustomerOrdersPage() {
                 <Fragment key={order.id}>
                   <tr className="bg-panel2/70">
                     <td className="px-4 py-3" colSpan={8}>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(0,auto)] lg:items-center">
                         <div>
                           <p className="font-semibold">{order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`}</p>
-                          <p className="text-xs text-muted">{formatDate(order.dueAt || order.createdAt)} · {order.invoice?.paymentStatus || order.paymentStatus}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-muted">{formatDate(order.dueAt || order.createdAt)} · {order.invoice?.paymentStatus || order.paymentStatus}</span>
+                            <span className={`rounded-md border px-2 py-1 font-semibold ${driverAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}>
+                              {driverAccepted(order) ? "Accepted by driver" : "Pending for accept"}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 lg:justify-start lg:pr-10">
                           <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
                           <button
                             className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold"
@@ -468,9 +529,9 @@ export default function CustomerOrdersPage() {
                           </button>
                           <button
                             className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                            disabled={saving || order.status !== "PENDING"}
+                            disabled={saving || order.status !== "PENDING" || driverAccepted(order)}
                             onClick={() => openEditOrder(order)}
-                            title={order.status === "PENDING" ? "Edit order" : `Cannot edit ${order.status.toLowerCase()} order`}
+                            title={driverAccepted(order) ? "Cannot edit after driver accepts" : order.status === "PENDING" ? "Edit order" : `Cannot edit ${order.status.toLowerCase()} order`}
                             type="button"
                           >
                             <Pencil size={14} /> Edit

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Download, Eye, RefreshCw } from "lucide-react";
+import { Download, Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -11,19 +11,31 @@ import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 
+type Product = {
+  id: string;
+  name: string;
+  category?: string | null;
+  categoryRef?: { name: string } | null;
+  unitPrice: string | number;
+  active: boolean;
+};
 type Payment = { id: string; amount: string | number; method?: string | null; reference?: string | null; paidAt?: string | null };
 type Order = {
   id: string;
+  source: string;
   status: string;
   vehicleStatus?: string;
   paymentStatus: string;
+  fulfillmentType: string;
   grandTotal: string | number;
   dueAt?: string | null;
+  notes?: string | null;
   createdAt: string;
   customer: { id?: string; name: string; phone?: string | null; route?: { name: string } | null };
   route?: { name: string } | null;
   items: {
     id: string;
+    productId: string;
     name: string;
     quantity: string | number;
     unitPrice?: string | number | null;
@@ -31,6 +43,11 @@ type Order = {
     product?: { category?: string | null; categoryRef?: { name: string } | null } | null;
   }[];
   payments?: Payment[];
+};
+type OrderFormState = {
+  dueAt: string;
+  notes: string;
+  items: { id: string; productId: string; quantity: string }[];
 };
 
 const paymentMethods = ["Cash", "UPI"];
@@ -41,6 +58,7 @@ const paymentTypes = [
 ];
 
 const today = localDateInput();
+const emptyOrderForm: OrderFormState = { dueAt: today, notes: "", items: [{ id: "row-1", productId: "", quantity: "" }] };
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -88,11 +106,14 @@ function csvCell(value: string | number) {
 
 export default function VehicleRoutesPage() {
   const toast = useToast();
+  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
@@ -107,10 +128,12 @@ export default function VehicleRoutesPage() {
       const params = new URLSearchParams({ startDate: date, endDate: date });
       const previousEndDate = localDateInput(addLocalDays(new Date(`${date}T00:00:00`), -1));
       const previousParams = new URLSearchParams({ endDate: previousEndDate, pageSize: "500" });
-      const [data, previousData] = await Promise.all([
+      const [productData, data, previousData] = await Promise.all([
+        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
       ]);
+      setProducts(productData.products.filter((product) => product.active !== false));
       setOrders(data.orders);
       setPreviousOrders(previousData.orders);
     } catch (error) {
@@ -169,17 +192,76 @@ export default function VehicleRoutesPage() {
   }), [visibleOrders, previousDueByCustomer]);
   const todayDueTotal = Math.max(totals.totalAmount - totals.paid, 0);
 
+  function openEditOrder(order: Order) {
+    setEditOrder(order);
+    setEditForm({
+      dueAt: (order.dueAt || order.createdAt).slice(0, 10),
+      notes: order.notes || "",
+      items: order.items.map((item) => ({ id: item.id, productId: item.productId || "", quantity: String(item.quantity) }))
+    });
+  }
+
+  function updateFormItem(rowId: string, patch: Partial<{ productId: string; quantity: string }>) {
+    setEditForm((current) => ({
+      ...current,
+      items: current.items.map((item) => item.id === rowId ? { ...item, ...patch } : item)
+    }));
+  }
+
+  function addFormItem() {
+    setEditForm((current) => ({ ...current, items: [...current.items, { id: `row-${Date.now()}`, productId: "", quantity: "" }] }));
+  }
+
+  function removeFormItem(rowId: string) {
+    setEditForm((current) => ({ ...current, items: current.items.length === 1 ? current.items : current.items.filter((item) => item.id !== rowId) }));
+  }
+
   async function updateOrder(order: Order, patch: { status?: string; vehicleStatus?: string; paymentStatus?: string; paymentAmount?: number; paymentMethod?: string; reference?: string }) {
     if (!apiBase) return;
     setSaving(true);
     try {
-      await authFetch(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
+      const result = await authFetch<{ order: Order }>(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
+      setOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...result.order } : item));
+      setPreviousOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...result.order } : item));
       toast.success("Order updated", `${order.customer.name} has been updated.`);
       setPaymentOrder(null);
       setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
       await loadData();
     } catch (error) {
       toast.error("Update failed", error instanceof Error ? error.message : "Could not update this order.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase || !editOrder) return;
+    const items = editForm.items
+      .filter((item) => item.productId && Number(item.quantity) > 0)
+      .map((item) => ({ productId: item.productId, quantity: Number(item.quantity) }));
+    if (!items.length) {
+      toast.warning("No products selected", "Add at least one product quantity.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await authFetch<{ order: Order }>(`${apiBase}/orders/${editOrder.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          source: editOrder.source,
+          fulfillmentType: editOrder.fulfillmentType,
+          dueAt: editForm.dueAt,
+          notes: editForm.notes || undefined,
+          items
+        })
+      });
+      setOrders((current) => current.map((item) => item.id === editOrder.id ? { ...item, ...result.order } : item));
+      toast.success("Order updated", `${editOrder.customer.name} order was recalculated.`);
+      setEditOrder(null);
+      await loadData();
+    } catch (error) {
+      toast.error("Order update failed", error instanceof Error ? error.message : "Could not update this order.");
     } finally {
       setSaving(false);
     }
@@ -309,6 +391,7 @@ export default function VehicleRoutesPage() {
                         <div className="flex flex-wrap justify-end gap-2">
                           <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
                           <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Order details</button>
+                          <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(order)} type="button"><Pencil size={14} /> Edit</button>
                           <select
                             className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${order.vehicleStatus === "ACCEPTED" ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
                             disabled={saving}
@@ -333,6 +416,35 @@ export default function VehicleRoutesPage() {
           </div>
         </section>
       </div>
+
+      <Modal open={Boolean(editOrder)} title="Edit order" description={editOrder ? `${editOrder.customer.name} · Vehicle can edit accepted orders` : ""} onClose={() => setEditOrder(null)}>
+        {editOrder ? (
+          <form className="grid gap-4" onSubmit={saveOrder}>
+            <label className="grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setEditForm((current) => ({ ...current, dueAt: value }))} value={editForm.dueAt} /></label>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Products</p>
+                <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold" onClick={addFormItem} type="button"><Plus size={15} /> Add Product</button>
+              </div>
+              {editForm.items.map((item) => (
+                <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[1fr_120px_40px]" key={item.id}>
+                  <select className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => updateFormItem(item.id, { productId: event.target.value })} required value={item.productId}>
+                    <option value="">Select product</option>
+                    {products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatAmount(product.unitPrice)}</option>)}
+                  </select>
+                  <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" min="0.001" onChange={(event) => updateFormItem(item.id, { quantity: event.target.value })} placeholder="Qty" required step="0.001" type="number" value={item.quantity} />
+                  <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" disabled={editForm.items.length === 1} onClick={() => removeFormItem(item.id)} title="Remove product" type="button"><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
+            <label className="grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} value={editForm.notes} /></label>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setEditOrder(null)} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Order"}</button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
 
       <Modal open={Boolean(paymentOrder)} title={paymentOrder?.payments?.length ? "Edit payment" : "Record payment"} description="Save the single payment amount for this order." onClose={() => setPaymentOrder(null)}>
         {paymentOrder ? (
