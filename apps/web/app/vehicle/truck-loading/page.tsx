@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
-import { DateInput, localDateInput } from "../../../components/date-input";
+import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
@@ -24,6 +24,23 @@ type TruckLoading = {
     todaysDue: number;
   }[];
   totals: Record<string, number>;
+};
+type Payment = { amount: string | number };
+type Order = {
+  id: string;
+  grandTotal: string | number;
+  dueAt?: string | null;
+  createdAt: string;
+  customer: { id?: string; name: string; phone?: string | null };
+  items: {
+    productId: string;
+    name: string;
+    quantity: string | number;
+    unitPrice?: string | number | null;
+    lineTotal?: string | number | null;
+    product?: { category?: string | null; categoryRef?: { name: string } | null } | null;
+  }[];
+  payments?: Payment[];
 };
 
 const today = localDateInput();
@@ -46,6 +63,73 @@ function productSort(a: TruckLoading["products"][number], b: TruckLoading["produ
   return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
 }
 
+function customerKey(order: Order) {
+  return order.customer.id || order.customer.name;
+}
+
+function orderPaid(order: Order) {
+  return (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+}
+
+function orderDue(order: Order) {
+  return Math.max(Number(order.grandTotal || 0) - orderPaid(order), 0);
+}
+
+function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders: Order[]): TruckLoading {
+  const previousDueByCustomer = new Map<string, number>();
+  previousOrders.forEach((order) => {
+    const key = customerKey(order);
+    previousDueByCustomer.set(key, (previousDueByCustomer.get(key) || 0) + orderDue(order));
+  });
+
+  const productMap = new Map<string, { id: string; name: string; category: string }>();
+  const rows = new Map<string, TruckLoading["routes"][number]>();
+
+  orders.forEach((order) => {
+    const key = customerKey(order);
+    if (!rows.has(key)) {
+      rows.set(key, {
+        id: key,
+        name: order.customer.name,
+        quantities: {},
+        total: 0,
+        previousDue: previousDueByCustomer.get(key) || 0,
+        orderAmount: 0,
+        paidAmount: 0,
+        todaysDue: 0
+      });
+    }
+
+    const row = rows.get(key)!;
+    row.orderAmount += Number(order.grandTotal || 0);
+    row.paidAmount += orderPaid(order);
+    order.items.forEach((item) => {
+      const category = item.product?.categoryRef?.name || item.product?.category || "General";
+      productMap.set(item.productId, { id: item.productId, name: item.name, category });
+      const quantity = Number(item.quantity || 0);
+      row.quantities[item.productId] = (row.quantities[item.productId] || 0) + quantity;
+      row.total += quantity;
+    });
+  });
+
+  const routes = Array.from(rows.values()).map((row) => ({
+    ...row,
+    todaysDue: Math.max(row.previousDue + row.orderAmount - row.paidAmount, 0)
+  })).sort((a, b) => a.name.localeCompare(b.name));
+  const products = Array.from(productMap.values()).sort(productSort);
+
+  return {
+    date,
+    orderCount: orders.length,
+    products,
+    routes,
+    totals: products.reduce<Record<string, number>>((acc, product) => {
+      acc[product.id] = routes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0);
+      return acc;
+    }, {})
+  };
+}
+
 export default function VehicleTruckLoadingPage() {
   const toast = useToast();
   const [date, setDate] = useState(today);
@@ -62,8 +146,14 @@ export default function VehicleTruckLoadingPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ date, groupBy: "customer" });
-      const data = await authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`);
-      setTruckLoading(data.truckLoading);
+      const previousEndDate = localDateInput(addLocalDays(new Date(`${date}T00:00:00`), -1));
+      const previousParams = new URLSearchParams({ endDate: previousEndDate, pageSize: "500" });
+      const [data, orderData, previousData] = await Promise.all([
+        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`),
+        authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=500`),
+        authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
+      ]);
+      setTruckLoading(orderData.orders.length ? buildCustomerTruckLoading(date, orderData.orders, previousData.orders) : data.truckLoading);
     } catch (error) {
       toast.error("Could not load truck loading", error instanceof Error ? error.message : "Please sign in again.");
     } finally {
