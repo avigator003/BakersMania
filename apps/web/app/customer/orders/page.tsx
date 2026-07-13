@@ -58,6 +58,7 @@ type DaySummary = {
   todaysDue: number;
   totalDue: number;
 };
+type CarryForwardSummary = { orders: number; quantity: number; previousDue: number };
 
 const today = localDateInput();
 const emptyOrderForm: OrderFormState = { dueAt: today, notes: "", items: [{ id: "row-1", productId: "", quantity: "" }] };
@@ -189,7 +190,7 @@ export default function CustomerOrdersPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [summaryOrders, setSummaryOrders] = useState<Order[]>([]);
+  const [carryForwardSummary, setCarryForwardSummary] = useState<CarryForwardSummary | null>(null);
   const [summary, setSummary] = useState<DaySummary | null>(null);
   const [date, setDate] = useState(today);
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -223,23 +224,28 @@ export default function CustomerOrdersPage() {
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100&_=${cacheKey}`),
         authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${date}&_=${cacheKey}`)
       ]);
-      let effectiveSummaryOrders = orderData.orders;
+      let effectiveCarryForwardSummary: CarryForwardSummary | null = null;
       let effectiveSummary = summaryData.summary;
       if (!orderData.orders.length) {
-        const recentData = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?pageSize=100&_=${cacheKey}`);
+        const recentData = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?endDate=${date}&pageSize=100&_=${cacheKey}`);
         const latestDate = recentData.orders
           .map(orderDateKey)
           .sort((a, b) => b.localeCompare(a))[0];
         if (latestDate) {
-          effectiveSummaryOrders = recentData.orders.filter((order) => orderDateKey(order) === latestDate);
+          const latestOrders = recentData.orders.filter((order) => orderDateKey(order) === latestDate);
           const latestSummaryData = await authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${latestDate}&_=${cacheKey}`);
           effectiveSummary = latestSummaryData.summary;
+          effectiveCarryForwardSummary = {
+            orders: latestOrders.length,
+            quantity: latestOrders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
+            previousDue: latestSummaryData.summary.totalDue
+          };
         }
       }
       setProducts(productData.products.filter((product) => product.active !== false));
       setCategories(categoryData.categories);
       setOrders(orderData.orders);
-      setSummaryOrders(effectiveSummaryOrders);
+      setCarryForwardSummary(effectiveCarryForwardSummary);
       setSummary(effectiveSummary);
     } catch (error) {
       toast.error("Could not load orders", error instanceof Error ? error.message : "Please sign in again.");
@@ -272,33 +278,22 @@ export default function CustomerOrdersPage() {
     return map;
   }, new Map<string, { order: Order; rows: typeof rows }>()).values()), [rows]);
 
-  const summaryRows = useMemo(() => (orders.length ? orders : summaryOrders).flatMap((order) => order.items.map((item) => ({
-    order,
-    item,
-    category: itemCategory(item),
-    categoryId: itemCategoryId(item),
-    paidAmount: paid(order),
-    dueAmount: due(order)
-  }))).filter((row) => {
-    if (categoryFilter && row.categoryId !== categoryFilter) return false;
-    if (productFilter && row.item.product?.id !== productFilter) return false;
-    return true;
-  }), [categoryFilter, orders, productFilter, summaryOrders]);
-
   const totals = useMemo(() => {
-    const uniqueOrders = Array.from(new Map(summaryRows.map((row) => [row.order.id, row.order])).values());
-    const previousDue = summary?.previousDue || 0;
-    const orderAmount = summaryRows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0);
+    const uniqueOrders = Array.from(new Map(rows.map((row) => [row.order.id, row.order])).values());
+    const previousDue = rows.length ? summary?.previousDue || 0 : carryForwardSummary?.previousDue || summary?.previousDue || 0;
+    const orderAmount = rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0);
     const paidAmount = uniqueOrders.reduce((sum, order) => sum + paid(order), 0);
     return {
-      orders: uniqueOrders.length,
-      quantity: summaryRows.reduce((sum, row) => sum + Number(row.item.quantity || 0), 0),
+      orders: uniqueOrders.length || carryForwardSummary?.orders || 0,
+      quantity: rows.length
+        ? rows.reduce((sum, row) => sum + Number(row.item.quantity || 0), 0)
+        : carryForwardSummary?.quantity || 0,
       previousDue,
       orderAmount,
       paid: paidAmount,
       todaysDue: todaysDueAmount(previousDue, orderAmount, paidAmount)
     };
-  }, [summaryRows, summary]);
+  }, [carryForwardSummary, rows, summary]);
 
   function openEditOrder(order: Order) {
     setEditOrder(order);

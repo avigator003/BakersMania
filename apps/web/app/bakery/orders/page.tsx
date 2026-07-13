@@ -59,6 +59,7 @@ type PaginatedOrdersResponse = {
     pageCount: number;
   };
 };
+type CarryForwardSummary = { orders: number; quantity: number; previousDue: number };
 
 const today = localDateInput();
 const tomorrow = localDateInput(addLocalDays(new Date(), 1));
@@ -176,8 +177,7 @@ export default function BakeryOrdersPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
-  const [summaryOrders, setSummaryOrders] = useState<Order[]>([]);
-  const [summaryPreviousOrders, setSummaryPreviousOrders] = useState<Order[]>([]);
+  const [carryForwardSummary, setCarryForwardSummary] = useState<CarryForwardSummary | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -228,39 +228,30 @@ export default function BakeryOrdersPage() {
     return dueByCustomer;
   }, [previousOrders]);
 
-  const summaryPreviousDueByCustomer = useMemo(() => {
-    const dueByCustomer = new Map<string, number>();
-    summaryPreviousOrders.forEach((order) => {
-      dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
-    });
-    return dueByCustomer;
-  }, [summaryPreviousOrders]);
-
   function previousDueForOrder(order: Order) {
     return previousDueByCustomer.get(customerKey(order)) || 0;
   }
 
-  function summaryPreviousDueForOrder(order: Order) {
-    return summaryPreviousDueByCustomer.get(customerKey(order)) || 0;
-  }
-
   const orderTotals = useMemo(() => {
-    const source = orders.length ? orders : summaryOrders;
-    const previousDue = source.reduce((sum, order) => sum + (orders.length ? previousDueForOrder(order) : summaryPreviousDueForOrder(order)), 0);
-    const amount = source.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
-    const paid = source.reduce((sum, order) => sum + orderPaid(order), 0);
+    const previousDue = orders.length
+      ? orders.reduce((sum, order) => sum + previousDueForOrder(order), 0)
+      : carryForwardSummary?.previousDue || 0;
+    const amount = orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
+    const paid = orders.reduce((sum, order) => sum + orderPaid(order), 0);
     const fullAmount = totalAmount(previousDue, amount);
     return {
-      orders: source.length,
-      quantity: source.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
+      orders: orders.length || carryForwardSummary?.orders || 0,
+      quantity: orders.length
+        ? orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0)
+        : carryForwardSummary?.quantity || 0,
       amount,
       paid,
-      due: source.reduce((sum, order) => sum + orderDue(order), 0),
+      due: orders.reduce((sum, order) => sum + orderDue(order), 0),
       previousDue,
       totalAmount: fullAmount,
       todaysDue: Math.max(fullAmount - paid, 0)
     };
-  }, [orders, previousDueByCustomer, summaryOrders, summaryPreviousDueByCustomer]);
+  }, [carryForwardSummary, orders, previousDueByCustomer]);
 
   function getOrderRouteName(order: Order) {
     return order.route?.name || order.customer.route?.name || "No route";
@@ -296,8 +287,7 @@ export default function BakeryOrdersPage() {
         authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=100`),
         authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
-      let effectiveSummaryOrders = orderData.orders;
-      let effectiveSummaryPreviousOrders = previousData.orders;
+      let effectiveCarryForwardSummary: CarryForwardSummary | null = null;
       let effectiveTotal = orderData.pagination?.total ?? orderData.orders.length;
       let effectivePageCount = orderData.pagination?.pageCount ?? 1;
       let effectivePage = orderData.pagination?.page ?? page;
@@ -309,6 +299,7 @@ export default function BakeryOrdersPage() {
         if (search.trim()) fallbackParams.set("search", search.trim());
         fallbackParams.set("page", "1");
         fallbackParams.set("pageSize", "100");
+        fallbackParams.set("endDate", endDate || startDate || today);
         const fallbackData = await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackParams.toString()}`);
         const latestDate = fallbackData.orders
           .map(orderDateKey)
@@ -321,14 +312,24 @@ export default function BakeryOrdersPage() {
           if (customerFilter.length) fallbackPreviousParams.set("customerIds", customerFilter.join(","));
           if (routeFilter.length) fallbackPreviousParams.set("routeIds", routeFilter.join(","));
           if (search.trim()) fallbackPreviousParams.set("search", search.trim());
-          effectiveSummaryOrders = fallbackData.orders.filter((order) => orderDateKey(order) === latestDate);
-          effectiveSummaryPreviousOrders = (await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
+          const latestOrders = fallbackData.orders.filter((order) => orderDateKey(order) === latestDate);
+          const fallbackPreviousOrders = (await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
+          const fallbackPreviousDueByCustomer = new Map<string, number>();
+          fallbackPreviousOrders.forEach((order) => {
+            fallbackPreviousDueByCustomer.set(customerKey(order), (fallbackPreviousDueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+          });
+          effectiveCarryForwardSummary = {
+            orders: latestOrders.length,
+            quantity: latestOrders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
+            previousDue: latestOrders.reduce((sum, order) => (
+              sum + todaysDueAmount(fallbackPreviousDueByCustomer.get(customerKey(order)) || 0, order.grandTotal, orderPaid(order))
+            ), 0)
+          };
         }
       }
       setOrders(orderData.orders);
       setPreviousOrders(previousData.orders);
-      setSummaryOrders(effectiveSummaryOrders);
-      setSummaryPreviousOrders(effectiveSummaryPreviousOrders);
+      setCarryForwardSummary(effectiveCarryForwardSummary);
       setOrdersTotal(effectiveTotal);
       setOrdersPageCount(effectivePageCount);
       setPage(effectivePage);
