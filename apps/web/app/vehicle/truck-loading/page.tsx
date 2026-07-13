@@ -282,10 +282,10 @@ export default function VehicleTruckLoadingPage() {
                     <span className="mt-1 block text-[11px] normal-case text-muted">{product.category}</span>
                   </th>
                 ))}
-                <th className="sticky right-[32rem] z-40 min-w-24 border-b border-r border-line bg-panel2 px-4 py-3 shadow-[-8px_0_12px_rgba(23,32,51,0.08)]">Total Qty</th>
-                <th className="sticky right-96 z-40 min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Order Amount</th>
-                <th className="sticky right-64 z-40 min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Previous Due Amount</th>
-                <th className="sticky right-32 z-40 min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Paid Amount</th>
+                <th className="min-w-28 border-b border-r border-line bg-panel2 px-4 py-3">Total Qty</th>
+                <th className="min-w-36 border-b border-r border-line bg-panel2 px-4 py-3">Order Amount</th>
+                <th className="min-w-44 border-b border-r border-line bg-panel2 px-4 py-3">Previous Due Amount</th>
+                <th className="min-w-36 border-b border-r border-line bg-panel2 px-4 py-3">Paid Amount</th>
                 <th className="sticky right-0 z-40 min-w-32 border-b border-line bg-panel2 px-4 py-3">Today&apos;s Due Amount</th>
               </tr>
             </thead>
@@ -301,22 +301,22 @@ export default function VehicleTruckLoadingPage() {
                       </td>
                     );
                   })}
-                  <td className={`sticky right-[32rem] z-30 border-b border-r border-line px-4 py-3 font-bold text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatQty(routeTotal(route)) || "-"}</td>
-                  <td className={`sticky right-96 z-30 border-b border-r border-line px-4 py-3 text-right font-semibold ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatAmount(route.orderAmount)}</td>
-                  <td className={`sticky right-64 z-30 border-b border-r border-line px-4 py-3 text-right font-semibold ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatAmount(route.previousDue)}</td>
-                  <td className={`sticky right-32 z-30 border-b border-r border-line px-4 py-3 text-right font-semibold ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatAmount(route.paidAmount)}</td>
-                  <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 text-right font-bold text-berry ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatAmount(route.todaysDue)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 font-bold text-mint">{formatQty(routeTotal(route)) || "-"}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.orderAmount)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.previousDue)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.paidAmount)}</td>
+                  <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 text-right font-bold text-berry shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatAmount(route.todaysDue)}</td>
                 </tr>
               ))}
               {truckLoading && visibleProducts.length ? (
                 <tr className="bg-mint/10 font-bold">
                   <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
                   {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(productTotals[product.id]) || "-"}</td>)}
-                  <td className="sticky right-[32rem] z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatQty(totalQuantity) || "-"}</td>
-                  <td className="sticky right-96 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-right">{formatAmount(amountTotals.orderAmount)}</td>
-                  <td className="sticky right-64 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-right">{formatAmount(amountTotals.previousDue)}</td>
-                  <td className="sticky right-32 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-right">{formatAmount(amountTotals.paidAmount)}</td>
-                  <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-right text-berry">{formatAmount(amountTotals.todaysDue)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-mint">{formatQty(totalQuantity) || "-"}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.orderAmount)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.previousDue)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.paidAmount)}</td>
+                  <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-right text-berry shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatAmount(amountTotals.todaysDue)}</td>
                 </tr>
               ) : null}
               {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (
