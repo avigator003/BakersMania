@@ -24,6 +24,7 @@ type Category = { id: string; name: string; active?: boolean };
 type CartItem = { id: string; name: string; unitPrice: string | number; quantity: number };
 
 const tomorrow = localDateInput(addLocalDays(new Date(), 1));
+const cartStoragePrefix = "bakersmania_customer_cart";
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -51,6 +52,7 @@ export default function CustomerPage() {
   const [saving, setSaving] = useState(false);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
+  const cartStorageKey = tenantSlug ? `${cartStoragePrefix}_${tenantSlug}` : cartStoragePrefix;
 
   const categoryOptions = useMemo(
     () => categories.filter((category) => category.active !== false).map((category) => ({ value: category.id, label: category.name })),
@@ -96,17 +98,53 @@ export default function CustomerPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem(cartStorageKey);
+      if (saved) setCart(JSON.parse(saved) as CartItem[]);
+    } catch {
+      setCart([]);
+    }
+  }, [cartStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const selectedItems = cart.filter((item) => item.quantity > 0);
+    if (selectedItems.length) {
+      window.localStorage.setItem(cartStorageKey, JSON.stringify(selectedItems));
+      return;
+    }
+    window.localStorage.removeItem(cartStorageKey);
+  }, [cart, cartStorageKey]);
+
   const shopProducts = useMemo(() => visibleProductSource.filter((product) => {
     if (shopCategoryFilter && product.categoryId !== shopCategoryFilter && product.categoryRef?.id !== shopCategoryFilter) return false;
     if (shopProductFilter && product.id !== shopProductFilter) return false;
     return true;
   }), [shopCategoryFilter, shopProductFilter, visibleProductSource]);
 
+  const cartRows = useMemo(
+    () => {
+      if (!preferenceOnly) return cart;
+      const preferredIds = new Set(preferredProducts.map((product) => product.id));
+      const preferredRows = preferredProducts.map((product) => {
+          const existing = cart.find((item) => item.id === product.id);
+          return existing || { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity: 0 };
+        });
+      const extraRows = cart.filter((item) => !preferredIds.has(item.id) && item.quantity > 0);
+      return [...preferredRows, ...extraRows];
+    },
+    [cart, preferenceOnly, preferredProducts]
+  );
+
+  const orderItems = useMemo(() => cartRows.filter((item) => item.quantity > 0), [cartRows]);
+
   const cartTotals = useMemo(() => ({
-    items: cart.length,
-    quantity: cart.reduce((sum, item) => sum + item.quantity, 0),
-    amount: cart.reduce((sum, item) => sum + Number(item.unitPrice || 0) * item.quantity, 0)
-  }), [cart]);
+    items: orderItems.length,
+    quantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
+    amount: orderItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * item.quantity, 0)
+  }), [orderItems]);
 
   function addProduct(product: Product) {
     setCart((current) => {
@@ -116,10 +154,21 @@ export default function CustomerPage() {
       }
       return [...current, { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity: 1 }];
     });
+    toast.success("Added to cart", `${product.name} is ready in Cart.`);
   }
 
   function updateQuantity(productId: string, quantity: number) {
-    setCart((current) => current.map((item) => item.id === productId ? { ...item, quantity } : item).filter((item) => item.quantity > 0));
+    setCart((current) => {
+      const existing = current.find((item) => item.id === productId);
+      if (existing) {
+        const updated = current.map((item) => item.id === productId ? { ...item, quantity } : item);
+        return preferenceOnly ? updated : updated.filter((item) => item.quantity > 0);
+      }
+      const product = products.find((item) => item.id === productId);
+      if (!product) return current;
+      const next = [...current, { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity }];
+      return preferenceOnly ? next : next.filter((item) => item.quantity > 0);
+    });
   }
 
   async function togglePreference(product: Product) {
@@ -139,7 +188,7 @@ export default function CustomerPage() {
 
   async function placeOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!apiBase || !cart.length) return;
+    if (!apiBase || !orderItems.length) return;
     setSaving(true);
     try {
       await authFetch(`${apiBase}/orders`, {
@@ -149,11 +198,12 @@ export default function CustomerPage() {
           fulfillmentType: "DELIVERY",
           dueAt: date,
           notes: notes || undefined,
-          items: cart.map((item) => ({ productId: item.id, quantity: item.quantity }))
+          items: orderItems.map((item) => ({ productId: item.id, quantity: item.quantity }))
         })
       });
       toast.success("Order placed", "Your order is now visible to the bakery team.");
       setCart([]);
+      if (typeof window !== "undefined") window.localStorage.removeItem(cartStorageKey);
       setNotes("");
     } catch (error) {
       toast.error("Order failed", error instanceof Error ? error.message : "Could not place this order.");
@@ -164,7 +214,7 @@ export default function CustomerPage() {
 
   return (
     <AppShell title="Customer Portal" subtitle="Shop and create orders" surface="customer">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className={`grid gap-4 ${preferenceOnly ? "xl:grid-cols-[minmax(0,1fr)_360px]" : ""}`}>
         <div className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="grid gap-3 border-b border-line p-4 md:grid-cols-[minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
             <SearchableSelect className="min-w-0" onChange={setShopCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={shopCategoryFilter} />
@@ -198,13 +248,13 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        <form className="rounded-lg border border-line bg-panel p-4 shadow-subtle xl:sticky xl:top-24 xl:self-start" onSubmit={placeOrder}>
+        {preferenceOnly ? <form className="rounded-lg border border-line bg-panel p-4 shadow-subtle xl:sticky xl:top-24 xl:self-start" onSubmit={placeOrder}>
           <div className="flex items-center gap-2">
             <ShoppingCart className="text-mint" size={20} />
             <h2 className="text-lg font-semibold">Order Cart</h2>
           </div>
           <div className="mt-4 grid gap-2">
-            {cart.map((item) => (
+            {cartRows.map((item) => (
               <div className="grid grid-cols-[1fr_84px_40px] items-center gap-2 rounded-md border border-line bg-panel2 p-3" key={item.id}>
                 <span>
                   <span className="block font-semibold">{item.name}</span>
@@ -214,7 +264,7 @@ export default function CustomerPage() {
                 <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" onClick={() => updateQuantity(item.id, 0)} title="Remove item" type="button"><Trash2 size={15} /></button>
               </div>
             ))}
-            {!cart.length ? <p className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">No products selected.</p> : null}
+            {!cartRows.length ? <p className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">No products selected.</p> : null}
           </div>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
             <span>Items: <strong className="text-ink">{cartTotals.items}</strong></span>
@@ -223,8 +273,8 @@ export default function CustomerPage() {
           </div>
           <label className="mt-4 grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
           <label className="mt-3 grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setNotes(event.target.value)} value={notes} /></label>
-          <button className="focus-ring mt-4 w-full rounded-md bg-mint px-4 py-3 font-semibold text-white" disabled={saving || !cart.length} type="submit">{saving ? "Placing..." : "Place Order"}</button>
-        </form>
+          <button className="focus-ring mt-4 w-full rounded-md bg-mint px-4 py-3 font-semibold text-white" disabled={saving || !orderItems.length} type="submit">{saving ? "Placing..." : "Place Order"}</button>
+        </form> : null}
       </section>
     </AppShell>
   );
