@@ -112,6 +112,29 @@ function itemCategory(item: Order["items"][number]) {
   return item.product?.categoryRef?.name || item.product?.category || "-";
 }
 
+function dueByCustomer(orders: Order[]) {
+  const dueByCustomer = new Map<string, number>();
+  orders.forEach((order) => {
+    dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+  });
+  return dueByCustomer;
+}
+
+function latestDaySummary(orders: Order[]) {
+  const latestDate = orders
+    .map(orderDateKey)
+    .sort((a, b) => b.localeCompare(a))[0];
+  if (!latestDate) return null;
+  const latestOrders = orders.filter((order) => orderDateKey(order) === latestDate);
+  const olderDueByCustomer = dueByCustomer(orders.filter((order) => orderDateKey(order) < latestDate));
+  return {
+    orders: latestOrders.length,
+    previousDue: latestOrders.reduce((sum, order) => (
+      sum + todaysDueAmount(olderDueByCustomer.get(customerKey(order)) || 0, order.grandTotal, orderPaid(order))
+    ), 0)
+  };
+}
+
 function csvCell(value: string | number) {
   const text = String(value ?? "");
   return `"${text.replace(/"/g, "\"\"")}"`;
@@ -222,30 +245,7 @@ export default function VehicleRoutesPage() {
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
       ]);
-      let effectiveCarryForwardSummary: CarryForwardSummary | null = null;
-      if (!data.orders.length) {
-        const recentParams = new URLSearchParams({ endDate: date, pageSize: "500", _: String(Date.now()) });
-        const recentData = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?${recentParams.toString()}`);
-        const latestDate = recentData.orders
-          .map(orderDateKey)
-          .sort((a, b) => b.localeCompare(a))[0];
-        if (latestDate) {
-          const fallbackPreviousEndDate = localDateInput(addLocalDays(new Date(`${latestDate}T00:00:00`), -1));
-          const fallbackPreviousParams = new URLSearchParams({ endDate: fallbackPreviousEndDate, pageSize: "500", _: String(Date.now()) });
-          const latestOrders = recentData.orders.filter((order) => orderDateKey(order) === latestDate);
-          const fallbackPreviousOrders = (await authFetch<{ orders: Order[] }>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
-          const fallbackPreviousDueByCustomer = new Map<string, number>();
-          fallbackPreviousOrders.forEach((order) => {
-            fallbackPreviousDueByCustomer.set(customerKey(order), (fallbackPreviousDueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
-          });
-          effectiveCarryForwardSummary = {
-            orders: latestOrders.length,
-            previousDue: latestOrders.reduce((sum, order) => (
-              sum + todaysDueAmount(fallbackPreviousDueByCustomer.get(customerKey(order)) || 0, order.grandTotal, orderPaid(order))
-            ), 0)
-          };
-        }
-      }
+      const effectiveCarryForwardSummary = latestDaySummary(previousData.orders);
       setProducts(productData.products.filter((product) => product.active !== false));
       setOrders(data.orders);
       setPreviousOrders(previousData.orders);
@@ -261,13 +261,7 @@ export default function VehicleRoutesPage() {
     loadData();
   }, [date]);
 
-  const previousDueByCustomer = useMemo(() => {
-    const dueByCustomer = new Map<string, number>();
-    previousOrders.forEach((order) => {
-      dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
-    });
-    return dueByCustomer;
-  }, [previousOrders]);
+  const previousDueByCustomer = useMemo(() => dueByCustomer(previousOrders), [previousOrders]);
 
   function previousDue(order: Order) {
     return previousDueByCustomer.get(customerKey(order)) || 0;
@@ -300,9 +294,7 @@ export default function VehicleRoutesPage() {
   const totals = useMemo(() => ({
     orders: visibleOrders.length || carryForwardSummary?.orders || 0,
     orderAmount: visibleOrders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
-    previousDue: visibleOrders.length
-      ? visibleOrders.reduce((sum, order) => sum + previousDue(order), 0)
-      : carryForwardSummary?.previousDue || 0,
+    previousDue: carryForwardSummary?.previousDue || 0,
     paid: visibleOrders.reduce((sum, order) => sum + orderPaid(order), 0)
   }), [carryForwardSummary, previousDueByCustomer, visibleOrders]);
   const todayDueTotal = Math.max(totals.orderAmount + totals.previousDue - totals.paid, 0);

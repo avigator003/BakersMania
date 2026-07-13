@@ -101,6 +101,30 @@ function customerKey(order: Order) {
   return order.customer.id || order.customer.name;
 }
 
+function dueByCustomer(orders: Order[]) {
+  const dueByCustomer = new Map<string, number>();
+  orders.forEach((order) => {
+    dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+  });
+  return dueByCustomer;
+}
+
+function latestDaySummary(orders: Order[]) {
+  const latestDate = orders
+    .map(orderDateKey)
+    .sort((a, b) => b.localeCompare(a))[0];
+  if (!latestDate) return null;
+  const latestOrders = orders.filter((order) => orderDateKey(order) === latestDate);
+  const olderDueByCustomer = dueByCustomer(orders.filter((order) => orderDateKey(order) < latestDate));
+  return {
+    orders: latestOrders.length,
+    quantity: latestOrders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
+    previousDue: latestOrders.reduce((sum, order) => (
+      sum + todaysDueAmount(olderDueByCustomer.get(customerKey(order)) || 0, order.grandTotal, orderPaid(order))
+    ), 0)
+  };
+}
+
 function orderPaid(order: Order) {
   return paymentTotal(order.payments);
 }
@@ -220,22 +244,14 @@ export default function BakeryOrdersPage() {
     label: route.name
   })), [routes]);
 
-  const previousDueByCustomer = useMemo(() => {
-    const dueByCustomer = new Map<string, number>();
-    previousOrders.forEach((order) => {
-      dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
-    });
-    return dueByCustomer;
-  }, [previousOrders]);
+  const previousDueByCustomer = useMemo(() => dueByCustomer(previousOrders), [previousOrders]);
 
   function previousDueForOrder(order: Order) {
     return previousDueByCustomer.get(customerKey(order)) || 0;
   }
 
   const orderTotals = useMemo(() => {
-    const previousDue = orders.length
-      ? orders.reduce((sum, order) => sum + previousDueForOrder(order), 0)
-      : carryForwardSummary?.previousDue || 0;
+    const previousDue = carryForwardSummary?.previousDue || 0;
     const amount = orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
     const paid = orders.reduce((sum, order) => sum + orderPaid(order), 0);
     const fullAmount = totalAmount(previousDue, amount);
@@ -287,7 +303,7 @@ export default function BakeryOrdersPage() {
         authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=100`),
         authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
-      let effectiveCarryForwardSummary: CarryForwardSummary | null = null;
+      let effectiveCarryForwardSummary: CarryForwardSummary | null = latestDaySummary(previousData.orders);
       let effectiveTotal = orderData.pagination?.total ?? orderData.orders.length;
       let effectivePageCount = orderData.pagination?.pageCount ?? 1;
       let effectivePage = orderData.pagination?.page ?? page;
@@ -312,19 +328,8 @@ export default function BakeryOrdersPage() {
           if (customerFilter.length) fallbackPreviousParams.set("customerIds", customerFilter.join(","));
           if (routeFilter.length) fallbackPreviousParams.set("routeIds", routeFilter.join(","));
           if (search.trim()) fallbackPreviousParams.set("search", search.trim());
-          const latestOrders = fallbackData.orders.filter((order) => orderDateKey(order) === latestDate);
           const fallbackPreviousOrders = (await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
-          const fallbackPreviousDueByCustomer = new Map<string, number>();
-          fallbackPreviousOrders.forEach((order) => {
-            fallbackPreviousDueByCustomer.set(customerKey(order), (fallbackPreviousDueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
-          });
-          effectiveCarryForwardSummary = {
-            orders: latestOrders.length,
-            quantity: latestOrders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
-            previousDue: latestOrders.reduce((sum, order) => (
-              sum + todaysDueAmount(fallbackPreviousDueByCustomer.get(customerKey(order)) || 0, order.grandTotal, orderPaid(order))
-            ), 0)
-          };
+          effectiveCarryForwardSummary = latestDaySummary([...fallbackData.orders.filter((order) => orderDateKey(order) === latestDate), ...fallbackPreviousOrders]);
         }
       }
       setOrders(orderData.orders);
