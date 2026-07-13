@@ -125,17 +125,6 @@ export const ordersService = {
     if (!resolvedCustomerId) {
       throw new HttpError(422, "customerId is required for staff-created orders");
     }
-    if (auth?.actorType === "vehicle") {
-      const routeIds = await vehicleRouteIds(tenantId, auth);
-      const customer = await ordersRepository.findCustomer(tenantId, resolvedCustomerId);
-      if (!customer?.routeId || !routeIds?.includes(customer.routeId)) {
-        throw new HttpError(403, "This customer is not assigned to this vehicle");
-      }
-      if (input.customerId && input.customerId !== resolvedCustomerId) {
-        throw new HttpError(403, "Vehicles cannot move orders to another customer");
-      }
-    }
-
     await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, input);
     const payload = await buildOrderPayload(tenantId, resolvedCustomerId, input);
 
