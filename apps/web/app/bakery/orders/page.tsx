@@ -158,13 +158,15 @@ function downloadFile(content: string, type: string, fileName: string) {
 }
 
 function printInvoicePdf(html: string) {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+  const printWindow = window.open("", "_blank", "width=900,height=1100");
   if (!printWindow) return false;
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  window.setTimeout(() => {
+    printWindow.focus();
+    printWindow.print();
+  }, 250);
   return true;
 }
 

@@ -108,24 +108,49 @@ function itemCategoryId(item: OrderItem) {
   return item.product?.categoryRef?.id || item.product?.categoryId || "";
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function pdfText(value: string) {
+  return value.replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7E]/g, " ");
 }
 
-function printInvoicePdf(html: string) {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
-  if (!printWindow) return false;
-  printWindow.document.open();
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  return true;
+function formatPdfAmount(value?: string | number | null) {
+  return `Rs ${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+function pdfLine(value: string, x: number, y: number, size = 10) {
+  return `BT /F1 ${size} Tf ${x} ${y} Td (${pdfText(value)}) Tj ET\n`;
+}
+
+function buildPdf(content: string) {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${content.length} >>\nstream\n${content}endstream`
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return pdf;
+}
+
+function downloadPdf(fileName: string, pdf: string) {
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function CustomerOrdersPage() {
@@ -248,78 +273,60 @@ export default function CustomerOrdersPage() {
 
   function exportOrder(order: Order) {
     const invoiceNumber = order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`;
-    const paymentRows = (order.payments || []).map((payment, index) => `
-      <tr>
-        <td>${index + 1}</td>
-        <td>${escapeHtml(formatDate(payment.paidAt))}</td>
-        <td>${escapeHtml(payment.method || "Cash")}</td>
-        <td>${escapeHtml(payment.reference || "")}</td>
-        <td style="text-align:right;">${escapeHtml(formatAmount(payment.amount))}</td>
-      </tr>
-    `).join("");
-    const productRows = (order.items || []).map((item) => `
-      <tr>
-        <td>${escapeHtml(item.name)}</td>
-        <td style="text-align:right;">${escapeHtml(formatQty(item.quantity))}</td>
-        <td style="text-align:right;">${escapeHtml(formatAmount(item.unitPrice))}</td>
-        <td style="text-align:right;">${escapeHtml(formatAmount(item.lineTotal))}</td>
-      </tr>
-    `).join("");
     const previousDueAmount = totals.previousDue;
     const orderAmount = Number(order.grandTotal || 0);
     const paidAmount = paid(order);
     const fullAmount = totalAmount(previousDueAmount, orderAmount);
     const todaysDue = todaysDueAmount(previousDueAmount, orderAmount, paidAmount);
-    const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(invoiceNumber)}</title>
-  <style>
-    body { font-family: Arial, sans-serif; color: #172033; margin: 32px; }
-    h1 { margin: 0 0 4px; }
-    .muted { color: #64748b; }
-    .top { display: flex; justify-content: space-between; gap: 24px; border-bottom: 1px solid #dbe3ef; padding-bottom: 18px; margin-bottom: 24px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border-bottom: 1px solid #dbe3ef; padding: 10px; text-align: left; }
-    th { background: #f3f6fa; font-size: 12px; text-transform: uppercase; color: #64748b; }
-    .totals { margin-left: auto; margin-top: 24px; width: 320px; }
-    .totals div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #dbe3ef; }
-    .strong { font-weight: 700; }
-  </style>
-</head>
-<body>
-  <div class="top">
-    <div>
-      <h1>${escapeHtml(invoiceNumber)}</h1>
-      <div class="muted">Order ${escapeHtml(order.id)}</div>
-    </div>
-    <div>
-      <div class="muted">Order date: ${escapeHtml(formatDate(order.dueAt || order.createdAt))}</div>
-      <div class="muted">Payment status: ${escapeHtml(order.invoice?.paymentStatus || order.paymentStatus)}</div>
-    </div>
-  </div>
-  <table>
-    <thead><tr><th>Product</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr></thead>
-    <tbody>${productRows || '<tr><td colspan="4" class="muted">No products found.</td></tr>'}</tbody>
-  </table>
-  <div class="totals">
-    <div><span>Previous Due Amount</span><span>${escapeHtml(formatAmount(previousDueAmount))}</span></div>
-    <div><span>Order Amount</span><span>${escapeHtml(formatAmount(orderAmount))}</span></div>
-    <div><span>Total Amount</span><span>${escapeHtml(formatAmount(fullAmount))}</span></div>
-    <div><span>Paid Amount</span><span>${escapeHtml(formatAmount(paidAmount))}</span></div>
-    <div class="strong"><span>Today's Due Amount</span><span>${escapeHtml(formatAmount(todaysDue))}</span></div>
-  </div>
-  <h2>Payment History</h2>
-  <table>
-    <thead><tr><th>#</th><th>Date</th><th>Method</th><th>Reference</th><th style="text-align:right;">Amount</th></tr></thead>
-    <tbody>${paymentRows || '<tr><td colspan="5" class="muted">No payment recorded.</td></tr>'}</tbody>
-  </table>
-</body>
-</html>`;
-    if (!printInvoicePdf(html)) {
-      toast.error("PDF export blocked", "Allow pop-ups to print or save this invoice as PDF.");
+    let y = 800;
+    let content = "";
+    content += pdfLine(invoiceNumber, 48, y, 18); y -= 22;
+    content += pdfLine(`Order ${order.id}`, 48, y, 9);
+    content += pdfLine(`Order date: ${formatDate(order.dueAt || order.createdAt)}`, 360, y, 9); y -= 16;
+    content += pdfLine(`Payment status: ${order.invoice?.paymentStatus || order.paymentStatus}`, 360, y, 9); y -= 30;
+    content += pdfLine("Products", 48, y, 13); y -= 18;
+    content += pdfLine("Product", 48, y, 9);
+    content += pdfLine("Qty", 310, y, 9);
+    content += pdfLine("Price", 370, y, 9);
+    content += pdfLine("Total", 455, y, 9); y -= 14;
+    order.items.slice(0, 18).forEach((item) => {
+      content += pdfLine(item.name.slice(0, 42), 48, y, 9);
+      content += pdfLine(formatQty(item.quantity), 310, y, 9);
+      content += pdfLine(formatPdfAmount(item.unitPrice), 370, y, 9);
+      content += pdfLine(formatPdfAmount(item.lineTotal), 455, y, 9);
+      y -= 14;
+    });
+    if (order.items.length > 18) {
+      content += pdfLine(`Plus ${order.items.length - 18} more item(s)`, 48, y, 9);
+      y -= 14;
     }
+    y -= 18;
+    content += pdfLine("Totals", 360, y, 13); y -= 18;
+    [
+      ["Previous Due Amount", previousDueAmount],
+      ["Order Amount", orderAmount],
+      ["Total Amount", fullAmount],
+      ["Paid Amount", paidAmount],
+      ["Today's Due Amount", todaysDue]
+    ].forEach(([label, value]) => {
+      content += pdfLine(String(label), 360, y, 9);
+      content += pdfLine(formatPdfAmount(value as number), 475, y, 9);
+      y -= 14;
+    });
+    y -= 18;
+    content += pdfLine("Payment History", 48, y, 13); y -= 18;
+    const payments = order.payments || [];
+    if (!payments.length) {
+      content += pdfLine("No payment recorded.", 48, y, 9);
+    } else {
+      payments.slice(0, 8).forEach((payment, index) => {
+        content += pdfLine(`${index + 1}. ${formatDate(payment.paidAt)} ${payment.method || "Cash"} ${payment.reference || ""}`, 48, y, 9);
+        content += pdfLine(formatPdfAmount(payment.amount), 455, y, 9);
+        y -= 14;
+      });
+    }
+    const fileName = `${invoiceNumber.replace(/[^a-z0-9-]+/gi, "-").toLowerCase()}.pdf`;
+    downloadPdf(fileName, buildPdf(content));
   }
 
   function updateFormItem(rowId: string, patch: Partial<{ productId: string; quantity: string }>) {
