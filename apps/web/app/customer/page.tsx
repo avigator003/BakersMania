@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, ShoppingCart, Star, Trash2 } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { AppShell } from "../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../components/date-input";
 import { LoadingSpinner } from "../../components/loading-spinner";
@@ -38,6 +39,7 @@ function productCategory(product: Product) {
 
 export default function CustomerPage() {
   const toast = useToast();
+  const pathname = usePathname();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -65,9 +67,12 @@ export default function CustomerPage() {
     [sortedProducts]
   );
 
+  const preferenceOnly = pathname.endsWith("/customer/cart");
+  const visibleProductSource = preferenceOnly ? preferredProducts : sortedProducts;
+
   const productOptions = useMemo(
-    () => preferredProducts.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
-    [preferredProducts]
+    () => visibleProductSource.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    [visibleProductSource]
   );
 
   async function loadData() {
@@ -91,11 +96,11 @@ export default function CustomerPage() {
     loadData();
   }, []);
 
-  const shopProducts = useMemo(() => preferredProducts.filter((product) => {
+  const shopProducts = useMemo(() => visibleProductSource.filter((product) => {
     if (shopCategoryFilter && product.categoryId !== shopCategoryFilter && product.categoryRef?.id !== shopCategoryFilter) return false;
     if (shopProductFilter && product.id !== shopProductFilter) return false;
     return true;
-  }), [shopCategoryFilter, shopProductFilter, preferredProducts]);
+  }), [shopCategoryFilter, shopProductFilter, visibleProductSource]);
 
   const cartTotals = useMemo(() => ({
     items: cart.length,
@@ -168,7 +173,7 @@ export default function CustomerPage() {
           {loading ? <LoadingSpinner label="Loading shop" /> : null}
           <div className="grid min-h-[220px] gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-3">
             {shopProducts.map((product) => (
-              <article className="rounded-lg border border-line bg-panel2 p-4" key={product.id}>
+              <article className={`rounded-lg border p-4 ${product.isPreferred ? "border-amber-300 bg-amber-50 shadow-subtle" : "border-line bg-panel2"}`} key={product.id}>
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm text-mint">{productCategory(product)}</p>
                   <button
@@ -189,7 +194,7 @@ export default function CustomerPage() {
                 </button>
               </article>
             ))}
-            {!loading && !shopProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-sm text-muted">No preferred products found.</p> : null}
+            {!loading && !shopProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-sm text-muted">{preferenceOnly ? "No preferred products found." : "No active products found."}</p> : null}
           </div>
         </div>
 
