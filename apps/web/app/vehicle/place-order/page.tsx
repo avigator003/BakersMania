@@ -143,7 +143,7 @@ export default function VehiclePlaceOrderPage() {
   }
 
   return (
-    <AppShell title="Vehicle Workspace" subtitle="Place customer order" surface="vehicle">
+    <AppShell title="Vehicle Workspace" subtitle="Orders" surface="vehicle">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
