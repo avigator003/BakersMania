@@ -1,1 +1,1 @@
-export { default } from "../../../../vehicle/place-order/page";
+export { default } from "../../../vehicle/place-order/page";
