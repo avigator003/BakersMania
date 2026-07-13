@@ -25,7 +25,7 @@ type TruckLoading = {
   }[];
   totals: Record<string, number>;
 };
-type Payment = { amount: string | number };
+type Payment = { amount: string | number; paidAt?: string | null };
 type Order = {
   id: string;
   grandTotal: string | number;
@@ -67,19 +67,32 @@ function customerKey(order: Order) {
   return order.customer.id || order.customer.name;
 }
 
-function orderPaid(order: Order) {
-  return (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+function paymentInRange(payment: Payment, start: Date, end: Date) {
+  if (!payment.paidAt) return false;
+  const paidAt = new Date(payment.paidAt);
+  return paidAt >= start && paidAt < end;
 }
 
-function orderDue(order: Order) {
-  return Math.max(Number(order.grandTotal || 0) - orderPaid(order), 0);
+function paidBefore(order: Order, end: Date) {
+  return (order.payments || []).reduce((sum, payment) => {
+    if (!payment.paidAt || new Date(payment.paidAt) < end) return sum + Number(payment.amount || 0);
+    return sum;
+  }, 0);
 }
 
 function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders: Order[]): TruckLoading {
+  const start = new Date(`${date}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
   const previousDueByCustomer = new Map<string, number>();
+  const paidTodayByCustomer = new Map<string, number>();
+
   previousOrders.forEach((order) => {
     const key = customerKey(order);
-    previousDueByCustomer.set(key, (previousDueByCustomer.get(key) || 0) + orderDue(order));
+    const previousDue = Math.max(Number(order.grandTotal || 0) - paidBefore(order, start), 0);
+    previousDueByCustomer.set(key, (previousDueByCustomer.get(key) || 0) + previousDue);
+    const paidToday = (order.payments || []).reduce((sum, payment) => paymentInRange(payment, start, end) ? sum + Number(payment.amount || 0) : sum, 0);
+    paidTodayByCustomer.set(key, (paidTodayByCustomer.get(key) || 0) + paidToday);
   });
 
   const productMap = new Map<string, { id: string; name: string; category: string }>();
@@ -87,6 +100,8 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
 
   orders.forEach((order) => {
     const key = customerKey(order);
+    const paidToday = (order.payments || []).reduce((sum, payment) => paymentInRange(payment, start, end) ? sum + Number(payment.amount || 0) : sum, 0);
+    paidTodayByCustomer.set(key, (paidTodayByCustomer.get(key) || 0) + paidToday);
     if (!rows.has(key)) {
       rows.set(key, {
         id: key,
@@ -95,14 +110,14 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
         total: 0,
         previousDue: previousDueByCustomer.get(key) || 0,
         orderAmount: 0,
-        paidAmount: 0,
+        paidAmount: paidTodayByCustomer.get(key) || 0,
         todaysDue: 0
       });
     }
 
     const row = rows.get(key)!;
     row.orderAmount += Number(order.grandTotal || 0);
-    row.paidAmount += orderPaid(order);
+    row.paidAmount = paidTodayByCustomer.get(key) || 0;
     order.items.forEach((item) => {
       const category = item.product?.categoryRef?.name || item.product?.category || "General";
       productMap.set(item.productId, { id: item.productId, name: item.name, category });

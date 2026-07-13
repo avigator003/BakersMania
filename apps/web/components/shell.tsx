@@ -251,6 +251,7 @@ export function AppShell({
     : surface === "vehicle"
       ? [
         { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList },
+        { href: `${routeBase}/vehicle/place-order`, label: "Place Order", icon: ShoppingCart },
         { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck },
         { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee }
       ]
