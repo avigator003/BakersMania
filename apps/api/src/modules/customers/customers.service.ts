@@ -155,10 +155,10 @@ export const customersService = {
   },
 
   async getMyProfile(auth: Express.Request["auth"], tenantId: string) {
-    if (auth?.actorType !== "customer") {
+    if (auth?.actorType !== "customer" || !auth.customerId) {
       throw new HttpError(403, "Customer access required");
     }
-    const customer = await customersRepository.findByUser(tenantId, auth.sub);
+    const customer = await customersRepository.findById(tenantId, auth.customerId);
     if (!customer) {
       throw new HttpError(404, "Customer profile not found");
     }
@@ -166,10 +166,10 @@ export const customersService = {
   },
 
   async updateMyProfile(auth: Express.Request["auth"], tenantId: string, input: CustomerUpdateInput) {
-    if (auth?.actorType !== "customer") {
+    if (auth?.actorType !== "customer" || !auth.customerId) {
       throw new HttpError(403, "Customer access required");
     }
-    const customer = await customersRepository.findByUser(tenantId, auth.sub);
+    const customer = await customersRepository.findById(tenantId, auth.customerId);
     if (!customer) {
       throw new HttpError(404, "Customer profile not found");
     }

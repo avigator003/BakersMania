@@ -321,6 +321,69 @@ export const ordersRepository = {
     });
   },
 
+  async truckLoadingCustomerTotals(tenantId: string, filters: { date: string; routeIds?: string[] }) {
+    const start = new Date(`${filters.date}T00:00:00.000Z`);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    const routeFilter = filters.routeIds?.length
+      ? Prisma.sql`AND c."routeId" IN (${Prisma.join(filters.routeIds)})`
+      : Prisma.empty;
+    const rows = await prisma.$queryRaw<Array<{
+      customerId: string;
+      previousDue: unknown;
+      orderAmount: unknown;
+      paidAmount: unknown;
+    }>>`
+      WITH order_base AS (
+        SELECT
+          o.id,
+          o."customerId",
+          o."grandTotal",
+          COALESCE(o."dueAt", o."createdAt") AS "orderDate"
+        FROM "Order" o
+        JOIN "Customer" c ON c.id = o."customerId"
+        WHERE o."tenantId" = ${tenantId}
+          ${routeFilter}
+      ),
+      order_paid AS (
+        SELECT
+          ob.id,
+          COALESCE(SUM(p.amount), 0) AS "paidTotal",
+          COALESCE(SUM(CASE WHEN p."paidAt" >= ${start} AND p."paidAt" < ${end} THEN p.amount ELSE 0 END), 0) AS "paidToday"
+        FROM order_base ob
+        LEFT JOIN "Payment" p ON p."orderId" = ob.id
+        GROUP BY ob.id
+      ),
+      order_due AS (
+        SELECT
+          ob.*,
+          op."paidToday",
+          GREATEST(ob."grandTotal" - op."paidTotal", 0) AS "dueAmount"
+        FROM order_base ob
+        JOIN order_paid op ON op.id = ob.id
+      )
+      SELECT
+        "customerId",
+        COALESCE(SUM(CASE WHEN "orderDate" < ${start} THEN "dueAmount" ELSE 0 END), 0) AS "previousDue",
+        COALESCE(SUM(CASE WHEN "orderDate" >= ${start} AND "orderDate" < ${end} THEN "grandTotal" ELSE 0 END), 0) AS "orderAmount",
+        COALESCE(SUM("paidToday"), 0) AS "paidAmount"
+      FROM order_due
+      GROUP BY "customerId"
+    `;
+    return rows.map((row) => {
+      const previousDue = Number(row.previousDue || 0);
+      const orderAmount = Number(row.orderAmount || 0);
+      const paidAmount = Number(row.paidAmount || 0);
+      return {
+        customerId: row.customerId,
+        previousDue,
+        orderAmount,
+        paidAmount,
+        todaysDue: Math.max(previousDue + orderAmount - paidAmount, 0)
+      };
+    });
+  },
+
   listForDate(tenantId: string, filters: { date: string; routeId?: string }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);

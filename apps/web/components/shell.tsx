@@ -357,7 +357,7 @@ export function AppShell({
           </span>
         </Link>
 
-        <nav className="mt-8 grid flex-1 gap-1 overflow-y-auto pr-1">
+        <nav className="mt-8 grid flex-1 auto-rows-max content-start gap-1 overflow-y-auto pr-1">
           {nav.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);

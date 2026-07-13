@@ -386,23 +386,28 @@ export const ordersService = {
 
   async truckLoading(tenantId: string, filters: { date: string; categoryId?: string }, auth?: AccessTokenPayload) {
     const routeIds = await vehicleRouteIds(tenantId, auth);
+    const groupByCustomer = auth?.actorType === "vehicle";
     const [orders, routeTotals] = await Promise.all([
       ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined }),
-      ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined })
+      groupByCustomer
+        ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined })
+        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined })
     ]);
     const productMap = new Map<string, { id: string; name: string; category: string }>();
-    const routeTotalsMap = new Map(routeTotals.map((row) => [row.routeId, row]));
+    const rowTotalsMap = groupByCustomer
+      ? new Map(routeTotals.map((row) => ["customerId" in row ? row.customerId : row.routeId, row]))
+      : new Map(routeTotals.map((row) => ["routeId" in row ? row.routeId : row.customerId, row]));
     const routeMap = new Map<string, { id: string; name: string; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number }>();
 
     orders.forEach((order) => {
       const route = order.route || order.customer.route;
-      const routeId = route?.id || "no-route";
-      const routeName = route?.name || "No route";
-      if (!routeMap.has(routeId)) {
-        const totals = routeTotalsMap.get(routeId);
-        routeMap.set(routeId, {
-          id: routeId,
-          name: routeName,
+      const rowId = groupByCustomer ? order.customerId : route?.id || "no-route";
+      const rowName = groupByCustomer ? order.customer.name : route?.name || "No route";
+      if (!routeMap.has(rowId)) {
+        const totals = rowTotalsMap.get(rowId);
+        routeMap.set(rowId, {
+          id: rowId,
+          name: rowName,
           quantities: {},
           total: 0,
           previousDue: totals?.previousDue || 0,
@@ -411,7 +416,7 @@ export const ordersService = {
           todaysDue: totals?.todaysDue || 0
         });
       }
-      const row = routeMap.get(routeId)!;
+      const row = routeMap.get(rowId)!;
       order.items.forEach((item) => {
         productMap.set(item.productId, {
           id: item.productId,

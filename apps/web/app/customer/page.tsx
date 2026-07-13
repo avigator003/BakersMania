@@ -60,9 +60,14 @@ export default function CustomerPage() {
     [products]
   );
 
-  const productOptions = useMemo(
-    () => sortedProducts.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+  const preferredProducts = useMemo(
+    () => sortedProducts.filter((product) => product.isPreferred),
     [sortedProducts]
+  );
+
+  const productOptions = useMemo(
+    () => preferredProducts.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    [preferredProducts]
   );
 
   async function loadData() {
@@ -86,11 +91,11 @@ export default function CustomerPage() {
     loadData();
   }, []);
 
-  const shopProducts = useMemo(() => sortedProducts.filter((product) => {
+  const shopProducts = useMemo(() => preferredProducts.filter((product) => {
     if (shopCategoryFilter && product.categoryId !== shopCategoryFilter && product.categoryRef?.id !== shopCategoryFilter) return false;
     if (shopProductFilter && product.id !== shopProductFilter) return false;
     return true;
-  }), [shopCategoryFilter, shopProductFilter, sortedProducts]);
+  }), [shopCategoryFilter, shopProductFilter, preferredProducts]);
 
   const cartTotals = useMemo(() => ({
     items: cart.length,
@@ -184,7 +189,7 @@ export default function CustomerPage() {
                 </button>
               </article>
             ))}
-            {!loading && !shopProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-sm text-muted">No active products found.</p> : null}
+            {!loading && !shopProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-sm text-muted">No preferred products found.</p> : null}
           </div>
         </div>
 

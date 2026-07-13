@@ -56,7 +56,7 @@ export default function VehicleTruckLoadingPage() {
   const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState<string[]>([]);
-  const [routeFilter, setRouteFilter] = useState<string[]>([]);
+  const [customerFilter, setCustomerFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
@@ -90,7 +90,7 @@ export default function VehicleTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const routeOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
+  const customerOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
     value: route.id,
     label: route.name
   })), [truckLoading]);
@@ -106,8 +106,8 @@ export default function VehicleTruckLoadingPage() {
 
   const visibleRoutes = useMemo(() => {
     const routes = truckLoading?.routes || [];
-    return routeFilter.length ? routes.filter((route) => routeFilter.includes(route.id)) : routes;
-  }, [routeFilter, truckLoading]);
+    return customerFilter.length ? routes.filter((route) => customerFilter.includes(route.id)) : routes;
+  }, [customerFilter, truckLoading]);
 
   function routeTotal(route: TruckLoading["routes"][number]) {
     return visibleProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0);
@@ -131,7 +131,7 @@ export default function VehicleTruckLoadingPage() {
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const header = ["Route Name", ...visibleProducts.map((product) => product.name), "Total Qty", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount"];
+    const header = ["Customer Name", ...visibleProducts.map((product) => product.name), "Total Qty", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount"];
     const rows = visibleRoutes.map((route) => [
       route.name,
       ...visibleProducts.map((product) => route.quantities[product.id] || ""),
@@ -171,7 +171,7 @@ export default function VehicleTruckLoadingPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm text-muted">
-              <span>Routes: <span className="font-semibold text-ink">{visibleRoutes.length}</span></span>
+              <span>Customers: <span className="font-semibold text-ink">{visibleRoutes.length}</span></span>
               <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
               <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
               <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
@@ -179,7 +179,7 @@ export default function VehicleTruckLoadingPage() {
             </div>
             <SearchableSelect className="min-w-56" multiple onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
-            <SearchableSelect className="min-w-52" multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
+            <SearchableSelect className="min-w-52" multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
             <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setDate} value={date} />
             <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!visibleRoutes.length || !visibleProducts.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
@@ -192,7 +192,7 @@ export default function VehicleTruckLoadingPage() {
           <table className="min-w-full border-separate border-spacing-0 text-center text-sm">
             <thead className="sticky top-0 z-20 text-xs uppercase text-muted">
               <tr>
-                <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Route Name</th>
+                <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Customer Name</th>
                 {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
