@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import { Download, Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
@@ -194,6 +194,13 @@ export default function CustomerOrdersPage() {
     if (productFilter && row.item.product?.id !== productFilter) return false;
     return true;
   }), [categoryFilter, orders, productFilter]);
+
+  const orderGroups = useMemo(() => Array.from(rows.reduce((map, row) => {
+    const group = map.get(row.order.id) || { order: row.order, rows: [] as typeof rows };
+    group.rows.push(row);
+    map.set(row.order.id, group);
+    return map;
+  }, new Map<string, { order: Order; rows: typeof rows }>()).values()), [rows]);
 
   const totals = useMemo(() => {
     const uniqueOrders = Array.from(new Map(rows.map((row) => [row.order.id, row.order])).values());
@@ -422,63 +429,74 @@ export default function CustomerOrdersPage() {
                 <th className="px-4 py-3 text-right">Total Amount</th>
                 <th className="px-4 py-3 text-right">Paid Amount</th>
                 <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
-                <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {rows.map((row) => (
-                <tr key={`${row.order.id}-${row.item.id}`}>
-                  <td className="px-4 py-3 font-semibold">{row.item.name}</td>
-                  <td className="px-4 py-3 text-muted">{row.category}</td>
-                  <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
-                  <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(totals.previousDue, row.item.lineTotal))}</td>
-                  <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, row.item.lineTotal, row.paidAmount))}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      <PaymentHistory compact payments={row.order.payments} total={row.order.grandTotal} />
-                      <button
-                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold"
-                        onClick={() => setDetailOrder(row.order)}
-                        title="Show invoice details"
-                        type="button"
-                      >
-                        <Eye size={14} /> Details
-                      </button>
-                      <button
-                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold"
-                        onClick={() => exportOrder(row.order)}
-                        title="Download invoice"
-                        type="button"
-                      >
-                        <Download size={14} /> PDF
-                      </button>
-                      <button
-                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                        disabled={saving || row.order.status !== "PENDING"}
-                        onClick={() => openEditOrder(row.order)}
-                        title={row.order.status === "PENDING" ? "Edit order" : `Cannot edit ${row.order.status.toLowerCase()} order`}
-                        type="button"
-                      >
-                        <Pencil size={14} /> Edit
-                      </button>
-                      <button
-                        className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                        disabled={saving || (todaysDueAmount(totals.previousDue, row.order.grandTotal, paid(row.order)) <= 0 && !row.order.payments?.length)}
-                        onClick={() => startPayment(row.order)}
-                        type="button"
-                      >
-                        {row.order.payments?.length ? "Edit payment" : "Record payment"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+              {orderGroups.map(({ order, rows: orderRows }) => (
+                <Fragment key={order.id}>
+                  <tr className="bg-panel2/70">
+                    <td className="px-4 py-3" colSpan={8}>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`}</p>
+                          <p className="text-xs text-muted">{formatDate(order.dueAt || order.createdAt)} · {order.invoice?.paymentStatus || order.paymentStatus}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                          <button
+                            className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold"
+                            onClick={() => setDetailOrder(order)}
+                            title="Show invoice details"
+                            type="button"
+                          >
+                            <Eye size={14} /> Details
+                          </button>
+                          <button
+                            className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold"
+                            onClick={() => exportOrder(order)}
+                            title="Download invoice"
+                            type="button"
+                          >
+                            <Download size={14} /> Invoice PDF
+                          </button>
+                          <button
+                            className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                            disabled={saving || order.status !== "PENDING"}
+                            onClick={() => openEditOrder(order)}
+                            title={order.status === "PENDING" ? "Edit order" : `Cannot edit ${order.status.toLowerCase()} order`}
+                            type="button"
+                          >
+                            <Pencil size={14} /> Edit
+                          </button>
+                          <button
+                            className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                            disabled={saving || (todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)) <= 0 && !order.payments?.length)}
+                            onClick={() => startPayment(order)}
+                            type="button"
+                          >
+                            {order.payments?.length ? "Edit payment" : "Record payment"}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                  {orderRows.map((row) => (
+                    <tr key={`${row.order.id}-${row.item.id}`}>
+                      <td className="px-4 py-3 font-semibold">{row.item.name}</td>
+                      <td className="px-4 py-3 text-muted">{row.category}</td>
+                      <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(totals.previousDue, row.item.lineTotal))}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, row.item.lineTotal, row.paidAmount))}</td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
               {!loading && !rows.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted" colSpan={9}>No products found for this date/filter.</td>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={8}>No products found for this date/filter.</td>
                 </tr>
               ) : null}
             </tbody>

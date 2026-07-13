@@ -247,7 +247,7 @@ export default function CustomerPage() {
                   <span className="block truncate text-sm font-semibold">{item.name}</span>
                   <span className="text-xs text-muted">{formatAmount(item.unitPrice)}</span>
                 </span>
-                <input className="rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint" min="0.001" onChange={(event) => updateQuantity(item.id, Number(event.target.value))} step="0.001" type="number" value={item.quantity} />
+                <input className="rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint" min="0" onChange={(event) => updateQuantity(item.id, Number(event.target.value))} step="0.001" type="number" value={item.quantity} />
                 <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel" onClick={() => updateQuantity(item.id, 0)} title="Remove item" type="button"><Trash2 size={14} /></button>
               </div>
             ))}
