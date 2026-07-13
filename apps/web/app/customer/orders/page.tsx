@@ -71,6 +71,10 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
 }
 
+function orderDateKey(order: Order) {
+  return (order.dueAt || order.createdAt).slice(0, 10);
+}
+
 function formatQty(value?: string | number | null) {
   return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 }
@@ -218,10 +222,23 @@ export default function CustomerOrdersPage() {
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100&_=${cacheKey}`),
         authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${date}&_=${cacheKey}`)
       ]);
+      let effectiveOrders = orderData.orders;
+      let effectiveSummary = summaryData.summary;
+      if (!effectiveOrders.length) {
+        const recentData = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?pageSize=100&_=${cacheKey}`);
+        const latestDate = recentData.orders
+          .map(orderDateKey)
+          .sort((a, b) => b.localeCompare(a))[0];
+        if (latestDate) {
+          effectiveOrders = recentData.orders.filter((order) => orderDateKey(order) === latestDate);
+          const latestSummaryData = await authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${latestDate}&_=${cacheKey}`);
+          effectiveSummary = latestSummaryData.summary;
+        }
+      }
       setProducts(productData.products.filter((product) => product.active !== false));
       setCategories(categoryData.categories);
-      setOrders(orderData.orders);
-      setSummary(summaryData.summary);
+      setOrders(effectiveOrders);
+      setSummary(effectiveSummary);
     } catch (error) {
       toast.error("Could not load orders", error instanceof Error ? error.message : "Please sign in again.");
     } finally {

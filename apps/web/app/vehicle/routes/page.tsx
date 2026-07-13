@@ -69,6 +69,10 @@ function formatQty(value?: string | number | null) {
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
 }
 
+function orderDateKey(order: Order) {
+  return (order.dueAt || order.createdAt).slice(0, 10);
+}
+
 function orderPaid(order: Order) {
   return paymentTotal(order.payments);
 }
@@ -216,9 +220,23 @@ export default function VehicleRoutesPage() {
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
       ]);
+      let effectiveOrders = data.orders;
+      let effectivePreviousOrders = previousData.orders;
+      if (!effectiveOrders.length) {
+        const recentData = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?pageSize=100&_=${Date.now()}`);
+        const latestDate = recentData.orders
+          .map(orderDateKey)
+          .sort((a, b) => b.localeCompare(a))[0];
+        if (latestDate) {
+          const fallbackPreviousEndDate = localDateInput(addLocalDays(new Date(`${latestDate}T00:00:00`), -1));
+          const fallbackPreviousParams = new URLSearchParams({ endDate: fallbackPreviousEndDate, pageSize: "500", _: String(Date.now()) });
+          effectiveOrders = recentData.orders.filter((order) => orderDateKey(order) === latestDate);
+          effectivePreviousOrders = (await authFetch<{ orders: Order[] }>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
+        }
+      }
       setProducts(productData.products.filter((product) => product.active !== false));
-      setOrders(data.orders);
-      setPreviousOrders(previousData.orders);
+      setOrders(effectiveOrders);
+      setPreviousOrders(effectivePreviousOrders);
     } catch (error) {
       toast.error("Could not load assigned routes", error instanceof Error ? error.message : "Please sign in again.");
     } finally {

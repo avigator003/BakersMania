@@ -92,6 +92,14 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 }
 
+function orderDateKey(order: Order) {
+  return (order.dueAt || order.createdAt).slice(0, 10);
+}
+
+function customerKey(order: Order) {
+  return order.customer.id || order.customer.name;
+}
+
 function orderPaid(order: Order) {
   return paymentTotal(order.payments);
 }
@@ -173,6 +181,7 @@ function printInvoicePdf(html: string) {
 export default function BakeryOrdersPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -215,8 +224,20 @@ export default function BakeryOrdersPage() {
     label: route.name
   })), [routes]);
 
+  const previousDueByCustomer = useMemo(() => {
+    const dueByCustomer = new Map<string, number>();
+    previousOrders.forEach((order) => {
+      dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+    });
+    return dueByCustomer;
+  }, [previousOrders]);
+
+  function previousDueForOrder(order: Order) {
+    return previousDueByCustomer.get(customerKey(order)) || 0;
+  }
+
   const orderTotals = useMemo(() => {
-    const previousDue = orders.reduce((sum, order) => sum + (isCarryForwardDue(order) ? orderDue(order) : 0), 0);
+    const previousDue = orders.reduce((sum, order) => sum + previousDueForOrder(order), 0);
     const amount = orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
     const paid = orders.reduce((sum, order) => sum + orderPaid(order), 0);
     const fullAmount = totalAmount(previousDue, amount);
@@ -230,7 +251,7 @@ export default function BakeryOrdersPage() {
       totalAmount: fullAmount,
       todaysDue: Math.max(fullAmount - paid, 0)
     };
-  }, [orders]);
+  }, [orders, previousDueByCustomer]);
 
   function getOrderRouteName(order: Order) {
     return order.route?.name || order.customer.route?.name || "No route";
@@ -252,17 +273,58 @@ export default function BakeryOrdersPage() {
       if (search.trim()) orderParams.set("search", search.trim());
       orderParams.set("page", String(page));
       orderParams.set("pageSize", String(pageSize));
-      const [orderData, customerData, productData, routeData] = await Promise.all([
+      const previousEndDate = localDateInput(addLocalDays(new Date(`${startDate || today}T00:00:00`), -1));
+      const previousParams = new URLSearchParams();
+      previousParams.set("endDate", previousEndDate);
+      previousParams.set("pageSize", "100");
+      if (customerFilter.length) previousParams.set("customerIds", customerFilter.join(","));
+      if (routeFilter.length) previousParams.set("routeIds", routeFilter.join(","));
+      if (search.trim()) previousParams.set("search", search.trim());
+      const [orderData, previousData, customerData, productData, routeData] = await Promise.all([
         authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${orderParams.toString()}`),
+        authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${previousParams.toString()}`),
         authFetch<{ customers: Customer[] }>(`${apiBase}/customers?pageSize=100`),
         authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=100`),
         authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
-      setOrders(orderData.orders);
-      setOrdersTotal(orderData.pagination?.total ?? orderData.orders.length);
-      setOrdersPageCount(orderData.pagination?.pageCount ?? 1);
-      setPage(orderData.pagination?.page ?? page);
-      setPageSize(orderData.pagination?.pageSize ?? pageSize);
+      let effectiveOrders = orderData.orders;
+      let effectivePreviousOrders = previousData.orders;
+      let effectiveTotal = orderData.pagination?.total ?? orderData.orders.length;
+      let effectivePageCount = orderData.pagination?.pageCount ?? 1;
+      let effectivePage = orderData.pagination?.page ?? page;
+      let effectivePageSize = orderData.pagination?.pageSize ?? pageSize;
+      if (!effectiveOrders.length && effectiveTotal === 0) {
+        const fallbackParams = new URLSearchParams();
+        if (customerFilter.length) fallbackParams.set("customerIds", customerFilter.join(","));
+        if (routeFilter.length) fallbackParams.set("routeIds", routeFilter.join(","));
+        if (search.trim()) fallbackParams.set("search", search.trim());
+        fallbackParams.set("page", "1");
+        fallbackParams.set("pageSize", "100");
+        const fallbackData = await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackParams.toString()}`);
+        const latestDate = fallbackData.orders
+          .map(orderDateKey)
+          .sort((a, b) => b.localeCompare(a))[0];
+        if (latestDate) {
+          const fallbackPreviousEndDate = localDateInput(addLocalDays(new Date(`${latestDate}T00:00:00`), -1));
+          const fallbackPreviousParams = new URLSearchParams();
+          fallbackPreviousParams.set("endDate", fallbackPreviousEndDate);
+          fallbackPreviousParams.set("pageSize", "100");
+          if (customerFilter.length) fallbackPreviousParams.set("customerIds", customerFilter.join(","));
+          if (routeFilter.length) fallbackPreviousParams.set("routeIds", routeFilter.join(","));
+          if (search.trim()) fallbackPreviousParams.set("search", search.trim());
+          effectiveOrders = fallbackData.orders.filter((order) => orderDateKey(order) === latestDate);
+          effectivePreviousOrders = (await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
+          effectiveTotal = effectiveOrders.length;
+          effectivePageCount = 1;
+          effectivePage = 1;
+        }
+      }
+      setOrders(effectiveOrders);
+      setPreviousOrders(effectivePreviousOrders);
+      setOrdersTotal(effectiveTotal);
+      setOrdersPageCount(effectivePageCount);
+      setPage(effectivePage);
+      setPageSize(effectivePageSize);
       setCustomers(customerData.customers);
       setProducts(productData.products);
       setRoutes(routeData.routes);
@@ -404,10 +466,6 @@ export default function BakeryOrdersPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function previousDueForOrder(order: Order) {
-    return isCarryForwardDue(order) ? orderDue(order) : 0;
   }
 
   function todayDueForOrder(order: Order) {
