@@ -216,7 +216,7 @@ export const ordersService = {
     if (auth?.actorType === "vehicle" && input.status) {
       throw new HttpError(403, "Vehicles cannot change bakery order status");
     }
-    if (auth?.actorType !== "vehicle" && input.vehicleStatus) {
+    if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user" && input.vehicleStatus) {
       throw new HttpError(403, "Only vehicles can change vehicle order status");
     }
 

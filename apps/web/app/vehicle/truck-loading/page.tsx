@@ -38,10 +38,6 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
-function totalAmount(previousDue: number, orderAmount: number) {
-  return Number(previousDue || 0) + Number(orderAmount || 0);
-}
-
 function csvCell(value: string | number | null | undefined) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
@@ -122,23 +118,21 @@ export default function VehicleTruckLoadingPage() {
 
   const totalQuantity = useMemo(() => visibleRoutes.reduce((sum, route) => sum + routeTotal(route), 0), [visibleProducts, visibleRoutes]);
   const amountTotals = useMemo(() => ({
-    previousDue: visibleRoutes.reduce((sum, route) => sum + Number(route.previousDue || 0), 0),
     orderAmount: visibleRoutes.reduce((sum, route) => sum + Number(route.orderAmount || 0), 0),
-    totalAmount: visibleRoutes.reduce((sum, route) => sum + totalAmount(Number(route.previousDue || 0), Number(route.orderAmount || 0)), 0),
+    previousDue: visibleRoutes.reduce((sum, route) => sum + Number(route.previousDue || 0), 0),
     paidAmount: visibleRoutes.reduce((sum, route) => sum + Number(route.paidAmount || 0), 0),
     todaysDue: visibleRoutes.reduce((sum, route) => sum + Number(route.todaysDue || 0), 0)
   }), [visibleRoutes]);
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const header = ["Customer Name", ...visibleProducts.map((product) => product.name), "Total Qty", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount"];
+    const header = ["Customer Name", ...visibleProducts.map((product) => product.name), "Total Qty", "Order Amount", "Previous Due Amount", "Paid Amount", "Today's Due Amount"];
     const rows = visibleRoutes.map((route) => [
       route.name,
       ...visibleProducts.map((product) => route.quantities[product.id] || ""),
       routeTotal(route) || "",
-      route.previousDue || "",
       route.orderAmount || "",
-      totalAmount(Number(route.previousDue || 0), Number(route.orderAmount || 0)) || "",
+      route.previousDue || "",
       route.paidAmount || "",
       route.todaysDue || ""
     ]);
@@ -146,9 +140,8 @@ export default function VehicleTruckLoadingPage() {
       "Total",
       ...visibleProducts.map((product) => productTotals[product.id] || ""),
       totalQuantity || "",
-      amountTotals.previousDue || "",
       amountTotals.orderAmount || "",
-      amountTotals.totalAmount || "",
+      amountTotals.previousDue || "",
       amountTotals.paidAmount || "",
       amountTotals.todaysDue || ""
     ];
@@ -200,9 +193,8 @@ export default function VehicleTruckLoadingPage() {
                   </th>
                 ))}
                 <th className="min-w-24 border-b border-r border-line bg-panel2 px-4 py-3">Total Qty</th>
-                <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Previous Due Amount</th>
                 <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Order Amount</th>
-                <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Total Amount</th>
+                <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Previous Due Amount</th>
                 <th className="min-w-32 border-b border-r border-line bg-panel2 px-4 py-3">Paid Amount</th>
                 <th className="sticky right-0 z-40 min-w-32 border-b border-line bg-panel2 px-4 py-3 shadow-[-8px_0_12px_rgba(23,32,51,0.08)]">Today&apos;s Due Amount</th>
               </tr>
@@ -220,9 +212,8 @@ export default function VehicleTruckLoadingPage() {
                     );
                   })}
                   <td className="border-b border-r border-line px-4 py-3 font-bold text-mint">{formatQty(routeTotal(route)) || "-"}</td>
-                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.previousDue)}</td>
                   <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.orderAmount)}</td>
-                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(Number(route.previousDue || 0), Number(route.orderAmount || 0)))}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.previousDue)}</td>
                   <td className="border-b border-r border-line px-4 py-3 text-right font-semibold">{formatAmount(route.paidAmount)}</td>
                   <td className={`sticky right-0 z-30 border-b border-line px-4 py-3 text-right font-bold text-berry shadow-[-8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{formatAmount(route.todaysDue)}</td>
                 </tr>
@@ -232,16 +223,15 @@ export default function VehicleTruckLoadingPage() {
                   <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
                   {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(productTotals[product.id]) || "-"}</td>)}
                   <td className="border-b border-r border-line px-4 py-3 text-mint">{formatQty(totalQuantity) || "-"}</td>
-                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.previousDue)}</td>
                   <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.orderAmount)}</td>
-                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.totalAmount)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.previousDue)}</td>
                   <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.paidAmount)}</td>
                   <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-right text-berry shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatAmount(amountTotals.todaysDue)}</td>
                 </tr>
               ) : null}
               {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 2}>No truck loading data for this date.</td>
+                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 6}>No truck loading data for this date.</td>
                 </tr>
               ) : null}
             </tbody>

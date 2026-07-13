@@ -59,12 +59,6 @@ type DaySummary = {
   totalDue: number;
 };
 
-const paymentMethods = ["Cash", "UPI"];
-const paymentTypes = [
-  { value: "PARTIAL", label: "Partial" },
-  { value: "ORDER_FULL", label: "Order Full Payment" },
-  { value: "DUE_FULL", label: "Due Full Payment" }
-];
 const today = localDateInput();
 const emptyOrderForm: OrderFormState = { dueAt: today, notes: "", items: [{ id: "row-1", productId: "", quantity: "" }] };
 
@@ -200,8 +194,6 @@ export default function CustomerOrdersPage() {
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
-  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -265,15 +257,13 @@ export default function CustomerOrdersPage() {
     const previousDue = summary?.previousDue || 0;
     const orderAmount = rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0);
     const paidAmount = uniqueOrders.reduce((sum, order) => sum + paid(order), 0);
-    const total = totalAmount(previousDue, orderAmount);
     return {
       products: rows.length,
       quantity: rows.reduce((sum, row) => sum + Number(row.item.quantity || 0), 0),
       previousDue,
       orderAmount,
       paid: paidAmount,
-      totalAmount: total,
-      todaysDue: Math.max(total - paidAmount, 0)
+      todaysDue: todaysDueAmount(previousDue, orderAmount, paidAmount)
     };
   }, [rows, summary]);
 
@@ -286,30 +276,11 @@ export default function CustomerOrdersPage() {
     });
   }
 
-  function paymentAmountForType(order: Order, type: string) {
-    if (type === "ORDER_FULL") return Number(order.grandTotal || 0);
-    if (type === "DUE_FULL") return todaysDueAmount(totals.previousDue, order.grandTotal, paid(order));
-    return 0;
-  }
-
-  function startPayment(order: Order, type = "PARTIAL") {
-    const existingPayment = order.payments?.[0];
-    const amount = existingPayment ? Number(existingPayment.amount || 0) : paymentAmountForType(order, type);
-    setPaymentOrder(order);
-    setPaymentForm({
-      type,
-      amount: amount ? String(amount) : "",
-      method: existingPayment?.method || "Cash",
-      reference: existingPayment?.reference || ""
-    });
-  }
-
   function exportOrder(order: Order) {
     const invoiceNumber = order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`;
     const previousDueAmount = totals.previousDue;
     const orderAmount = Number(order.grandTotal || 0);
     const paidAmount = paid(order);
-    const fullAmount = totalAmount(previousDueAmount, orderAmount);
     const todaysDue = todaysDueAmount(previousDueAmount, orderAmount, paidAmount);
     const productColumns: PdfColumn[] = [
       { x: 48, width: 250 },
@@ -354,9 +325,8 @@ export default function CustomerOrdersPage() {
     content += pdfTableRow(["Description", "Amount"], totalColumns, y, 22, { fill: true, size: 9 });
     y -= 22;
     [
-      ["Previous Due Amount", previousDueAmount],
       ["Order Amount", orderAmount],
-      ["Total Amount", fullAmount],
+      ["Previous Due Amount", previousDueAmount],
       ["Paid Amount", paidAmount],
       ["Today's Due Amount", todaysDue]
     ].forEach(([label, value]) => {
@@ -432,33 +402,6 @@ export default function CustomerOrdersPage() {
     }
   }
 
-  async function recordPayment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!apiBase || !paymentOrder) return;
-    setSaving(true);
-    try {
-      await authFetch(`${apiBase}/orders/customers/me/payments`, {
-        method: "POST",
-        body: JSON.stringify({
-          mode: paymentForm.type,
-          orderId: paymentOrder.id,
-          date,
-          amount: paymentForm.type === "PARTIAL" ? Number(paymentForm.amount) : undefined,
-          method: paymentForm.method,
-          reference: paymentForm.reference || undefined
-        })
-      });
-      toast.success("Payment saved", "Your payment was updated for this order.");
-      setPaymentOrder(null);
-      setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
-      await loadData();
-    } catch (error) {
-      toast.error("Payment failed", error instanceof Error ? error.message : "Could not save this payment.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <AppShell title="Customer Portal" subtitle="Orders, dues, and payments" surface="customer">
       <section className="rounded-lg border border-line bg-panel shadow-subtle">
@@ -471,25 +414,23 @@ export default function CustomerOrdersPage() {
           </div>
         </div>
         {loading ? <LoadingSpinner label="Loading orders" /> : null}
-        <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-3 lg:grid-cols-7">
+        <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
           <span className="rounded-md bg-panel2 p-3">Products<br /><strong>{totals.products}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Quantity<br /><strong>{formatQty(totals.quantity)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals.orderAmount)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Total Amount<br /><strong>{formatAmount(totals.totalAmount)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Paid Amount<br /><strong>{formatAmount(totals.paid)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Today&apos;s Due Amount<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
         </div>
         <div className="max-h-[calc(100vh-360px)] w-full max-w-full overflow-auto">
-          <table className="w-full min-w-[1160px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3">Product</th>
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3 text-right">Quantity</th>
-                <th className="px-4 py-3 text-right">Previous Due Amount</th>
                 <th className="px-4 py-3 text-right">Order Amount</th>
-                <th className="px-4 py-3 text-right">Total Amount</th>
+                <th className="px-4 py-3 text-right">Previous Due Amount</th>
                 <th className="px-4 py-3 text-right">Paid Amount</th>
                 <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
               </tr>
@@ -498,7 +439,7 @@ export default function CustomerOrdersPage() {
               {orderGroups.map(({ order, rows: orderRows }) => (
                 <Fragment key={order.id}>
                   <tr className="bg-panel2/70">
-                    <td className="px-4 py-3" colSpan={8}>
+                    <td className="px-4 py-3" colSpan={7}>
                       <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(0,auto)] lg:items-center">
                         <div>
                           <p className="font-semibold">{order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`}</p>
@@ -536,14 +477,6 @@ export default function CustomerOrdersPage() {
                           >
                             <Pencil size={14} /> Edit
                           </button>
-                          <button
-                            className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                            disabled={saving || (todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)) <= 0 && !order.payments?.length)}
-                            onClick={() => startPayment(order)}
-                            type="button"
-                          >
-                            {order.payments?.length ? "Edit payment" : "Record payment"}
-                          </button>
                         </div>
                       </div>
                     </td>
@@ -553,9 +486,8 @@ export default function CustomerOrdersPage() {
                       <td className="px-4 py-3 font-semibold">{row.item.name}</td>
                       <td className="px-4 py-3 text-muted">{row.category}</td>
                       <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(totals.previousDue, row.item.lineTotal))}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, row.item.lineTotal, row.paidAmount))}</td>
                     </tr>
@@ -564,7 +496,7 @@ export default function CustomerOrdersPage() {
               ))}
               {!loading && !rows.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted" colSpan={8}>No products found for this date/filter.</td>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={7}>No products found for this date/filter.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -604,10 +536,9 @@ export default function CustomerOrdersPage() {
       <Modal open={Boolean(detailOrder)} title="Invoice details" description={detailOrder?.invoice?.invoiceNumber || (detailOrder ? `Order ${detailOrder.id.slice(-6).toUpperCase()}` : "")} onClose={() => setDetailOrder(null)}>
         {detailOrder ? (
           <div className="grid gap-4">
-            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-5">
-              <span>Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
+            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-4">
               <span>Order Amount<br /><strong>{formatAmount(detailOrder.grandTotal)}</strong></span>
-              <span>Total Amount<br /><strong>{formatAmount(totalAmount(totals.previousDue, detailOrder.grandTotal))}</strong></span>
+              <span>Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
               <span>Paid Amount<br /><strong>{formatAmount(paid(detailOrder))}</strong></span>
               <span>Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(totals.previousDue, detailOrder.grandTotal, paid(detailOrder)))}</strong></span>
             </div>
@@ -631,32 +562,8 @@ export default function CustomerOrdersPage() {
             <PaymentHistory payments={detailOrder.payments} total={detailOrder.grandTotal} />
             <div className="flex flex-wrap justify-end gap-2">
               <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => exportOrder(detailOrder)} type="button"><Download size={15} /> Download PDF</button>
-              <button className="focus-ring rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || (todaysDueAmount(totals.previousDue, detailOrder.grandTotal, paid(detailOrder)) <= 0 && !detailOrder.payments?.length)} onClick={() => startPayment(detailOrder)} type="button">{detailOrder.payments?.length ? "Edit payment" : "Record payment"}</button>
             </div>
           </div>
-        ) : null}
-      </Modal>
-
-      <Modal open={Boolean(paymentOrder)} title={paymentOrder?.payments?.length ? "Edit payment" : "Record payment"} description="Save the single payment amount for this order." onClose={() => setPaymentOrder(null)}>
-        {paymentOrder ? (
-          <form className="grid gap-4" onSubmit={recordPayment}>
-            <label className="grid gap-1 text-sm font-semibold">Payment type<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => {
-              const type = event.target.value;
-              setPaymentForm((current) => ({
-                ...current,
-                type,
-                amount: type === "PARTIAL" ? "" : String(paymentAmountForType(paymentOrder, type) || ""),
-                method: current.method
-              }));
-            }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={paymentForm.type === "PARTIAL" ? totalAmount(totals.previousDue, paymentOrder.grandTotal) : undefined} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type !== "PARTIAL"} required type="number" value={paymentForm.amount} /></label>
-            <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
-            <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setPaymentOrder(null)} type="button">Cancel</button>
-              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
-            </div>
-          </form>
         ) : null}
       </Modal>
     </AppShell>

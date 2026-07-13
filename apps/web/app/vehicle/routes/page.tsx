@@ -128,8 +128,10 @@ export default function VehicleRoutesPage() {
       const params = new URLSearchParams({ startDate: date, endDate: date });
       const previousEndDate = localDateInput(addLocalDays(new Date(`${date}T00:00:00`), -1));
       const previousParams = new URLSearchParams({ endDate: previousEndDate, pageSize: "500" });
+      params.set("_", String(Date.now()));
+      previousParams.set("_", String(Date.now()));
       const [productData, data, previousData] = await Promise.all([
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500&_=${Date.now()}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
       ]);
@@ -185,12 +187,11 @@ export default function VehicleRoutesPage() {
 
   const totals = useMemo(() => ({
     orders: visibleOrders.length,
-    previousDue: visibleOrders.reduce((sum, order) => sum + previousDue(order), 0),
     orderAmount: visibleOrders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
-    totalAmount: visibleOrders.reduce((sum, order) => sum + totalAmount(previousDue(order), order.grandTotal), 0),
+    previousDue: visibleOrders.reduce((sum, order) => sum + previousDue(order), 0),
     paid: visibleOrders.reduce((sum, order) => sum + orderPaid(order), 0)
   }), [visibleOrders, previousDueByCustomer]);
-  const todayDueTotal = Math.max(totals.totalAmount - totals.paid, 0);
+  const todayDueTotal = Math.max(totals.orderAmount + totals.previousDue - totals.paid, 0);
 
   function openEditOrder(order: Order) {
     setEditOrder(order);
@@ -220,9 +221,13 @@ export default function VehicleRoutesPage() {
     if (!apiBase) return;
     setSaving(true);
     try {
+      if (patch.vehicleStatus) {
+        setOrders((current) => current.map((item) => item.id === order.id ? { ...item, vehicleStatus: patch.vehicleStatus } : item));
+      }
       const result = await authFetch<{ order: Order }>(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
-      setOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...result.order } : item));
-      setPreviousOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...result.order } : item));
+      const updatedOrder = { ...result.order, ...(patch.vehicleStatus ? { vehicleStatus: patch.vehicleStatus } : {}) };
+      setOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...updatedOrder } : item));
+      setPreviousOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...updatedOrder } : item));
       toast.success("Order updated", `${order.customer.name} has been updated.`);
       setPaymentOrder(null);
       setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
@@ -313,13 +318,12 @@ export default function VehicleRoutesPage() {
   }
 
   function exportCollectionSheet() {
-    const headers = ["Customer", "Phone", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount", "Payment Method", "Reference"];
+    const headers = ["Customer", "Phone", "Order Amount", "Previous Due Amount", "Paid Amount", "Today's Due Amount", "Payment Method", "Reference"];
     const rows = visibleOrders.map((order) => [
       order.customer.name,
       order.customer.phone || "",
-      previousDue(order),
       Number(order.grandTotal || 0),
-      totalAmount(previousDue(order), order.grandTotal),
+      previousDue(order),
       orderPaid(order),
       todayDue(order),
       "",
@@ -348,9 +352,8 @@ export default function VehicleRoutesPage() {
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
               <span>Orders: <span className="font-semibold text-ink">{totals.orders}</span></span>
-              <span>Previous Due Amount: <span className="font-semibold text-ink">{formatAmount(totals.previousDue)}</span></span>
               <span>Order Amount: <span className="font-semibold text-ink">{formatAmount(totals.orderAmount)}</span></span>
-              <span>Total Amount: <span className="font-semibold text-ink">{formatAmount(totals.totalAmount)}</span></span>
+              <span>Previous Due Amount: <span className="font-semibold text-ink">{formatAmount(totals.previousDue)}</span></span>
               <span>Paid Amount: <span className="font-semibold text-ink">{formatAmount(totals.paid)}</span></span>
               <span>Today&apos;s Due Amount: <span className="font-semibold text-ink">{formatAmount(todayDueTotal)}</span></span>
             </div>
@@ -363,13 +366,12 @@ export default function VehicleRoutesPage() {
           </div>
           {loading ? <LoadingSpinner label="Loading assigned orders" /> : null}
           <div className="max-h-[700px] w-full max-w-full overflow-auto">
-            <table className="w-full min-w-[1160px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3 text-right">Previous Due Amount</th>
                   <th className="px-4 py-3 text-right">Order Amount</th>
-                  <th className="px-4 py-3 text-right">Total Amount</th>
+                  <th className="px-4 py-3 text-right">Previous Due Amount</th>
                   <th className="px-4 py-3 text-right">Paid Amount</th>
                   <th className="px-4 py-3 text-right">Today's Due Amount</th>
                   <th className="px-4 py-3 text-right">Actions</th>
@@ -382,9 +384,8 @@ export default function VehicleRoutesPage() {
                         <span className="block font-semibold">{order.customer.name}</span>
                         <span className="text-xs text-muted">{order.customer.phone || "No phone"}</span>
                       </td>
-                      <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(totalAmount(previousDue(order), order.grandTotal))}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(orderPaid(order))}</td>
                       <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todayDue(order))}</td>
                       <td className="px-4 py-3">
@@ -408,7 +409,7 @@ export default function VehicleRoutesPage() {
                 ))}
                 {!loading && !visibleOrders.length ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={7}>No customers for this date.</td>
+                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={6}>No customers for this date.</td>
                   </tr>
                 ) : null}
               </tbody>
