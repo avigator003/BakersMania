@@ -98,7 +98,8 @@ export const ordersController = {
     res.json({
       truckLoading: await ordersService.truckLoading(req.tenant!.id, {
         date: req.query.date ? String(req.query.date) : today,
-        categoryId: req.query.categoryId ? String(req.query.categoryId) : undefined
+        categoryId: req.query.categoryId ? String(req.query.categoryId) : undefined,
+        groupBy: req.query.groupBy ? String(req.query.groupBy) : undefined
       }, req.auth)
     });
   }

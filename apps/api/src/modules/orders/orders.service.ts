@@ -390,9 +390,9 @@ export const ordersService = {
     return ordersRepository.customerDaySummary(tenantId, auth.customerId, date);
   },
 
-  async truckLoading(tenantId: string, filters: { date: string; categoryId?: string }, auth?: AccessTokenPayload) {
+  async truckLoading(tenantId: string, filters: { date: string; categoryId?: string; groupBy?: string }, auth?: AccessTokenPayload) {
     const routeIds = await vehicleRouteIds(tenantId, auth);
-    const groupByCustomer = auth?.actorType === "vehicle";
+    const groupByCustomer = auth?.actorType === "vehicle" || filters.groupBy === "customer";
     const [orders, routeTotals] = await Promise.all([
       ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined }),
       groupByCustomer
