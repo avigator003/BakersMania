@@ -194,6 +194,8 @@ export default function VehicleRoutesPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
+  const [summaryOrders, setSummaryOrders] = useState<Order[]>([]);
+  const [summaryPreviousOrders, setSummaryPreviousOrders] = useState<Order[]>([]);
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -220,9 +222,9 @@ export default function VehicleRoutesPage() {
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
       ]);
-      let effectiveOrders = data.orders;
-      let effectivePreviousOrders = previousData.orders;
-      if (!effectiveOrders.length) {
+      let effectiveSummaryOrders = data.orders;
+      let effectiveSummaryPreviousOrders = previousData.orders;
+      if (!data.orders.length) {
         const recentData = await authFetch<{ orders: Order[] }>(`${apiBase}/orders?pageSize=100&_=${Date.now()}`);
         const latestDate = recentData.orders
           .map(orderDateKey)
@@ -230,13 +232,15 @@ export default function VehicleRoutesPage() {
         if (latestDate) {
           const fallbackPreviousEndDate = localDateInput(addLocalDays(new Date(`${latestDate}T00:00:00`), -1));
           const fallbackPreviousParams = new URLSearchParams({ endDate: fallbackPreviousEndDate, pageSize: "500", _: String(Date.now()) });
-          effectiveOrders = recentData.orders.filter((order) => orderDateKey(order) === latestDate);
-          effectivePreviousOrders = (await authFetch<{ orders: Order[] }>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
+          effectiveSummaryOrders = recentData.orders.filter((order) => orderDateKey(order) === latestDate);
+          effectiveSummaryPreviousOrders = (await authFetch<{ orders: Order[] }>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
         }
       }
       setProducts(productData.products.filter((product) => product.active !== false));
-      setOrders(effectiveOrders);
-      setPreviousOrders(effectivePreviousOrders);
+      setOrders(data.orders);
+      setPreviousOrders(previousData.orders);
+      setSummaryOrders(effectiveSummaryOrders);
+      setSummaryPreviousOrders(effectiveSummaryPreviousOrders);
     } catch (error) {
       toast.error("Could not load assigned routes", error instanceof Error ? error.message : "Please sign in again.");
     } finally {
@@ -256,8 +260,20 @@ export default function VehicleRoutesPage() {
     return dueByCustomer;
   }, [previousOrders]);
 
+  const summaryPreviousDueByCustomer = useMemo(() => {
+    const dueByCustomer = new Map<string, number>();
+    summaryPreviousOrders.forEach((order) => {
+      dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+    });
+    return dueByCustomer;
+  }, [summaryPreviousOrders]);
+
   function previousDue(order: Order) {
     return previousDueByCustomer.get(customerKey(order)) || 0;
+  }
+
+  function summaryPreviousDue(order: Order) {
+    return summaryPreviousDueByCustomer.get(customerKey(order)) || 0;
   }
 
   function todayDue(order: Order) {
@@ -284,12 +300,17 @@ export default function VehicleRoutesPage() {
     [customerFilter, orders]
   );
 
+  const summaryVisibleOrders = useMemo(() => {
+    const source = orders.length ? visibleOrders : summaryOrders;
+    return customerFilter.length ? source.filter((order) => customerFilter.includes(customerKey(order))) : source;
+  }, [customerFilter, orders.length, summaryOrders, visibleOrders]);
+
   const totals = useMemo(() => ({
-    orders: visibleOrders.length,
-    orderAmount: visibleOrders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
-    previousDue: visibleOrders.reduce((sum, order) => sum + previousDue(order), 0),
-    paid: visibleOrders.reduce((sum, order) => sum + orderPaid(order), 0)
-  }), [visibleOrders, previousDueByCustomer]);
+    orders: summaryVisibleOrders.length,
+    orderAmount: summaryVisibleOrders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
+    previousDue: summaryVisibleOrders.reduce((sum, order) => sum + (orders.length ? previousDue(order) : summaryPreviousDue(order)), 0),
+    paid: summaryVisibleOrders.reduce((sum, order) => sum + orderPaid(order), 0)
+  }), [orders.length, previousDueByCustomer, summaryPreviousDueByCustomer, summaryVisibleOrders]);
   const todayDueTotal = Math.max(totals.orderAmount + totals.previousDue - totals.paid, 0);
 
   function openEditOrder(order: Order) {

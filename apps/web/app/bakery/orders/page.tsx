@@ -176,6 +176,8 @@ export default function BakeryOrdersPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
+  const [summaryOrders, setSummaryOrders] = useState<Order[]>([]);
+  const [summaryPreviousOrders, setSummaryPreviousOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -226,26 +228,39 @@ export default function BakeryOrdersPage() {
     return dueByCustomer;
   }, [previousOrders]);
 
+  const summaryPreviousDueByCustomer = useMemo(() => {
+    const dueByCustomer = new Map<string, number>();
+    summaryPreviousOrders.forEach((order) => {
+      dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+    });
+    return dueByCustomer;
+  }, [summaryPreviousOrders]);
+
   function previousDueForOrder(order: Order) {
     return previousDueByCustomer.get(customerKey(order)) || 0;
   }
 
+  function summaryPreviousDueForOrder(order: Order) {
+    return summaryPreviousDueByCustomer.get(customerKey(order)) || 0;
+  }
+
   const orderTotals = useMemo(() => {
-    const previousDue = orders.reduce((sum, order) => sum + previousDueForOrder(order), 0);
-    const amount = orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
-    const paid = orders.reduce((sum, order) => sum + orderPaid(order), 0);
+    const source = orders.length ? orders : summaryOrders;
+    const previousDue = source.reduce((sum, order) => sum + (orders.length ? previousDueForOrder(order) : summaryPreviousDueForOrder(order)), 0);
+    const amount = source.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
+    const paid = source.reduce((sum, order) => sum + orderPaid(order), 0);
     const fullAmount = totalAmount(previousDue, amount);
     return {
-      orders: orders.length,
-      quantity: orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
+      orders: source.length,
+      quantity: source.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
       amount,
       paid,
-      due: orders.reduce((sum, order) => sum + orderDue(order), 0),
+      due: source.reduce((sum, order) => sum + orderDue(order), 0),
       previousDue,
       totalAmount: fullAmount,
       todaysDue: Math.max(fullAmount - paid, 0)
     };
-  }, [orders, previousDueByCustomer]);
+  }, [orders, previousDueByCustomer, summaryOrders, summaryPreviousDueByCustomer]);
 
   function getOrderRouteName(order: Order) {
     return order.route?.name || order.customer.route?.name || "No route";
@@ -281,13 +296,13 @@ export default function BakeryOrdersPage() {
         authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=100`),
         authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
-      let effectiveOrders = orderData.orders;
-      let effectivePreviousOrders = previousData.orders;
+      let effectiveSummaryOrders = orderData.orders;
+      let effectiveSummaryPreviousOrders = previousData.orders;
       let effectiveTotal = orderData.pagination?.total ?? orderData.orders.length;
       let effectivePageCount = orderData.pagination?.pageCount ?? 1;
       let effectivePage = orderData.pagination?.page ?? page;
       let effectivePageSize = orderData.pagination?.pageSize ?? pageSize;
-      if (!effectiveOrders.length && effectiveTotal === 0) {
+      if (!orderData.orders.length && effectiveTotal === 0) {
         const fallbackParams = new URLSearchParams();
         if (customerFilter.length) fallbackParams.set("customerIds", customerFilter.join(","));
         if (routeFilter.length) fallbackParams.set("routeIds", routeFilter.join(","));
@@ -306,15 +321,14 @@ export default function BakeryOrdersPage() {
           if (customerFilter.length) fallbackPreviousParams.set("customerIds", customerFilter.join(","));
           if (routeFilter.length) fallbackPreviousParams.set("routeIds", routeFilter.join(","));
           if (search.trim()) fallbackPreviousParams.set("search", search.trim());
-          effectiveOrders = fallbackData.orders.filter((order) => orderDateKey(order) === latestDate);
-          effectivePreviousOrders = (await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
-          effectiveTotal = effectiveOrders.length;
-          effectivePageCount = 1;
-          effectivePage = 1;
+          effectiveSummaryOrders = fallbackData.orders.filter((order) => orderDateKey(order) === latestDate);
+          effectiveSummaryPreviousOrders = (await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
         }
       }
-      setOrders(effectiveOrders);
-      setPreviousOrders(effectivePreviousOrders);
+      setOrders(orderData.orders);
+      setPreviousOrders(previousData.orders);
+      setSummaryOrders(effectiveSummaryOrders);
+      setSummaryPreviousOrders(effectiveSummaryPreviousOrders);
       setOrdersTotal(effectiveTotal);
       setOrdersPageCount(effectivePageCount);
       setPage(effectivePage);
