@@ -415,7 +415,6 @@ model Payment {
   @@index([tenantId, paidAt])
   @@index([tenantId, orderId])
   @@index([tenantId, invoiceId])
-  @@unique([tenantId, orderId])
 }
 
 model InventoryItem {
