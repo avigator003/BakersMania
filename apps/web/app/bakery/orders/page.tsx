@@ -116,12 +116,6 @@ function todaysDueAmount(previousDue: number, orderAmount: string | number, paid
   return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
 }
 
-function isCarryForwardDue(order: Order) {
-  if (orderDue(order) <= 0) return false;
-  const baseDate = (order.dueAt || order.createdAt).slice(0, 10);
-  return baseDate <= today;
-}
-
 function paymentStatus(order: Order) {
   return resolvedPaymentStatus(order.grandTotal, order.payments, order.paymentStatus);
 }
@@ -530,7 +524,7 @@ export default function BakeryOrdersPage() {
         method: "POST"
       });
       const paid = orderPaid(order);
-      const previousDue = isCarryForwardDue(order) ? orderDue(order) : 0;
+      const previousDue = previousDueForOrder(order);
       const fullAmount = totalAmount(previousDue, order.grandTotal);
       const due = todaysDueAmount(previousDue, order.grandTotal, paid);
       const productRows = order.items.map((item) => `
@@ -694,10 +688,10 @@ export default function BakeryOrdersPage() {
                 setPage={setPage}
                 setPageSize={setPageSize}
                 summary={[
+                  { label: "Orders", value: orderTotals.orders },
                   { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
-                  { label: "Previous Due Amount", value: formatAmount(orderTotals.previousDue) },
                   { label: "Order Amount", value: formatAmount(orderTotals.amount) },
-                  { label: "Total Amount", value: formatAmount(orderTotals.totalAmount) },
+                  { label: "Previous Due Amount", value: formatAmount(orderTotals.previousDue) },
                   { label: "Paid Amount", value: formatAmount(orderTotals.paid) },
                   { label: "Today's Due Amount", value: formatAmount(orderTotals.todaysDue) }
                 ]}
@@ -706,8 +700,7 @@ export default function BakeryOrdersPage() {
               <div className="grid gap-3 p-3 sm:hidden">
                 {orders.map((order) => {
                   const paid = orderPaid(order);
-                  const due = orderDue(order);
-                  const previousDue = isCarryForwardDue(order) ? due : 0;
+                  const previousDue = previousDueForOrder(order);
                   const fullAmount = totalAmount(previousDue, order.grandTotal);
                   return (
                     <article key={order.id} className="rounded-lg border border-line bg-panel2 p-3">
@@ -794,8 +787,7 @@ export default function BakeryOrdersPage() {
                   <tbody className="divide-y divide-line">
                     {orders.map((order) => {
                       const paid = orderPaid(order);
-                      const due = orderDue(order);
-                      const previousDue = isCarryForwardDue(order) ? due : 0;
+                      const previousDue = previousDueForOrder(order);
                       const fullAmount = totalAmount(previousDue, order.grandTotal);
                       return (
                       <tr className="align-top" key={order.id}>
@@ -923,7 +915,7 @@ export default function BakeryOrdersPage() {
               <div>
                 <p className="text-xs uppercase text-muted">Payment</p>
                 <p className="mt-1 font-semibold">{paymentStatus(viewOrder)}</p>
-                <p className="text-sm text-muted">Paid Amount {formatAmount(orderPaid(viewOrder))} · Today&apos;s Due Amount {formatAmount(todaysDueAmount(isCarryForwardDue(viewOrder) ? orderDue(viewOrder) : 0, viewOrder.grandTotal, orderPaid(viewOrder)))}</p>
+                <p className="text-sm text-muted">Paid Amount {formatAmount(orderPaid(viewOrder))} · Today&apos;s Due Amount {formatAmount(todayDueForOrder(viewOrder))}</p>
               </div>
             </div>
 

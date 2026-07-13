@@ -183,7 +183,7 @@ export const ordersRepository = {
   },
 
   listForVehicle(tenantId: string, routeIds: string[], filters: OrderListFilters = {}) {
-    return paginatedOrders(buildOrderWhere(tenantId, filters, [routeScope(routeIds)]), filters, { createdAt: "asc" });
+    return paginatedOrders(buildOrderWhere(tenantId, filters, [routeScope(routeIds)]), filters, { createdAt: "desc" });
   },
 
   findCustomer(tenantId: string, customerId: string) {

@@ -276,7 +276,7 @@ export default function CustomerOrdersPage() {
     const orderAmount = rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0);
     const paidAmount = uniqueOrders.reduce((sum, order) => sum + paid(order), 0);
     return {
-      products: rows.length,
+      orders: uniqueOrders.length,
       quantity: rows.reduce((sum, row) => sum + Number(row.item.quantity || 0), 0),
       previousDue,
       orderAmount,
@@ -433,7 +433,7 @@ export default function CustomerOrdersPage() {
         </div>
         {loading ? <LoadingSpinner label="Loading orders" /> : null}
         <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
-          <span className="rounded-md bg-panel2 p-3">Products<br /><strong>{totals.products}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Orders<br /><strong>{totals.orders}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Quantity<br /><strong>{formatQty(totals.quantity)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals.orderAmount)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
