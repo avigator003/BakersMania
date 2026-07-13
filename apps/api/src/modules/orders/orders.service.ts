@@ -158,7 +158,7 @@ export const ordersService = {
       if (existing.customerId !== auth.customerId) {
         throw new HttpError(403, "This order does not belong to this customer");
       }
-      if (existing.vehicleStatus === "ACCEPTED") {
+      if (existing.vehicleStatus === "ACCEPTED" || existing.status === "ACCEPTED") {
         throw new HttpError(422, "Accepted orders can only be edited by the vehicle");
       }
       if (input.customerId && input.customerId !== auth.customerId) {
@@ -213,7 +213,7 @@ export const ordersService = {
     if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
       throw new HttpError(403, "This order is not assigned to this vehicle");
     }
-    if (auth?.actorType === "vehicle" && input.status) {
+    if (auth?.actorType === "vehicle" && input.status && input.status !== "PENDING" && input.status !== "ACCEPTED") {
       throw new HttpError(403, "Vehicles cannot change bakery order status");
     }
     if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user" && input.vehicleStatus) {

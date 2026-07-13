@@ -85,6 +85,14 @@ function todaysDueAmount(previousDue: number, orderAmount: string | number, paid
   return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
 }
 
+function vehicleAccepted(order: Order) {
+  return order.vehicleStatus === "ACCEPTED" || order.status === "ACCEPTED";
+}
+
+function vehicleStatusValue(order: Order) {
+  return vehicleAccepted(order) ? "ACCEPTED" : "PENDING";
+}
+
 function customerKey(order: Order) {
   return order.customer.id || order.customer.name;
 }
@@ -102,6 +110,79 @@ function itemCategory(item: Order["items"][number]) {
 function csvCell(value: string | number) {
   const text = String(value ?? "");
   return `"${text.replace(/"/g, "\"\"")}"`;
+}
+
+function pdfText(value: string) {
+  return value.replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7E]/g, " ");
+}
+
+function formatPdfAmount(value?: string | number | null) {
+  return `Rs ${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+function pdfLine(value: string, x: number, y: number, size = 10) {
+  return `BT /F1 ${size} Tf ${x} ${y} Td (${pdfText(value)}) Tj ET\n`;
+}
+
+type PdfColumn = { x: number; width: number; align?: "left" | "right" };
+
+function pdfBox(x: number, y: number, width: number, height: number, fill = false) {
+  const fillCommand = fill ? `q 0.95 0.96 0.98 rg ${x} ${y} ${width} ${height} re f Q\n` : "";
+  return `${fillCommand}q 0.74 0.78 0.84 RG 0.7 w ${x} ${y} ${width} ${height} re S Q\n`;
+}
+
+function pdfTableRow(values: string[], columns: PdfColumn[], topY: number, height = 20, options?: { fill?: boolean; size?: number }) {
+  const size = options?.size || 9;
+  const tableX = columns[0].x;
+  const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+  const bottomY = topY - height;
+  let content = pdfBox(tableX, bottomY, tableWidth, height, options?.fill);
+  let separatorX = tableX;
+  columns.slice(0, -1).forEach((column) => {
+    separatorX += column.width;
+    content += `q 0.74 0.78 0.84 RG 0.7 w ${separatorX} ${bottomY} m ${separatorX} ${topY} l S Q\n`;
+  });
+  values.forEach((value, index) => {
+    const column = columns[index];
+    const text = value.length > 34 && column.width < 210 ? `${value.slice(0, 31)}...` : value;
+    const estimatedWidth = Math.min(column.width - 10, text.length * size * 0.48);
+    const textX = column.align === "right" ? column.x + column.width - 6 - estimatedWidth : column.x + 6;
+    content += pdfLine(text, Math.max(column.x + 4, textX), bottomY + 7, size);
+  });
+  return content;
+}
+
+function buildPdf(content: string) {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${content.length} >>\nstream\n${content}endstream`
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return pdf;
+}
+
+function downloadPdf(fileName: string, pdf: string) {
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function VehicleRoutesPage() {
@@ -222,8 +303,8 @@ export default function VehicleRoutesPage() {
     setSaving(true);
     try {
       const result = await authFetch<{ order: Order }>(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
-      if (patch.vehicleStatus && result.order.vehicleStatus !== patch.vehicleStatus) {
-        throw new Error(`Order status stayed ${result.order.vehicleStatus || "PENDING"}`);
+      if (patch.vehicleStatus && (result.order.vehicleStatus || result.order.status) !== patch.vehicleStatus) {
+        throw new Error(`Order status stayed ${result.order.vehicleStatus || result.order.status || "PENDING"}`);
       }
       const updatedOrder = result.order;
       setOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...updatedOrder } : item));
@@ -341,6 +422,86 @@ export default function VehicleRoutesPage() {
     URL.revokeObjectURL(url);
   }
 
+  function exportOrderPdf(order: Order) {
+    const orderNumber = `Order ${order.id.slice(-6).toUpperCase()}`;
+    const previousDueAmount = previousDue(order);
+    const orderAmount = Number(order.grandTotal || 0);
+    const paidAmount = orderPaid(order);
+    const todaysDue = todayDue(order);
+    const productColumns: PdfColumn[] = [
+      { x: 48, width: 250 },
+      { x: 298, width: 58, align: "right" },
+      { x: 356, width: 88, align: "right" },
+      { x: 444, width: 103, align: "right" }
+    ];
+    const totalColumns: PdfColumn[] = [
+      { x: 298, width: 150 },
+      { x: 448, width: 99, align: "right" }
+    ];
+    const paymentColumns: PdfColumn[] = [
+      { x: 48, width: 132 },
+      { x: 180, width: 100 },
+      { x: 280, width: 168 },
+      { x: 448, width: 99, align: "right" }
+    ];
+    let y = 800;
+    let content = "";
+    content += pdfLine(orderNumber, 48, y, 18); y -= 22;
+    content += pdfLine(order.customer.name, 48, y, 10);
+    content += pdfLine(`Order date: ${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(order.dueAt || order.createdAt))}`, 360, y, 9); y -= 16;
+    content += pdfLine(`Vehicle status: ${vehicleAccepted(order) ? "Accepted" : "Pending"}`, 360, y, 9);
+    content += pdfLine(`Payment status: ${order.paymentStatus}`, 360, y - 14, 9); y -= 36;
+    content += pdfLine("Products", 48, y, 13); y -= 18;
+    content += pdfTableRow(["Product", "Qty", "Price", "Total"], productColumns, y, 22, { fill: true, size: 9 });
+    y -= 22;
+    order.items.slice(0, 16).forEach((item) => {
+      content += pdfTableRow([
+        item.name,
+        formatQty(item.quantity),
+        formatPdfAmount(item.unitPrice),
+        formatPdfAmount(itemAmount(item))
+      ], productColumns, y, 20, { size: 9 });
+      y -= 20;
+    });
+    if (order.items.length > 16) {
+      content += pdfTableRow([`Plus ${order.items.length - 16} more item(s)`, "", "", ""], productColumns, y, 20, { size: 9 });
+      y -= 20;
+    }
+    y -= 22;
+    content += pdfLine("Totals", 298, y, 13); y -= 18;
+    content += pdfTableRow(["Description", "Amount"], totalColumns, y, 22, { fill: true, size: 9 });
+    y -= 22;
+    [
+      ["Order Amount", orderAmount],
+      ["Previous Due Amount", previousDueAmount],
+      ["Paid Amount", paidAmount],
+      ["Today's Due Amount", todaysDue]
+    ].forEach(([label, value]) => {
+      content += pdfTableRow([String(label), formatPdfAmount(value as number)], totalColumns, y, 20, { size: 9 });
+      y -= 20;
+    });
+    y -= 24;
+    content += pdfLine("Payment History", 48, y, 13); y -= 18;
+    const payments = order.payments || [];
+    content += pdfTableRow(["Date", "Method", "Reference", "Amount"], paymentColumns, y, 22, { fill: true, size: 9 });
+    y -= 22;
+    if (!payments.length) {
+      content += pdfTableRow(["No payment recorded.", "", "", ""], paymentColumns, y, 20, { size: 9 });
+    } else {
+      payments.slice(0, 8).forEach((payment, index) => {
+        content += pdfTableRow([
+          payment.paidAt ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(payment.paidAt)) : "-",
+          payment.method || "Cash",
+          payment.reference || `Payment ${index + 1}`,
+          formatPdfAmount(payment.amount)
+        ], paymentColumns, y, 20, { size: 9 });
+        y -= 20;
+      });
+    }
+    const fileName = `${orderNumber.replace(/[^a-z0-9-]+/gi, "-").toLowerCase()}.pdf`;
+    downloadPdf(fileName, buildPdf(content));
+  }
+
   return (
     <AppShell title="Vehicle Workspace" subtitle="Assigned customers, deliveries, and collections" surface="vehicle">
       <div className="grid gap-6">
@@ -392,12 +553,13 @@ export default function VehicleRoutesPage() {
                         <div className="flex flex-wrap justify-end gap-2">
                           <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
                           <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Order details</button>
+                          <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => exportOrderPdf(order)} type="button"><Download size={14} /> Invoice PDF</button>
                           <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(order)} type="button"><Pencil size={14} /> Edit</button>
                           <select
-                            className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${order.vehicleStatus === "ACCEPTED" ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
+                            className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
                             disabled={saving}
-                            onChange={(event) => updateOrder(order, { vehicleStatus: event.target.value })}
-                            value={order.vehicleStatus || "PENDING"}
+                            onChange={(event) => updateOrder(order, { status: event.target.value, vehicleStatus: event.target.value })}
+                            value={vehicleStatusValue(order)}
                           >
                             <option value="PENDING">Pending</option>
                             <option value="ACCEPTED">Accepted</option>
@@ -520,6 +682,9 @@ export default function VehicleRoutesPage() {
                 </tr>
               </tbody>
               </table>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => exportOrderPdf(detailOrder)} type="button"><Download size={15} /> Download PDF</button>
             </div>
           </>
         ) : null}

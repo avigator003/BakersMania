@@ -84,7 +84,7 @@ function due(order: Order) {
 }
 
 function driverAccepted(order: Order) {
-  return order.vehicleStatus === "ACCEPTED";
+  return order.vehicleStatus === "ACCEPTED" || order.status === "ACCEPTED";
 }
 
 function totalAmount(previousDue: number, orderAmount: string | number) {
