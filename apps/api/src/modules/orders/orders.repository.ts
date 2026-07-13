@@ -207,6 +207,14 @@ export const ordersRepository = {
     });
   },
 
+  updateVehicleStatus(tenantId: string, orderId: string, vehicleStatus: VehicleOrderStatus) {
+    return prisma.order.update({
+      where: { id: orderId, tenantId },
+      data: { vehicleStatus },
+      include: { items: true, customer: { include: { route: true } }, route: true, invoice: true, payments: true }
+    });
+  },
+
   findCustomerOrderOnDate(tenantId: string, customerId: string, date: Date, excludeOrderId?: string) {
     const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
     const end = new Date(start);

@@ -219,6 +219,9 @@ export const ordersService = {
     if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user" && input.vehicleStatus) {
       throw new HttpError(403, "Only vehicles can change vehicle order status");
     }
+    if (input.vehicleStatus && !input.status && !input.paymentStatus) {
+      return ordersRepository.updateVehicleStatus(tenantId, orderId, input.vehicleStatus);
+    }
 
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     const grandTotal = Number(existing.grandTotal || 0);

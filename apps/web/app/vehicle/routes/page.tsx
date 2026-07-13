@@ -221,11 +221,11 @@ export default function VehicleRoutesPage() {
     if (!apiBase) return;
     setSaving(true);
     try {
-      if (patch.vehicleStatus) {
-        setOrders((current) => current.map((item) => item.id === order.id ? { ...item, vehicleStatus: patch.vehicleStatus } : item));
-      }
       const result = await authFetch<{ order: Order }>(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
-      const updatedOrder = { ...result.order, ...(patch.vehicleStatus ? { vehicleStatus: patch.vehicleStatus } : {}) };
+      if (patch.vehicleStatus && result.order.vehicleStatus !== patch.vehicleStatus) {
+        throw new Error(`Order status stayed ${result.order.vehicleStatus || "PENDING"}`);
+      }
+      const updatedOrder = result.order;
       setOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...updatedOrder } : item));
       setPreviousOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...updatedOrder } : item));
       toast.success("Order updated", `${order.customer.name} has been updated.`);

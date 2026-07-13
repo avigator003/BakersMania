@@ -211,11 +211,12 @@ export default function CustomerOrdersPage() {
     if (!apiBase) return;
     setLoading(true);
     try {
+      const cacheKey = String(Date.now());
       const [productData, categoryData, orderData, summaryData] = await Promise.all([
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
-        authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
-        authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100`),
-        authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${date}`)
+        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500&_=${cacheKey}`),
+        authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories?_=${cacheKey}`),
+        authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100&_=${cacheKey}`),
+        authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${date}&_=${cacheKey}`)
       ]);
       setProducts(productData.products.filter((product) => product.active !== false));
       setCategories(categoryData.categories);
@@ -446,7 +447,7 @@ export default function CustomerOrdersPage() {
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                             <span className="text-muted">{formatDate(order.dueAt || order.createdAt)} · {order.invoice?.paymentStatus || order.paymentStatus}</span>
                             <span className={`rounded-md border px-2 py-1 font-semibold ${driverAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}>
-                              {driverAccepted(order) ? "Accepted by driver" : "Pending for accept"}
+                              {driverAccepted(order) ? "Accepted by driver" : "Pending by driver"}
                             </span>
                           </div>
                         </div>
