@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Plus, ShoppingCart, Star, Trash2 } from "lucide-react";
+import { ShoppingCart, Star, Trash2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { AppShell } from "../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../components/date-input";
@@ -146,17 +146,6 @@ export default function CustomerPage() {
     amount: orderItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * item.quantity, 0)
   }), [orderItems]);
 
-  function addProduct(product: Product) {
-    setCart((current) => {
-      const existing = current.find((item) => item.id === product.id);
-      if (existing) {
-        return current.map((item) => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
-      }
-      return [...current, { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity: 1 }];
-    });
-    toast.success("Added to cart", `${product.name} is ready in Cart.`);
-  }
-
   function updateQuantity(productId: string, quantity: number) {
     setCart((current) => {
       const existing = current.find((item) => item.id === productId);
@@ -240,10 +229,6 @@ export default function CustomerPage() {
                   {product.isPreferred ? <p className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-amber-700">Preferred</p> : <span />}
                   <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
                 </div>
-                <button className="focus-ring mt-auto flex w-full items-center justify-center gap-2 rounded-md bg-mint px-3 py-2 text-sm font-semibold text-white" onClick={() => addProduct(product)} type="button">
-                  <Plus size={16} />
-                  Add
-                </button>
               </article>
             ))}
             {!loading && !shopProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-sm text-muted">{preferenceOnly ? "No preferred products found." : "No active products found."}</p> : null}

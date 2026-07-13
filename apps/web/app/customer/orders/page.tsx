@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -41,6 +41,7 @@ type Order = {
   dueAt?: string | null;
   notes?: string | null;
   createdAt: string;
+  invoice?: { invoiceNumber: string; paymentStatus: string; total: string | number } | null;
   items: OrderItem[];
   payments?: Payment[];
 };
@@ -68,6 +69,11 @@ const emptyOrderForm: OrderFormState = { dueAt: today, notes: "", items: [{ id: 
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
 }
 
 function formatQty(value?: string | number | null) {
@@ -102,6 +108,26 @@ function itemCategoryId(item: OrderItem) {
   return item.product?.categoryRef?.id || item.product?.categoryId || "";
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function printInvoicePdf(html: string) {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+  if (!printWindow) return false;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  return true;
+}
+
 export default function CustomerOrdersPage() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
@@ -114,6 +140,7 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
@@ -210,6 +237,82 @@ export default function CustomerOrdersPage() {
       method: existingPayment?.method || "Cash",
       reference: existingPayment?.reference || ""
     });
+  }
+
+  function exportOrder(order: Order) {
+    const invoiceNumber = order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`;
+    const paymentRows = (order.payments || []).map((payment, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(formatDate(payment.paidAt))}</td>
+        <td>${escapeHtml(payment.method || "Cash")}</td>
+        <td>${escapeHtml(payment.reference || "")}</td>
+        <td style="text-align:right;">${escapeHtml(formatAmount(payment.amount))}</td>
+      </tr>
+    `).join("");
+    const productRows = (order.items || []).map((item) => `
+      <tr>
+        <td>${escapeHtml(item.name)}</td>
+        <td style="text-align:right;">${escapeHtml(formatQty(item.quantity))}</td>
+        <td style="text-align:right;">${escapeHtml(formatAmount(item.unitPrice))}</td>
+        <td style="text-align:right;">${escapeHtml(formatAmount(item.lineTotal))}</td>
+      </tr>
+    `).join("");
+    const previousDueAmount = totals.previousDue;
+    const orderAmount = Number(order.grandTotal || 0);
+    const paidAmount = paid(order);
+    const fullAmount = totalAmount(previousDueAmount, orderAmount);
+    const todaysDue = todaysDueAmount(previousDueAmount, orderAmount, paidAmount);
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(invoiceNumber)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #172033; margin: 32px; }
+    h1 { margin: 0 0 4px; }
+    .muted { color: #64748b; }
+    .top { display: flex; justify-content: space-between; gap: 24px; border-bottom: 1px solid #dbe3ef; padding-bottom: 18px; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border-bottom: 1px solid #dbe3ef; padding: 10px; text-align: left; }
+    th { background: #f3f6fa; font-size: 12px; text-transform: uppercase; color: #64748b; }
+    .totals { margin-left: auto; margin-top: 24px; width: 320px; }
+    .totals div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #dbe3ef; }
+    .strong { font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>${escapeHtml(invoiceNumber)}</h1>
+      <div class="muted">Order ${escapeHtml(order.id)}</div>
+    </div>
+    <div>
+      <div class="muted">Order date: ${escapeHtml(formatDate(order.dueAt || order.createdAt))}</div>
+      <div class="muted">Payment status: ${escapeHtml(order.invoice?.paymentStatus || order.paymentStatus)}</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Product</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr></thead>
+    <tbody>${productRows || '<tr><td colspan="4" class="muted">No products found.</td></tr>'}</tbody>
+  </table>
+  <div class="totals">
+    <div><span>Previous Due Amount</span><span>${escapeHtml(formatAmount(previousDueAmount))}</span></div>
+    <div><span>Order Amount</span><span>${escapeHtml(formatAmount(orderAmount))}</span></div>
+    <div><span>Total Amount</span><span>${escapeHtml(formatAmount(fullAmount))}</span></div>
+    <div><span>Paid Amount</span><span>${escapeHtml(formatAmount(paidAmount))}</span></div>
+    <div class="strong"><span>Today's Due Amount</span><span>${escapeHtml(formatAmount(todaysDue))}</span></div>
+  </div>
+  <h2>Payment History</h2>
+  <table>
+    <thead><tr><th>#</th><th>Date</th><th>Method</th><th>Reference</th><th style="text-align:right;">Amount</th></tr></thead>
+    <tbody>${paymentRows || '<tr><td colspan="5" class="muted">No payment recorded.</td></tr>'}</tbody>
+  </table>
+</body>
+</html>`;
+    if (!printInvoicePdf(html)) {
+      toast.error("PDF export blocked", "Allow pop-ups to print or save this invoice as PDF.");
+    }
   }
 
   function updateFormItem(rowId: string, patch: Partial<{ productId: string; quantity: string }>) {
@@ -337,6 +440,22 @@ export default function CustomerOrdersPage() {
                     <div className="flex flex-wrap gap-2">
                       <PaymentHistory compact payments={row.order.payments} total={row.order.grandTotal} />
                       <button
+                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold"
+                        onClick={() => setDetailOrder(row.order)}
+                        title="Show invoice details"
+                        type="button"
+                      >
+                        <Eye size={14} /> Details
+                      </button>
+                      <button
+                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold"
+                        onClick={() => exportOrder(row.order)}
+                        title="Download invoice"
+                        type="button"
+                      >
+                        <Download size={14} /> PDF
+                      </button>
+                      <button
                         className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold disabled:opacity-50"
                         disabled={saving || row.order.status !== "PENDING"}
                         onClick={() => openEditOrder(row.order)}
@@ -393,6 +512,42 @@ export default function CustomerOrdersPage() {
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Order"}</button>
             </div>
           </form>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(detailOrder)} title="Invoice details" description={detailOrder?.invoice?.invoiceNumber || (detailOrder ? `Order ${detailOrder.id.slice(-6).toUpperCase()}` : "")} onClose={() => setDetailOrder(null)}>
+        {detailOrder ? (
+          <div className="grid gap-4">
+            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-5">
+              <span>Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
+              <span>Order Amount<br /><strong>{formatAmount(detailOrder.grandTotal)}</strong></span>
+              <span>Total Amount<br /><strong>{formatAmount(totalAmount(totals.previousDue, detailOrder.grandTotal))}</strong></span>
+              <span>Paid Amount<br /><strong>{formatAmount(paid(detailOrder))}</strong></span>
+              <span>Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(totals.previousDue, detailOrder.grandTotal, paid(detailOrder)))}</strong></span>
+            </div>
+            <div className="max-h-[420px] overflow-auto rounded-lg border border-line">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="sticky top-0 bg-panel2 text-xs uppercase text-muted">
+                  <tr><th className="px-4 py-3">Product</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Price</th><th className="px-4 py-3 text-right">Total</th></tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {detailOrder.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-4 py-3 font-semibold">{item.name}</td>
+                      <td className="px-4 py-3 text-right">{formatQty(item.quantity)}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(item.unitPrice)}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(item.lineTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaymentHistory payments={detailOrder.payments} total={detailOrder.grandTotal} />
+            <div className="flex flex-wrap justify-end gap-2">
+              <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => exportOrder(detailOrder)} type="button"><Download size={15} /> Download PDF</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || (todaysDueAmount(totals.previousDue, detailOrder.grandTotal, paid(detailOrder)) <= 0 && !detailOrder.payments?.length)} onClick={() => startPayment(detailOrder)} type="button">{detailOrder.payments?.length ? "Edit payment" : "Record payment"}</button>
+            </div>
+          </div>
         ) : null}
       </Modal>
 
