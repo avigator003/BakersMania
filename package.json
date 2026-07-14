@@ -16,6 +16,7 @@
     "lint": "npm run lint --workspaces",
     "prisma:generate": "npm run prisma:generate -w apps/api",
     "prisma:migrate": "npm run prisma:migrate -w apps/api",
+    "prisma:push:tenant-dbs": "node scripts/push-tenant-dbs.mjs",
     "db:seed": "npm run db:seed -w apps/api"
   },
   "engines": {
