@@ -47,6 +47,24 @@ const bakeryNav = [
   { href: "/bakery/routes", label: "Routes", icon: Truck },
 ];
 
+const sessionVerificationTtlMs = 60_000;
+
+function sessionVerificationKey(token: string, actorType: string) {
+  return `bakersmania_session_verified_at:${actorType}:${token.slice(-12)}`;
+}
+
+function hasFreshSessionVerification(token: string, actorType: string) {
+  if (typeof window === "undefined") return false;
+  const value = window.sessionStorage.getItem(sessionVerificationKey(token, actorType));
+  const verifiedAt = value ? Number(value) : 0;
+  return Number.isFinite(verifiedAt) && Date.now() - verifiedAt < sessionVerificationTtlMs;
+}
+
+function markSessionVerified(token: string, actorType: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(sessionVerificationKey(token, actorType), String(Date.now()));
+}
+
 type CustomerRouteSummary = {
   routeName: string;
   vehicleName: string;
@@ -133,6 +151,10 @@ export function AppShell({
 
       if (!cancelled) setAuthState("allowed");
 
+      if (hasFreshSessionVerification(token, requiredActor)) {
+        return;
+      }
+
       if ((surface === "bakery" || surface === "customer" || surface === "vehicle") && sessionTenantSlug) {
         const surfaceSegment = surface;
         const expectedPrefix = `/${sessionTenantSlug}/${surfaceSegment}`;
@@ -152,6 +174,7 @@ export function AppShell({
         if (data.session.actorType !== requiredActor) {
           throw new Error("Wrong actor type");
         }
+        markSessionVerified(token, requiredActor);
         if (!cancelled) setAuthState("allowed");
       } catch {
         clearSession();
@@ -178,6 +201,7 @@ export function AppShell({
       if (storedName && !workspaceName) {
         setWorkspaceName(storedName);
       }
+      if (storedName) return;
 
       try {
         const data = await apiFetch<{ tenant: { name: string } }>(`/tenants/${tenantSlug}/public`);

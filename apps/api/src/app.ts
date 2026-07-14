@@ -37,7 +37,8 @@ export function createApp() {
       }
       callback(new Error("Not allowed by CORS"));
     },
-    credentials: true
+    credentials: true,
+    maxAge: 86400
   }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());

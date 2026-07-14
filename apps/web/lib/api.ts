@@ -1,7 +1,7 @@
-const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://bakersmania-api.onrender.com";
+const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://bakersmania-1.onrender.com";
 
 export const apiBaseUrl = configuredApiBaseUrl.includes("bakery-fhet.onrender.com")
-  ? "https://bakersmania-api.onrender.com"
+  ? "https://bakersmania-1.onrender.com"
   : configuredApiBaseUrl;
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
