@@ -10,6 +10,14 @@ export const platformAdminController = {
     res.status(201).json({ connection: await platformAdminService.createPostgresConnection(req.body) });
   },
 
+  async updatePostgresConnection(req: Request, res: Response) {
+    res.json({ connection: await platformAdminService.updatePostgresConnection(req.params.connectionId, req.body) });
+  },
+
+  async deletePostgresConnection(req: Request, res: Response) {
+    res.json({ connection: await platformAdminService.deletePostgresConnection(req.params.connectionId) });
+  },
+
   async listBakeryLeads(req: Request, res: Response) {
     res.json({
       leads: await platformAdminService.listBakeryLeads({

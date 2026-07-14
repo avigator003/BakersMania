@@ -14,6 +14,7 @@ import type {
   UpdateBakeryLeadInput,
   UpdateBillingInput,
   UpdateOrderPipelineInput,
+  UpdatePostgresConnectionInput,
   UpdateTenantInput
 } from "./platform-admin.schemas.js";
 
@@ -82,6 +83,25 @@ export const platformAdminService = {
 
   createPostgresConnection(input: PostgresConnectionInput) {
     return platformAdminRepository.createPostgresConnection(input);
+  },
+
+  async updatePostgresConnection(connectionId: string, input: UpdatePostgresConnectionInput) {
+    const connection = await platformAdminRepository.findPostgresConnection(connectionId);
+    if (!connection) {
+      throw new HttpError(404, "Postgres connection not found");
+    }
+    return platformAdminRepository.updatePostgresConnection(connectionId, input);
+  },
+
+  async deletePostgresConnection(connectionId: string) {
+    const connection = await platformAdminRepository.findPostgresConnection(connectionId);
+    if (!connection) {
+      throw new HttpError(404, "Postgres connection not found");
+    }
+    if (connection.tenant) {
+      throw new HttpError(409, "Detach this DB from the bakery before deleting it");
+    }
+    return platformAdminRepository.deletePostgresConnection(connectionId);
   },
 
   listBakeryLeads(filters: { view?: string; date?: string; status?: string }) {

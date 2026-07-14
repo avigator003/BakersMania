@@ -29,6 +29,22 @@ export const platformAdminRepository = {
     return prisma.postgresConnection.create({ data: input });
   },
 
+  updatePostgresConnection(connectionId: string, input: { name?: string; databaseUrl?: string }) {
+    return prisma.postgresConnection.update({
+      where: { id: connectionId },
+      data: input,
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true, status: true }
+        }
+      }
+    });
+  },
+
+  deletePostgresConnection(connectionId: string) {
+    return prisma.postgresConnection.delete({ where: { id: connectionId } });
+  },
+
   listBakeryLeads(filters: {
     status?: "REJECTED" | "PENDING" | "IN_PROCESS" | "ACCEPTED";
     nextCallFrom?: Date;

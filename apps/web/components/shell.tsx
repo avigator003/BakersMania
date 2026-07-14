@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-  BarChart3,
   Boxes,
   Building2,
   ClipboardList,
@@ -263,8 +262,7 @@ export function AppShell({
         { href: "/admin/tenants", label: "Bakeries", icon: Building2 },
         { href: "/admin/leads", label: "Bakery Leads", icon: PhoneCall },
         { href: "/admin/postgres-connections", label: "Postgres DBs", icon: Database },
-        { href: "/admin/billing", label: "Billing", icon: CreditCard },
-        { href: "/admin/reports", label: "Reports", icon: BarChart3 }
+        { href: "/admin/billing", label: "Billing", icon: CreditCard }
       ]
     : bakeryNav.map((item) => ({ ...item, href: `${routeBase}${item.href}` }));
 

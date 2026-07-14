@@ -74,6 +74,10 @@ export const postgresConnectionSchema = z.object({
   })
 });
 
+export const updatePostgresConnectionSchema = postgresConnectionSchema.partial().refine((value) => value.name || value.databaseUrl, {
+  message: "Name or database URL is required"
+});
+
 export const updateOrderPipelineSchema = z.object({
   enabled: z.boolean().default(true),
   stages: z.array(orderPipelineStageSchema).min(1)
@@ -85,4 +89,5 @@ export type UpdateBillingInput = z.infer<typeof updateBillingSchema>;
 export type BakeryLeadInput = z.infer<typeof bakeryLeadSchema>;
 export type UpdateBakeryLeadInput = z.infer<typeof updateBakeryLeadSchema>;
 export type PostgresConnectionInput = z.infer<typeof postgresConnectionSchema>;
+export type UpdatePostgresConnectionInput = z.infer<typeof updatePostgresConnectionSchema>;
 export type UpdateOrderPipelineInput = z.infer<typeof updateOrderPipelineSchema>;

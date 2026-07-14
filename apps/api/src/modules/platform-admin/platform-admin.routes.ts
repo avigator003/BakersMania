@@ -7,6 +7,7 @@ import {
   bakeryLeadSchema,
   onboardTenantSchema,
   postgresConnectionSchema,
+  updatePostgresConnectionSchema,
   updateBakeryLeadSchema,
   updateBillingSchema,
   updateOrderPipelineSchema,
@@ -19,6 +20,8 @@ platformAdminRouter.use(requireAuth, requirePlatformAdmin);
 
 platformAdminRouter.get("/postgres-connections", asyncHandler(platformAdminController.listPostgresConnections));
 platformAdminRouter.post("/postgres-connections", validateBody(postgresConnectionSchema), asyncHandler(platformAdminController.createPostgresConnection));
+platformAdminRouter.patch("/postgres-connections/:connectionId", validateBody(updatePostgresConnectionSchema), asyncHandler(platformAdminController.updatePostgresConnection));
+platformAdminRouter.delete("/postgres-connections/:connectionId", asyncHandler(platformAdminController.deletePostgresConnection));
 platformAdminRouter.get("/leads", asyncHandler(platformAdminController.listBakeryLeads));
 platformAdminRouter.post("/leads", validateBody(bakeryLeadSchema), asyncHandler(platformAdminController.createBakeryLead));
 platformAdminRouter.patch("/leads/:leadId", validateBody(updateBakeryLeadSchema), asyncHandler(platformAdminController.updateBakeryLead));

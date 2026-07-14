@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Database, Plus, RefreshCw } from "lucide-react";
+import { Database, Edit3, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
+import { ConfirmModal, Modal } from "../../../components/modal";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch } from "../../../lib/api";
 
@@ -43,6 +44,9 @@ export default function AdminPostgresConnectionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", databaseUrl: "" });
+  const [editConnection, setEditConnection] = useState<PostgresConnection | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", databaseUrl: "" });
+  const [deleteConnection, setDeleteConnection] = useState<PostgresConnection | null>(null);
 
   const stats = useMemo(() => {
     const attached = connections.filter((connection) => connection.tenant).length;
@@ -87,6 +91,45 @@ export default function AdminPostgresConnectionsPage() {
     }
   }
 
+  function openEdit(connection: PostgresConnection) {
+    setEditConnection(connection);
+    setEditForm({ name: connection.name, databaseUrl: connection.databaseUrl });
+  }
+
+  async function updateConnection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editConnection) return;
+    setSaving(true);
+    try {
+      await authFetch(`/platform-admin/postgres-connections/${editConnection.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(editForm)
+      });
+      toast.success("Postgres DB updated", `${editForm.name} was saved.`);
+      setEditConnection(null);
+      await loadConnections();
+    } catch (error) {
+      toast.error("Update failed", error instanceof Error ? error.message : "Could not update Postgres connection.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeConnection() {
+    if (!deleteConnection) return;
+    setSaving(true);
+    try {
+      await authFetch(`/platform-admin/postgres-connections/${deleteConnection.id}`, { method: "DELETE" });
+      toast.success("Postgres DB deleted", `${deleteConnection.name} was removed.`);
+      setDeleteConnection(null);
+      await loadConnections();
+    } catch (error) {
+      toast.error("Delete failed", error instanceof Error ? error.message : "Detach the DB from its bakery before deleting it.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AppShell title="Platform Admin" subtitle="Postgres database registry and bakery assignments" surface="admin">
       <div className="grid gap-6">
@@ -110,7 +153,7 @@ export default function AdminPostgresConnectionsPage() {
             </button>
           </div>
 
-          <div className="grid gap-5 p-4 lg:grid-cols-[360px_1fr]">
+          <div className="grid min-w-0 gap-5 p-4 xl:grid-cols-[360px_minmax(0,1fr)]">
             <form className="grid content-start gap-3 rounded-lg border border-line bg-panel2 p-4" onSubmit={createConnection}>
               <h2 className="font-semibold">Create Postgres DB</h2>
               <label className="grid gap-1">
@@ -144,41 +187,96 @@ export default function AdminPostgresConnectionsPage() {
               {!loading && connections.length === 0 ? (
                 <div className="p-6 text-sm text-muted">No Postgres DBs saved yet.</div>
               ) : null}
-              <div className="w-full max-w-full overflow-x-auto">
-                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-                  <thead className="border-b border-line bg-panel text-xs uppercase text-muted">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Name</th>
-                      <th className="px-4 py-3 font-semibold">URL</th>
-                      <th className="px-4 py-3 font-semibold">Attached bakery</th>
-                      <th className="px-4 py-3 font-semibold">Created</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {connections.map((connection) => (
-                      <tr key={connection.id} className="align-top">
-                        <td className="px-4 py-3 font-semibold">{connection.name}</td>
-                        <td className="max-w-sm break-all px-4 py-3 text-xs text-muted">{maskDatabaseUrl(connection.databaseUrl)}</td>
-                        <td className="px-4 py-3">
-                          {connection.tenant ? (
-                            <span className="rounded-full border border-mint/30 bg-mint/10 px-3 py-1 text-xs font-semibold text-mint">
-                              {connection.tenant.name}
-                            </span>
-                          ) : (
-                            <span className="rounded-full border border-saffron/30 bg-saffron/10 px-3 py-1 text-xs font-semibold text-saffron">
-                              Available
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-muted">{formatDate(connection.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid min-w-0 gap-3 p-3">
+                {connections.map((connection) => (
+                  <article key={connection.id} className="grid min-w-0 gap-3 rounded-lg border border-line bg-panel p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-semibold">{connection.name}</h2>
+                        {connection.tenant ? (
+                          <span className="rounded-full border border-mint/30 bg-mint/10 px-3 py-1 text-xs font-semibold text-mint">
+                            {connection.tenant.name}
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-saffron/30 bg-saffron/10 px-3 py-1 text-xs font-semibold text-saffron">
+                            Available
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 max-w-full break-all rounded-md bg-panel2 px-3 py-2 text-xs leading-5 text-muted">
+                        {maskDatabaseUrl(connection.databaseUrl)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted">Created {formatDate(connection.createdAt)}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:flex">
+                      <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold" onClick={() => openEdit(connection)} type="button">
+                        <Edit3 size={16} />
+                        Edit
+                      </button>
+                      <button
+                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold text-berry disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={Boolean(connection.tenant)}
+                        onClick={() => setDeleteConnection(connection)}
+                        title={connection.tenant ? "Detach this DB from its bakery before deleting" : "Delete DB"}
+                        type="button"
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
             </div>
           </div>
         </section>
+
+        <Modal
+          open={Boolean(editConnection)}
+          title="Edit Postgres DB"
+          description={editConnection?.tenant ? "This DB is attached. Restart the API after changing its URL so the cached client reconnects." : "Update this saved database connection."}
+          onClose={() => setEditConnection(null)}
+        >
+          <form className="grid gap-3" onSubmit={updateConnection}>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Name</span>
+              <input
+                className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))}
+                required
+                value={editForm.name}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Postgres URL</span>
+              <textarea
+                className="min-h-28 rounded-md border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-mint"
+                onChange={(event) => setEditForm((current) => ({ ...current, databaseUrl: event.target.value.trim() }))}
+                required
+                value={editForm.databaseUrl}
+              />
+            </label>
+            <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setEditConnection(null)} type="button">
+                Cancel
+              </button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        <ConfirmModal
+          open={Boolean(deleteConnection)}
+          title="Delete Postgres DB?"
+          description={deleteConnection ? `${deleteConnection.name} will be removed from the registry.` : ""}
+          confirmLabel="Delete DB"
+          variant="danger"
+          loading={saving}
+          onClose={() => setDeleteConnection(null)}
+          onConfirm={removeConnection}
+        />
       </div>
     </AppShell>
   );

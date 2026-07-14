@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { BarChart3, Building2, CreditCard, Database, PhoneCall } from "lucide-react";
+import { Building2, CreditCard, Database, PhoneCall } from "lucide-react";
 import { AppShell } from "../../components/shell";
 
 const modules = [
   { href: "/admin/tenants", label: "Bakery onboarding", icon: Building2, body: "Create, suspend, activate, and support bakery tenants." },
   { href: "/admin/leads", label: "Bakery leads", icon: PhoneCall, body: "Record calls, status, location, and today’s follow-ups." },
   { href: "/admin/postgres-connections", label: "Postgres DBs", icon: Database, body: "Create database connections and attach one to each bakery." },
-  { href: "/admin/billing", label: "Billing", icon: CreditCard, body: "Review subscriptions, trials, and payment states." },
-  { href: "/admin/reports", label: "Reports", icon: BarChart3, body: "Inspect platform-wide usage and operating metrics." }
+  { href: "/admin/billing", label: "Billing", icon: CreditCard, body: "Review subscriptions, trials, and payment states." }
 ];
 
 export default function AdminPage() {
