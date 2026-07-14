@@ -35,6 +35,10 @@ function productSort(a: { name: string; category: string }, b: { name: string; c
   return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
 }
 
+function rowNameSort(a: { name: string }, b: { name: string }) {
+  return naturalSort.compare(a.name || "", b.name || "");
+}
+
 async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput) {
   const customer = await ordersRepository.findCustomer(tenantId, customerId);
   if (!customer) {
@@ -464,7 +468,7 @@ export const ordersService = {
     });
 
     const products = Array.from(productMap.values()).sort(productSort);
-    const routes = Array.from(routeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const routes = Array.from(routeMap.values()).sort(rowNameSort);
     return {
       date: filters.date,
       products,

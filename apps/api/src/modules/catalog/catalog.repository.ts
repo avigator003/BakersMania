@@ -57,6 +57,20 @@ export const catalogRepository = {
     return prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true } });
   },
 
+  findCustomerForPreferenceAccess(tenantId: string, customerId: string) {
+    return prisma.customer.findFirst({
+      where: { id: customerId, tenantId },
+      select: { id: true, routeId: true }
+    });
+  },
+
+  findVehicleRoutes(tenantId: string, vehicleId: string) {
+    return prisma.vehicle.findFirst({
+      where: { tenantId, id: vehicleId, active: true },
+      include: { routes: { where: { active: true }, select: { id: true } } }
+    });
+  },
+
   findRoute(tenantId: string, routeId: string) {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },

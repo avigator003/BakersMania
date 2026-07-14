@@ -63,6 +63,10 @@ function productSort(a: TruckLoading["products"][number], b: TruckLoading["produ
   return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
 }
 
+function customerSort(a: TruckLoading["routes"][number], b: TruckLoading["routes"][number]) {
+  return naturalSort.compare(a.name || "", b.name || "");
+}
+
 function customerKey(order: Order) {
   return order.customer.id || order.customer.name;
 }
@@ -130,7 +134,7 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
   const routes = Array.from(rows.values()).map((row) => ({
     ...row,
     todaysDue: Math.max(row.previousDue + row.orderAmount - row.paidAmount, 0)
-  })).sort((a, b) => a.name.localeCompare(b.name));
+  })).sort(customerSort);
   const products = Array.from(productMap.values()).sort(productSort);
 
   return {
@@ -191,10 +195,12 @@ export default function VehicleTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const customerOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
+  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(customerSort), [truckLoading]);
+
+  const customerOptions = useMemo(() => sortedCustomers.map((route) => ({
     value: route.id,
     label: route.name
-  })), [truckLoading]);
+  })), [sortedCustomers]);
 
   const visibleProducts = useMemo(() => {
     const products = truckLoading?.products || [];
@@ -206,9 +212,9 @@ export default function VehicleTruckLoadingPage() {
   }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {
-    const routes = truckLoading?.routes || [];
+    const routes = sortedCustomers;
     return customerFilter.length ? routes.filter((route) => customerFilter.includes(route.id)) : routes;
-  }, [customerFilter, truckLoading]);
+  }, [customerFilter, sortedCustomers]);
 
   function routeTotal(route: TruckLoading["routes"][number]) {
     return visibleProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0);

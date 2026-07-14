@@ -21,8 +21,29 @@ export const catalogService = {
     return catalogRepository.updateCategory(tenantId, categoryId, input);
   },
 
-  listProducts(tenantId: string, filters: ProductListFilters = {}) {
-    return catalogRepository.listProducts(tenantId, filters);
+  async listProducts(tenantId: string, auth: AccessTokenPayload | undefined, filters: ProductListFilters = {}) {
+    let customerIdForPreferences = filters.customerIdForPreferences;
+
+    if (auth?.actorType === "customer") {
+      customerIdForPreferences = auth.customerId;
+    } else if (customerIdForPreferences) {
+      if (auth?.actorType !== "bakery_user" && auth?.actorType !== "vehicle") {
+        throw new HttpError(403, "Customer preference access required");
+      }
+      const customer = await catalogRepository.findCustomerForPreferenceAccess(tenantId, customerIdForPreferences);
+      if (!customer) {
+        throw new HttpError(404, "Customer not found");
+      }
+      if (auth.actorType === "vehicle") {
+        const vehicle = await catalogRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
+        const allowedRouteIds = new Set(vehicle?.routes.map((route) => route.id) || []);
+        if (!customer.routeId || !allowedRouteIds.has(customer.routeId)) {
+          throw new HttpError(403, "Customer is not assigned to this vehicle");
+        }
+      }
+    }
+
+    return catalogRepository.listProducts(tenantId, { ...filters, customerIdForPreferences });
   },
 
   async getProduct(tenantId: string, productId: string) {

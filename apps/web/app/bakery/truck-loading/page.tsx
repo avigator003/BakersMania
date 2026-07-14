@@ -33,6 +33,10 @@ function productSort(a: TruckLoading["products"][number], b: TruckLoading["produ
   return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
 }
 
+function routeSort(a: TruckLoading["routes"][number], b: TruckLoading["routes"][number]) {
+  return naturalSort.compare(a.name || "", b.name || "");
+}
+
 export default function BakeryTruckLoadingPage() {
   const toast = useToast();
   const [date, setDate] = useState(today);
@@ -73,10 +77,12 @@ export default function BakeryTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const routeOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
+  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(routeSort), [truckLoading]);
+
+  const routeOptions = useMemo(() => sortedRoutes.map((route) => ({
     value: route.id,
     label: route.name
-  })), [truckLoading]);
+  })), [sortedRoutes]);
 
   const visibleProducts = useMemo(() => {
     const products = truckLoading?.products || [];
@@ -88,9 +94,9 @@ export default function BakeryTruckLoadingPage() {
   }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {
-    const routes = truckLoading?.routes || [];
+    const routes = sortedRoutes;
     return routeFilter.length ? routes.filter((route) => routeFilter.includes(route.id)) : routes;
-  }, [routeFilter, truckLoading]);
+  }, [routeFilter, sortedRoutes]);
 
   function routeTotal(route: TruckLoading["routes"][number]) {
     return visibleProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0);

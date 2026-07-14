@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ShoppingCart, Trash2 } from "lucide-react";
+import { ShoppingCart, Star, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -18,6 +18,7 @@ type Product = {
   categoryRef?: { id: string; name: string } | null;
   unitPrice: string | number;
   active: boolean;
+  isPreferred?: boolean;
 };
 type Category = { id: string; name: string; active?: boolean };
 type CartItem = { id: string; name: string; unitPrice: string | number; quantity: number };
@@ -63,16 +64,21 @@ export default function VehiclePlaceOrderPage() {
     [categories]
   );
 
-  const productOptions = useMemo(
-    () => products.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+  const sortedProducts = useMemo(
+    () => [...products].sort((a, b) => Number(Boolean(b.isPreferred)) - Number(Boolean(a.isPreferred)) || a.name.localeCompare(b.name)),
     [products]
   );
 
-  const visibleProducts = useMemo(() => products.filter((product) => {
+  const productOptions = useMemo(
+    () => sortedProducts.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    [sortedProducts]
+  );
+
+  const visibleProducts = useMemo(() => sortedProducts.filter((product) => {
     if (categoryFilter && product.categoryId !== categoryFilter && product.categoryRef?.id !== categoryFilter) return false;
     if (productFilter && product.id !== productFilter) return false;
     return true;
-  }), [categoryFilter, productFilter, products]);
+  }), [categoryFilter, productFilter, sortedProducts]);
 
   const orderItems = useMemo(() => cart.filter((item) => item.quantity > 0), [cart]);
   const cartTotals = useMemo(() => ({
@@ -81,17 +87,25 @@ export default function VehiclePlaceOrderPage() {
     amount: orderItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * item.quantity, 0)
   }), [orderItems]);
 
+  async function fetchProducts(preferenceCustomerId?: string) {
+    if (!apiBase) return [];
+    const params = new URLSearchParams({ pageSize: "500" });
+    if (preferenceCustomerId) params.set("customerIdForPreferences", preferenceCustomerId);
+    const productData = await authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?${params.toString()}`);
+    return productData.products.filter((product) => product.active !== false);
+  }
+
   async function loadData() {
     if (!apiBase) return;
     setLoading(true);
     try {
       const [customerData, productData, categoryData] = await Promise.all([
         authFetch<{ customers: Customer[] }>(`${apiBase}/customers?pageSize=500`),
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        fetchProducts(),
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`)
       ]);
       setCustomers(customerData.customers);
-      setProducts(productData.products.filter((product) => product.active !== false));
+      setProducts(productData);
       setCategories(categoryData.categories);
     } catch (error) {
       toast.error("Could not load order form", error instanceof Error ? error.message : "Please sign in again.");
@@ -103,6 +117,25 @@ export default function VehiclePlaceOrderPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!apiBase || loading) return;
+    let cancelled = false;
+
+    async function loadCustomerProducts() {
+      try {
+        const nextProducts = await fetchProducts(customerId || undefined);
+        if (!cancelled) setProducts(nextProducts);
+      } catch (error) {
+        if (!cancelled) toast.error("Could not load preferred products", error instanceof Error ? error.message : "Please try again.");
+      }
+    }
+
+    loadCustomerProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, customerId]);
 
   function updateQuantity(productId: string, quantity: number) {
     setCart((current) => {
@@ -177,18 +210,28 @@ export default function VehiclePlaceOrderPage() {
 
         <div className="order-2 rounded-lg border border-line bg-panel shadow-subtle xl:order-1">
           <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
-            <SearchableSelect className="min-w-0" onChange={setCustomerId} options={customerOptions} placeholder="Select customer" searchPlaceholder="Search assigned customers" value={customerId} />
+            <SearchableSelect className="min-w-0" onChange={(value) => { setCustomerId(value); setProductFilter(""); }} options={customerOptions} placeholder="Select customer" searchPlaceholder="Search assigned customers" value={customerId} />
             <SearchableSelect className="min-w-0" onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
             <SearchableSelect className="min-w-0" onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
           </div>
           {loading ? <LoadingSpinner label="Loading order form" /> : null}
           <div className="grid min-h-[180px] gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {visibleProducts.map((product) => (
-              <article className="flex min-h-36 flex-col rounded-md border border-line bg-panel2 p-3" key={product.id}>
-                <p className="truncate text-xs font-semibold uppercase text-mint">{productCategory(product)}</p>
+              <article className={`flex min-h-36 flex-col rounded-md border p-3 ${product.isPreferred ? "border-amber-300 bg-amber-50 shadow-subtle" : "border-line bg-panel2"}`} key={product.id}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 truncate text-xs font-semibold uppercase text-mint">{productCategory(product)}</p>
+                  {product.isPreferred ? (
+                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-amber-300 bg-amber-100 text-amber-700" title="Preferred product">
+                      <Star fill="currentColor" size={14} />
+                    </span>
+                  ) : null}
+                </div>
                 <h2 className="mt-1 text-sm font-semibold leading-5">{product.name}</h2>
                 <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-                  <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
+                  <span className="min-w-0">
+                    {product.isPreferred ? <span className="mb-1 inline-block rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-amber-700">Preferred</span> : null}
+                    <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
+                  </span>
                   <input
                     className="w-24 rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint"
                     min="0"

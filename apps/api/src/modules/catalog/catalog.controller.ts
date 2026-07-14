@@ -18,9 +18,9 @@ export const catalogController = {
   },
 
   async listProducts(req: Request, res: Response) {
-    const result = await catalogService.listProducts(req.tenant!.id, {
+    const result = await catalogService.listProducts(req.tenant!.id, req.auth, {
       includeInactive: req.auth?.actorType === "bakery_user",
-      customerIdForPreferences: req.auth?.actorType === "customer" ? req.auth.customerId : undefined,
+      customerIdForPreferences: req.query.customerIdForPreferences ? String(req.query.customerIdForPreferences) : undefined,
       page: numberQueryParam(req.query.page),
       pageSize: numberQueryParam(req.query.pageSize),
       search: req.query.search ? String(req.query.search) : undefined,
