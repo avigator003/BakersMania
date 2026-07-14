@@ -1,5 +1,7 @@
 import type { RequestHandler } from "express";
-import { prisma } from "../db/prisma.js";
+import { platformPrisma } from "../db/prisma.js";
+import { runWithTenantPrisma } from "../db/tenant-prisma-context.js";
+import { getTenantPrismaClient } from "../db/tenant-prisma-registry.js";
 import { HttpError } from "../utils/http.js";
 
 export const resolveTenant: RequestHandler = async (req, _res, next) => {
@@ -8,9 +10,9 @@ export const resolveTenant: RequestHandler = async (req, _res, next) => {
     const tenantId = req.auth?.tenantId || req.header("x-tenant-id");
 
     const tenant = tenantSlug
-      ? await prisma.tenant.findUnique({ where: { slug: tenantSlug } })
+      ? await platformPrisma.tenant.findUnique({ where: { slug: tenantSlug } })
       : tenantId
-        ? await prisma.tenant.findUnique({ where: { id: tenantId } })
+        ? await platformPrisma.tenant.findUnique({ where: { id: tenantId } })
         : null;
 
     if (!tenant) {
@@ -29,7 +31,12 @@ export const resolveTenant: RequestHandler = async (req, _res, next) => {
     }
 
     req.tenant = tenant;
-    next();
+    const tenantPrisma = await getTenantPrismaClient({
+      platformPrisma,
+      postgresConnectionId: tenant.postgresConnectionId
+    });
+    req.tenantDb = tenantPrisma;
+    runWithTenantPrisma(tenantPrisma, next);
   } catch (error) {
     next(error);
   }

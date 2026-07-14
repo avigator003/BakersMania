@@ -5,6 +5,8 @@ export type AccessTokenPayload = {
   sub: string;
   actorType: "platform_admin" | "bakery_user" | "customer" | "vehicle";
   tenantId?: string;
+  tenantSlug?: string;
+  postgresConnectionId?: string | null;
   role?: string;
   customerId?: string;
   vehicleId?: string;

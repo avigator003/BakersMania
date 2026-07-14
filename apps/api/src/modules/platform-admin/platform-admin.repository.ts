@@ -3,15 +3,115 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 
 export const platformAdminRepository = {
+  listPostgresConnections() {
+    return prisma.postgresConnection.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true, status: true }
+        }
+      }
+    });
+  },
+
+  findPostgresConnection(connectionId: string) {
+    return prisma.postgresConnection.findUnique({
+      where: { id: connectionId },
+      include: {
+        tenant: {
+          select: { id: true, name: true, slug: true, status: true }
+        }
+      }
+    });
+  },
+
+  createPostgresConnection(input: { name: string; databaseUrl: string }) {
+    return prisma.postgresConnection.create({ data: input });
+  },
+
+  listBakeryLeads(filters: {
+    status?: "REJECTED" | "PENDING" | "IN_PROCESS" | "ACCEPTED";
+    nextCallFrom?: Date;
+    nextCallTo?: Date;
+  }) {
+    return prisma.bakeryLead.findMany({
+      where: {
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.nextCallFrom || filters.nextCallTo
+          ? {
+              nextCallAt: {
+                ...(filters.nextCallFrom ? { gte: filters.nextCallFrom } : {}),
+                ...(filters.nextCallTo ? { lt: filters.nextCallTo } : {})
+              }
+            }
+          : {})
+      },
+      orderBy: [{ nextCallAt: "asc" }, { updatedAt: "desc" }]
+    });
+  },
+
+  createBakeryLead(input: {
+    phone: string;
+    ownerName: string;
+    bakeryName: string;
+    city: string;
+    state: string;
+    said: string;
+    status: "REJECTED" | "PENDING" | "IN_PROCESS" | "ACCEPTED";
+    nextCallAt: Date;
+  }) {
+    return prisma.bakeryLead.create({ data: input });
+  },
+
+  updateBakeryLead(
+    leadId: string,
+    input: {
+      phone?: string;
+      ownerName?: string;
+      bakeryName?: string;
+      city?: string;
+      state?: string;
+      said?: string;
+      status?: "REJECTED" | "PENDING" | "IN_PROCESS" | "ACCEPTED";
+      nextCallAt?: Date;
+    }
+  ) {
+    return prisma.bakeryLead.update({
+      where: { id: leadId },
+      data: input
+    });
+  },
+
+  deleteBakeryLead(leadId: string) {
+    return prisma.bakeryLead.delete({ where: { id: leadId } });
+  },
+
   listTenants() {
     return prisma.tenant.findMany({
       orderBy: { createdAt: "desc" },
-      include: { subscriptions: { orderBy: { createdAt: "desc" }, take: 1 } }
+      include: {
+        subscriptions: { orderBy: { createdAt: "desc" }, take: 1 },
+        postgresConnection: true
+      }
     });
   },
 
   findTenantBySlug(slug: string) {
     return prisma.tenant.findUnique({ where: { slug } });
+  },
+
+  findTenantById(tenantId: string) {
+    return prisma.tenant.findUnique({ where: { id: tenantId }, include: { postgresConnection: true } });
+  },
+
+  updateTenantOrderPipeline(tenantId: string, input: { enabled: boolean; stages: Prisma.InputJsonValue }) {
+    return prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        orderPipelineEnabled: input.enabled,
+        orderPipelineStages: input.stages
+      }
+    });
   },
 
   createTenant(input: {
@@ -26,6 +126,7 @@ export const platformAdminRepository = {
     managerPasswordHash?: string;
     phone?: string;
     address?: string;
+    postgresConnectionId?: string;
     planCode: string;
     monthlyAmount: number;
     recurrence: "MONTHLY" | "EVERY_2_MONTHS" | "QUARTERLY" | "YEARLY" | "CUSTOM";
@@ -42,6 +143,7 @@ export const platformAdminRepository = {
         ownerEmail: input.ownerEmail,
         phone: input.phone,
         address: input.address,
+        postgresConnectionId: input.postgresConnectionId,
         users: {
           create: [
             {
@@ -146,6 +248,7 @@ export const platformAdminRepository = {
       phone?: string;
       address?: string;
       status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "SUSPENDED";
+      postgresConnectionId?: string | null;
     }
   ) {
     return prisma.tenant.update({
@@ -155,7 +258,8 @@ export const platformAdminRepository = {
         ownerEmail: input.ownerEmail,
         phone: input.phone,
         address: input.address,
-        status: input.status
+        status: input.status,
+        ...(input.postgresConnectionId !== undefined ? { postgresConnectionId: input.postgresConnectionId } : {})
       }
     });
   },

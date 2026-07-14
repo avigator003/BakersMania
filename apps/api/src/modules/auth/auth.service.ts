@@ -77,6 +77,8 @@ export const authService = {
           sub: user.id,
           actorType: "bakery_user",
           tenantId: membership.tenantId,
+          tenantSlug: membership.tenant.slug,
+          postgresConnectionId: membership.tenant.postgresConnectionId,
           role: membership.role
         }),
         actorType: "bakery_user" as const,
@@ -99,6 +101,8 @@ export const authService = {
           sub: user.id,
           actorType: "customer",
           tenantId: customer.tenantId,
+          tenantSlug: customer.tenant.slug,
+          postgresConnectionId: customer.tenant.postgresConnectionId,
           customerId: customer.id
         }),
         actorType: "customer" as const,
@@ -120,6 +124,8 @@ export const authService = {
           sub: user.id,
           actorType: "vehicle",
           tenantId: vehicle.tenantId,
+          tenantSlug: vehicle.tenant.slug,
+          postgresConnectionId: vehicle.tenant.postgresConnectionId,
           vehicleId: vehicle.id
         }),
         actorType: "vehicle" as const,
@@ -167,6 +173,8 @@ export const authService = {
         sub: user.id,
         actorType: "customer",
         tenantId: tenant.id,
+        tenantSlug: tenant.slug,
+        postgresConnectionId: tenant.postgresConnectionId,
         customerId: customer.id
       })
     };

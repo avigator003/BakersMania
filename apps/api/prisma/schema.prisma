@@ -40,6 +40,13 @@ enum BillingRecurrence {
   CUSTOM
 }
 
+enum BakeryLeadStatus {
+  REJECTED
+  PENDING
+  IN_PROCESS
+  ACCEPTED
+}
+
 enum OrderSource {
   CUSTOMER_PORTAL
   WHATSAPP
@@ -87,6 +94,35 @@ model PlatformAdmin {
   updatedAt    DateTime @updatedAt
 }
 
+model BakeryLead {
+  id           String           @id @default(cuid())
+  phone        String
+  ownerName    String
+  bakeryName   String
+  city         String
+  state        String
+  said         String
+  status       BakeryLeadStatus @default(PENDING)
+  nextCallAt   DateTime
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([status])
+  @@index([nextCallAt])
+  @@index([status, nextCallAt])
+  @@index([bakeryName])
+  @@index([phone])
+}
+
+model PostgresConnection {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  databaseUrl String
+  tenant      Tenant?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Tenant {
   id             String        @id @default(cuid())
   name           String
@@ -97,6 +133,10 @@ model Tenant {
   ownerEmail     String
   phone          String?
   address        String?
+  postgresConnectionId String? @unique
+  postgresConnection   PostgresConnection? @relation(fields: [postgresConnectionId], references: [id], onDelete: SetNull)
+  orderPipelineEnabled Boolean @default(true)
+  orderPipelineStages Json?
   users          Membership[]
   customers      Customer[]
   productCategories ProductCategory[]
@@ -341,11 +381,15 @@ model Order {
   discountTotal   Decimal         @default(0) @db.Decimal(12, 2)
   grandTotal      Decimal         @default(0) @db.Decimal(12, 2)
   notes           String?
+  pipelineStageKey String?
+  pipelineStageActor String?
+  pipelineCompletedAt DateTime?
   tenant          Tenant          @relation(fields: [tenantId], references: [id])
   customer        Customer        @relation(fields: [customerId], references: [id])
   items           OrderItem[]
   invoice         Invoice?
   payments        Payment[]
+  stageHistory    OrderStageHistory[]
   routeId         String?
   route           Route?          @relation(fields: [routeId], references: [id])
   createdAt       DateTime        @default(now())
@@ -362,6 +406,8 @@ model Order {
   @@index([tenantId, customerId, dueAt])
   @@index([tenantId, status, createdAt])
   @@index([tenantId, paymentStatus, createdAt])
+  @@index([tenantId, pipelineStageActor])
+  @@index([tenantId, pipelineStageKey])
 }
 
 model OrderItem {
@@ -378,6 +424,24 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+
+model OrderStageHistory {
+  id        String   @id @default(cuid())
+  tenantId  String
+  orderId   String
+  stageKey  String
+  actorType String
+  action    String
+  actorId   String?
+  notes     String?
+  order     Order    @relation(fields: [orderId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, stageKey])
+  @@index([tenantId, actorType])
+  @@index([tenantId, createdAt])
 }
 
 model Invoice {

@@ -3,13 +3,29 @@ import { requireAuth, requirePlatformAdmin } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/http.js";
 import { platformAdminController } from "./platform-admin.controller.js";
-import { onboardTenantSchema, updateBillingSchema, updateTenantSchema } from "./platform-admin.schemas.js";
+import {
+  bakeryLeadSchema,
+  onboardTenantSchema,
+  postgresConnectionSchema,
+  updateBakeryLeadSchema,
+  updateBillingSchema,
+  updateOrderPipelineSchema,
+  updateTenantSchema
+} from "./platform-admin.schemas.js";
 
 export const platformAdminRouter = Router();
 
 platformAdminRouter.use(requireAuth, requirePlatformAdmin);
 
+platformAdminRouter.get("/postgres-connections", asyncHandler(platformAdminController.listPostgresConnections));
+platformAdminRouter.post("/postgres-connections", validateBody(postgresConnectionSchema), asyncHandler(platformAdminController.createPostgresConnection));
+platformAdminRouter.get("/leads", asyncHandler(platformAdminController.listBakeryLeads));
+platformAdminRouter.post("/leads", validateBody(bakeryLeadSchema), asyncHandler(platformAdminController.createBakeryLead));
+platformAdminRouter.patch("/leads/:leadId", validateBody(updateBakeryLeadSchema), asyncHandler(platformAdminController.updateBakeryLead));
+platformAdminRouter.delete("/leads/:leadId", asyncHandler(platformAdminController.deleteBakeryLead));
 platformAdminRouter.get("/tenants", asyncHandler(platformAdminController.listTenants));
+platformAdminRouter.get("/tenants/:tenantId/order-pipeline", asyncHandler(platformAdminController.getOrderPipeline));
+platformAdminRouter.patch("/tenants/:tenantId/order-pipeline", validateBody(updateOrderPipelineSchema), asyncHandler(platformAdminController.updateOrderPipeline));
 platformAdminRouter.get("/billing", asyncHandler(platformAdminController.listBilling));
 platformAdminRouter.post("/tenants", validateBody(onboardTenantSchema), asyncHandler(platformAdminController.onboardTenant));
 platformAdminRouter.patch("/tenants/:tenantId", validateBody(updateTenantSchema), asyncHandler(platformAdminController.updateTenant));

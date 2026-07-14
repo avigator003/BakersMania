@@ -2,8 +2,46 @@ import type { Request, Response } from "express";
 import { platformAdminService } from "./platform-admin.service.js";
 
 export const platformAdminController = {
+  async listPostgresConnections(_req: Request, res: Response) {
+    res.json({ connections: await platformAdminService.listPostgresConnections() });
+  },
+
+  async createPostgresConnection(req: Request, res: Response) {
+    res.status(201).json({ connection: await platformAdminService.createPostgresConnection(req.body) });
+  },
+
+  async listBakeryLeads(req: Request, res: Response) {
+    res.json({
+      leads: await platformAdminService.listBakeryLeads({
+        view: typeof req.query.view === "string" ? req.query.view : undefined,
+        date: typeof req.query.date === "string" ? req.query.date : undefined,
+        status: typeof req.query.status === "string" ? req.query.status : undefined
+      })
+    });
+  },
+
+  async createBakeryLead(req: Request, res: Response) {
+    res.status(201).json({ lead: await platformAdminService.createBakeryLead(req.body) });
+  },
+
+  async updateBakeryLead(req: Request, res: Response) {
+    res.json({ lead: await platformAdminService.updateBakeryLead(req.params.leadId, req.body) });
+  },
+
+  async deleteBakeryLead(req: Request, res: Response) {
+    res.json({ lead: await platformAdminService.deleteBakeryLead(req.params.leadId) });
+  },
+
   async listTenants(_req: Request, res: Response) {
     res.json({ tenants: await platformAdminService.listTenants() });
+  },
+
+  async getOrderPipeline(req: Request, res: Response) {
+    res.json({ pipeline: await platformAdminService.getOrderPipeline(req.params.tenantId) });
+  },
+
+  async updateOrderPipeline(req: Request, res: Response) {
+    res.json({ tenant: await platformAdminService.updateOrderPipeline(req.params.tenantId, req.body) });
   },
 
   async listBilling(req: Request, res: Response) {

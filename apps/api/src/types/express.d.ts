@@ -1,4 +1,4 @@
-import type { Tenant } from "@prisma/client";
+import type { PrismaClient, Tenant } from "@prisma/client";
 import type { AccessTokenPayload } from "../utils/tokens.js";
 
 declare global {
@@ -7,6 +7,7 @@ declare global {
       requestId?: string;
       auth?: AccessTokenPayload;
       tenant?: Tenant;
+      tenantDb?: PrismaClient;
     }
   }
 }

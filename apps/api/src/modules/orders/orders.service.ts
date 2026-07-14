@@ -1,5 +1,6 @@
 import type { AccessTokenPayload } from "../../utils/tokens.js";
 import { HttpError } from "../../utils/http.js";
+import { enabledPipelineStages, nextStageAfterActor, type OrderPipelineActor } from "./order-pipeline.js";
 import { ordersRepository } from "./orders.repository.js";
 import type { CreateOrderInput, CustomerPaymentInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput } from "./orders.schemas.js";
 
@@ -97,6 +98,18 @@ async function assertOneOrderPerCustomerDate(tenantId: string, customerId: strin
   }
 }
 
+function pipelineActorForAuth(auth: AccessTokenPayload | undefined): OrderPipelineActor | undefined {
+  if (auth?.actorType === "customer") return "CUSTOMER";
+  if (auth?.actorType === "vehicle") return "VEHICLE";
+  if (auth?.actorType === "bakery_user") return "BAKERY";
+  return undefined;
+}
+
+async function pipelineStagesForTenant(tenantId: string) {
+  const config = await ordersRepository.findTenantPipeline(tenantId);
+  return enabledPipelineStages(config?.orderPipelineStages, config?.orderPipelineEnabled ?? true);
+}
+
 export const ordersService = {
   cleanupExpiredPendingOrders() {
     return ordersRepository.cleanupExpiredPendingOrders();
@@ -127,6 +140,8 @@ export const ordersService = {
     }
     await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, input);
     const payload = await buildOrderPayload(tenantId, resolvedCustomerId, input);
+    const pipelineStages = await pipelineStagesForTenant(tenantId);
+    const initialPipelineStage = nextStageAfterActor(pipelineStages, pipelineActorForAuth(auth));
 
     return ordersRepository.createOrder({
       tenantId,
@@ -134,7 +149,8 @@ export const ordersService = {
       routeId: payload.customer.routeId,
       orderInput: payload.orderInput,
       totals: payload.totals,
-      items: payload.items
+      items: payload.items,
+      pipelineStage: initialPipelineStage
     });
   },
 
@@ -215,8 +231,21 @@ export const ordersService = {
     if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user" && input.vehicleStatus) {
       throw new HttpError(403, "Only vehicles can change vehicle order status");
     }
+    const pipelineStages = await pipelineStagesForTenant(tenantId);
+    const actorType = pipelineActorForAuth(auth);
+    const shouldAdvancePipeline =
+      (auth?.actorType === "vehicle" && input.vehicleStatus === "ACCEPTED") ||
+      (auth?.actorType === "bakery_user" && input.status === "ACCEPTED");
+    const nextPipelineStage = shouldAdvancePipeline ? nextStageAfterActor(pipelineStages, actorType) : undefined;
     if (input.vehicleStatus && !input.status && !input.paymentStatus) {
-      return ordersRepository.updateVehicleStatus(tenantId, orderId, input.vehicleStatus);
+      return ordersRepository.updateOrderStatus({
+        tenantId,
+        orderId,
+        vehicleStatus: input.vehicleStatus,
+        pipelineStage: nextPipelineStage,
+        pipelineAction: shouldAdvancePipeline ? "ACCEPTED" : "UPDATED",
+        pipelineActorId: auth?.sub
+      });
     }
 
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -250,7 +279,10 @@ export const ordersService = {
       status: input.status,
       vehicleStatus: input.vehicleStatus,
       paymentStatus: input.paymentStatus,
-      payment
+      payment,
+      pipelineStage: nextPipelineStage,
+      pipelineAction: shouldAdvancePipeline ? "ACCEPTED" : undefined,
+      pipelineActorId: auth?.sub
     });
   },
 

@@ -1,5 +1,6 @@
 import { OrderSource, OrderStatus, PaymentStatus, Prisma, VehicleOrderStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
+import type { OrderPipelineStage } from "./order-pipeline.js";
 import type { CreateOrderInput, CustomerPaymentInput } from "./orders.schemas.js";
 
 type OrderListFilters = {
@@ -135,6 +136,13 @@ type CalculatedOrderItem = {
 };
 
 export const ordersRepository = {
+  findTenantPipeline(tenantId: string) {
+    return prisma.tenant.findFirst({
+      where: { id: tenantId },
+      select: { orderPipelineEnabled: true, orderPipelineStages: true }
+    });
+  },
+
   async cleanupExpiredPendingOrders(cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)) {
     return prisma.$transaction(async (tx) => {
       const expiredOrders = await tx.order.findMany({
@@ -168,7 +176,19 @@ export const ordersRepository = {
   },
 
   listForStaff(tenantId: string, filters: OrderListFilters = {}) {
-    return paginatedOrders(buildOrderWhere(tenantId, filters), filters, { createdAt: "desc" });
+    return paginatedOrders(
+      buildOrderWhere(tenantId, filters, [
+        {
+          OR: [
+            { pipelineStageActor: "BAKERY" },
+            { pipelineStageActor: null },
+            { pipelineCompletedAt: { not: null } }
+          ]
+        }
+      ]),
+      filters,
+      { createdAt: "desc" }
+    );
   },
 
   listForCustomer(tenantId: string, customerId: string, filters: OrderListFilters = {}) {
@@ -183,7 +203,14 @@ export const ordersRepository = {
   },
 
   listForVehicle(tenantId: string, routeIds: string[], filters: OrderListFilters = {}) {
-    return paginatedOrders(buildOrderWhere(tenantId, filters, [routeScope(routeIds)]), filters, { createdAt: "desc" });
+    return paginatedOrders(
+      buildOrderWhere(tenantId, filters, [
+        routeScope(routeIds),
+        { OR: [{ pipelineStageActor: "VEHICLE" }, { pipelineStageActor: null }] }
+      ]),
+      filters,
+      { createdAt: "desc" }
+    );
   },
 
   findCustomer(tenantId: string, customerId: string) {
@@ -454,17 +481,37 @@ export const ordersRepository = {
     };
     items: CalculatedOrderItem[];
     routeId?: string | null;
+    pipelineStage?: OrderPipelineStage | null;
   }) {
-    return prisma.order.create({
-      data: {
-        ...input.orderInput,
-        tenantId: input.tenantId,
-        customerId: input.customerId,
-        routeId: input.routeId || undefined,
-        ...input.totals,
-        items: { create: input.items }
-      },
-      include: { items: true, customer: { include: { route: true } }, route: true, payments: true }
+    return prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          ...input.orderInput,
+          tenantId: input.tenantId,
+          customerId: input.customerId,
+          routeId: input.routeId || undefined,
+          ...input.totals,
+          pipelineStageKey: input.pipelineStage?.key,
+          pipelineStageActor: input.pipelineStage?.actorType,
+          pipelineCompletedAt: input.pipelineStage ? null : new Date(),
+          items: { create: input.items }
+        },
+        include: { items: true, customer: { include: { route: true } }, route: true, payments: true }
+      });
+
+      if (input.pipelineStage) {
+        await tx.orderStageHistory.create({
+          data: {
+            tenantId: input.tenantId,
+            orderId: order.id,
+            stageKey: input.pipelineStage.key,
+            actorType: input.pipelineStage.actorType,
+            action: "ENTERED"
+          }
+        });
+      }
+
+      return order;
     });
   },
 
@@ -823,6 +870,9 @@ export const ordersRepository = {
     vehicleStatus?: VehicleOrderStatus;
     paymentStatus?: PaymentStatus;
     payment?: { amount: number; method: string; reference?: string };
+    pipelineStage?: OrderPipelineStage | null;
+    pipelineAction?: string;
+    pipelineActorId?: string;
   }) {
     return prisma.$transaction(async (tx) => {
       if (input.payment) {
@@ -868,10 +918,30 @@ export const ordersRepository = {
         data: {
           ...(input.status ? { status: input.status } : {}),
           ...(input.vehicleStatus ? { vehicleStatus: input.vehicleStatus } : {}),
+          ...(input.pipelineStage !== undefined
+            ? {
+                pipelineStageKey: input.pipelineStage?.key || null,
+                pipelineStageActor: input.pipelineStage?.actorType || null,
+                pipelineCompletedAt: input.pipelineStage ? null : new Date()
+              }
+            : {}),
           paymentStatus: nextPaymentStatus
         },
         include: { items: true, customer: { include: { route: true } }, route: true, invoice: true, payments: true }
       });
+
+      if (input.pipelineStage !== undefined) {
+        await tx.orderStageHistory.create({
+          data: {
+            tenantId: input.tenantId,
+            orderId: input.orderId,
+            stageKey: input.pipelineStage?.key || "PIPELINE_COMPLETED",
+            actorType: input.pipelineStage?.actorType || "SYSTEM",
+            action: input.pipelineAction || "MOVED",
+            actorId: input.pipelineActorId
+          }
+        });
+      }
 
       if (updated.invoice) {
         await tx.invoice.update({

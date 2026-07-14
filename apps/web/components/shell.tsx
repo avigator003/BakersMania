@@ -9,9 +9,11 @@ import {
   Building2,
   ClipboardList,
   CreditCard,
+  Database,
   Home,
   IndianRupee,
   Menu,
+  PhoneCall,
   Settings,
   ShoppingBag,
   ShoppingCart,
@@ -259,6 +261,8 @@ export function AppShell({
       ? [
         { href: "/admin", label: "Overview", icon: Home },
         { href: "/admin/tenants", label: "Bakeries", icon: Building2 },
+        { href: "/admin/leads", label: "Bakery Leads", icon: PhoneCall },
+        { href: "/admin/postgres-connections", label: "Postgres DBs", icon: Database },
         { href: "/admin/billing", label: "Billing", icon: CreditCard },
         { href: "/admin/reports", label: "Reports", icon: BarChart3 }
       ]
@@ -279,6 +283,8 @@ export function AppShell({
       customer: surface === "customer" ? shellTitle : "Customer Portal",
       vehicle: surface === "vehicle" ? shellTitle : "Vehicle Workspace",
       tenants: "Bakeries",
+      leads: "Bakery Leads",
+      "postgres-connections": "Postgres DBs",
       billing: "Billing",
       reports: "Reports",
       orders: "Orders",

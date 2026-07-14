@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Edit3, Eye, Trash2, UserPlus } from "lucide-react";
+import { Edit3, Eye, Trash2, UserPlus, Workflow } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { ConfirmModal, Modal } from "../../../components/modal";
@@ -12,6 +12,20 @@ import { localDateInput } from "../../../components/date-input";
 
 type TenantStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "SUSPENDED";
 type BillingStatus = "PENDING" | "PAID" | "OVERDUE" | "WAIVED";
+type OrderPipelineActor = "CUSTOMER" | "VEHICLE" | "BAKERY";
+
+type OrderPipelineStage = {
+  key: "CUSTOMER_SUBMITTED" | "VEHICLE_REVIEW" | "BAKERY_REVIEW";
+  label: string;
+  actorType: OrderPipelineActor;
+  order: number;
+  enabled: boolean;
+};
+
+type OrderPipelineForm = {
+  enabled: boolean;
+  stages: OrderPipelineStage[];
+};
 
 type TenantSubscription = {
   id: string;
@@ -39,13 +53,28 @@ type Tenant = {
   ownerEmail: string;
   phone?: string | null;
   address?: string | null;
+  postgresConnectionId?: string | null;
+  postgresConnection?: PostgresConnection | null;
   createdAt: string;
   updatedAt: string;
   subscriptions?: TenantSubscription[];
 };
 
+type PostgresConnection = {
+  id: string;
+  name: string;
+  databaseUrl: string;
+  tenant?: {
+    id: string;
+    name: string;
+    slug: string;
+    status: TenantStatus;
+  } | null;
+};
+
 type OnboardForm = {
   bakeryName: string;
+  postgresConnectionId: string;
   ownerName: string;
   ownerEmail: string;
   ownerPassword: string;
@@ -70,9 +99,15 @@ type EditForm = {
   phone: string;
   address: string;
   status: TenantStatus;
+  postgresConnectionId: string;
 };
 
 const statusOptions: TenantStatus[] = ["TRIALING", "ACTIVE", "PAST_DUE", "CANCELED", "SUSPENDED"];
+const actorLabels: Record<OrderPipelineActor, string> = {
+  CUSTOMER: "Customer",
+  VEHICLE: "Vehicle",
+  BAKERY: "Bakery"
+};
 const statusDropdownOptions = [
   { value: "TRIALING" as const, label: "Trialing", className: "border-saffron/30 bg-saffron/10 text-saffron" },
   { value: "ACTIVE" as const, label: "Active", className: "border-mint/30 bg-mint/10 text-mint" },
@@ -83,6 +118,7 @@ const statusDropdownOptions = [
 
 const initialForm: OnboardForm = {
   bakeryName: "Demo Cakes",
+  postgresConnectionId: "",
   ownerName: "Demo Owner",
   ownerEmail: "owner@democakes.local",
   ownerPassword: "Owner@123456",
@@ -136,13 +172,15 @@ function toEditForm(tenant: Tenant): EditForm {
     ownerEmail: tenant.ownerEmail,
     phone: tenant.phone || "",
     address: tenant.address || "",
-    status: tenant.status
+    status: tenant.status,
+    postgresConnectionId: tenant.postgresConnectionId || ""
   };
 }
 
 export default function AdminTenantsPage() {
   const toast = useToast();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [postgresConnections, setPostgresConnections] = useState<PostgresConnection[]>([]);
   const [form, setForm] = useState<OnboardForm>(initialForm);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [loading, setLoading] = useState(true);
@@ -150,10 +188,24 @@ export default function AdminTenantsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [supportTenant, setSupportTenant] = useState<Tenant | null>(null);
   const [editTenant, setEditTenant] = useState<Tenant | null>(null);
+  const [pipelineTenant, setPipelineTenant] = useState<Tenant | null>(null);
+  const [pipelineForm, setPipelineForm] = useState<OrderPipelineForm | null>(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
   const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
   const [statusAction, setStatusAction] = useState<{ tenant: Tenant; status: TenantStatus } | null>(null);
 
   const generatedSlug = slugify(form.bakeryName);
+  const availablePostgresConnections = useMemo(
+    () => postgresConnections.filter((connection) => !connection.tenant),
+    [postgresConnections]
+  );
+  const editPostgresConnections = useMemo(
+    () =>
+      postgresConnections.filter(
+        (connection) => !connection.tenant || connection.tenant.id === editTenant?.id
+      ),
+    [editTenant?.id, postgresConnections]
+  );
 
   const stats = useMemo(() => {
     const active = tenants.filter((tenant) => tenant.status === "ACTIVE").length;
@@ -179,8 +231,18 @@ export default function AdminTenantsPage() {
     }
   }
 
+  async function loadPostgresConnections() {
+    try {
+      const data = await authFetch<{ connections: PostgresConnection[] }>("/platform-admin/postgres-connections");
+      setPostgresConnections(data.connections);
+    } catch (error) {
+      toast.error("Could not load Postgres DBs", error instanceof Error ? error.message : "Create DB connections from the Postgres DBs page first.");
+    }
+  }
+
   useEffect(() => {
     loadTenants();
+    loadPostgresConnections();
   }, []);
 
   async function onboardTenant(event: FormEvent<HTMLFormElement>) {
@@ -196,13 +258,15 @@ export default function AdminTenantsPage() {
           recurrenceMonths: Number(form.recurrenceMonths || 1),
           lastPaymentDate: form.lastPaymentDate || undefined,
           nextDueDate: form.nextDueDate || undefined,
-          lastPaymentAmount: form.lastPaymentAmount ? Number(form.lastPaymentAmount) : undefined
+          lastPaymentAmount: form.lastPaymentAmount ? Number(form.lastPaymentAmount) : undefined,
+          postgresConnectionId: form.postgresConnectionId || undefined
         })
       });
       toast.success("Bakery onboarded", `${form.bakeryName} was created successfully.`);
       setForm(initialForm);
       setCreateOpen(false);
       await loadTenants();
+      await loadPostgresConnections();
     } catch (error) {
       toast.error("Onboarding failed", error instanceof Error ? error.message : "Generated slug may already exist or token may be missing.");
     } finally {
@@ -217,12 +281,16 @@ export default function AdminTenantsPage() {
     try {
       await authFetch(`/platform-admin/tenants/${editTenant.id}`, {
         method: "PATCH",
-        body: JSON.stringify(editForm)
+        body: JSON.stringify({
+          ...editForm,
+          postgresConnectionId: editForm.postgresConnectionId || null
+        })
       });
       toast.success("Bakery updated", `${editForm.bakeryName} details were saved.`);
       setEditTenant(null);
       setEditForm(null);
       await loadTenants();
+      await loadPostgresConnections();
     } catch (error) {
       toast.error("Update failed", error instanceof Error ? error.message : "Could not update bakery details.");
     } finally {
@@ -242,7 +310,8 @@ export default function AdminTenantsPage() {
           ownerEmail: tenant.ownerEmail,
           phone: tenant.phone || "",
           address: tenant.address || "",
-          status
+          status,
+          postgresConnectionId: tenant.postgresConnectionId || null
         })
       });
       toast.success("Status updated", `${tenant.name} is now ${status}.`);
@@ -263,8 +332,46 @@ export default function AdminTenantsPage() {
       toast.success("Bakery deleted", `${deleteTenant.name} was removed.`);
       setDeleteTenant(null);
       await loadTenants();
+      await loadPostgresConnections();
     } catch (error) {
       toast.error("Delete failed", error instanceof Error ? error.message : "Could not delete bakery.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function openPipeline(tenant: Tenant) {
+    setPipelineTenant(tenant);
+    setPipelineForm(null);
+    setPipelineLoading(true);
+    try {
+      const data = await authFetch<{ pipeline: OrderPipelineForm }>(`/platform-admin/tenants/${tenant.id}/order-pipeline`);
+      setPipelineForm({
+        enabled: data.pipeline.enabled,
+        stages: [...data.pipeline.stages].sort((a, b) => a.order - b.order)
+      });
+    } catch (error) {
+      toast.error("Could not load pipeline", error instanceof Error ? error.message : "Try again after refreshing the bakery list.");
+      setPipelineTenant(null);
+    } finally {
+      setPipelineLoading(false);
+    }
+  }
+
+  async function savePipeline() {
+    if (!pipelineTenant || !pipelineForm) return;
+    setSaving(true);
+    try {
+      await authFetch(`/platform-admin/tenants/${pipelineTenant.id}/order-pipeline`, {
+        method: "PATCH",
+        body: JSON.stringify(pipelineForm)
+      });
+      toast.success("Pipeline updated", `${pipelineTenant.name} order flow was saved.`);
+      setPipelineTenant(null);
+      setPipelineForm(null);
+      await loadTenants();
+    } catch (error) {
+      toast.error("Pipeline update failed", error instanceof Error ? error.message : "Could not save this order flow.");
     } finally {
       setSaving(false);
     }
@@ -324,8 +431,9 @@ export default function AdminTenantsPage() {
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <span className="rounded-md bg-panel px-3 py-2">Slug: {tenant.slug}</span>
                   <span className="rounded-md bg-panel px-3 py-2">Phone: {tenant.phone || "-"}</span>
+                  <span className="rounded-md bg-panel px-3 py-2">DB: {tenant.postgresConnection?.name || "Not attached"}</span>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-4 gap-2">
                   <button
                     className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel"
                     onClick={() => {
@@ -338,6 +446,9 @@ export default function AdminTenantsPage() {
                   </button>
                   <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openEdit(tenant)} title="Edit bakery">
                     <Edit3 size={16} />
+                  </button>
+                  <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => openPipeline(tenant)} title="Order pipeline">
+                    <Workflow size={16} />
                   </button>
                   <button
                     className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel text-berry"
@@ -362,6 +473,7 @@ export default function AdminTenantsPage() {
                   <th className="px-4 py-3 font-semibold">Slug</th>
                   <th className="px-4 py-3 font-semibold">Owner Email</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Postgres DB</th>
                   <th className="px-4 py-3 font-semibold">Phone</th>
                   <th className="px-4 py-3 font-semibold">Actions</th>
                 </tr>
@@ -384,6 +496,7 @@ export default function AdminTenantsPage() {
                         value={tenant.status}
                       />
                     </td>
+                    <td className="px-4 py-3 text-muted">{tenant.postgresConnection?.name || "Not attached"}</td>
                     <td className="px-4 py-3 text-muted">{tenant.phone || "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
@@ -399,6 +512,9 @@ export default function AdminTenantsPage() {
                         </button>
                         <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openEdit(tenant)} title="Edit bakery">
                           <Edit3 size={16} />
+                        </button>
+                        <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openPipeline(tenant)} title="Order pipeline">
+                          <Workflow size={16} />
                         </button>
                         <button
                           className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 text-berry"
@@ -452,6 +568,21 @@ export default function AdminTenantsPage() {
                 />
               </label>
             ))}
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Postgres DB</span>
+              <select
+                className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                onChange={(event) => setForm((current) => ({ ...current, postgresConnectionId: event.target.value }))}
+                value={form.postgresConnectionId}
+              >
+                <option value="">No DB attached yet</option>
+                {availablePostgresConnections.map((connection) => (
+                  <option key={connection.id} value={connection.id}>
+                    {connection.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="grid gap-1">
               <span className="text-sm font-medium">Recurrence</span>
               <select
@@ -530,6 +661,21 @@ export default function AdminTenantsPage() {
                 </label>
               ))}
               <label className="grid gap-1">
+                <span className="text-sm font-medium">Postgres DB</span>
+                <select
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(event) => setEditForm((current) => (current ? { ...current, postgresConnectionId: event.target.value } : current))}
+                  value={editForm.postgresConnectionId}
+                >
+                  <option value="">No DB attached yet</option>
+                  {editPostgresConnections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1">
                 <span className="text-sm font-medium">Status</span>
                 <select
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
@@ -584,7 +730,8 @@ export default function AdminTenantsPage() {
                     rows: [
                       ["Owner email", supportTenant.ownerEmail],
                       ["Phone", supportTenant.phone || "-"],
-                      ["Address", supportTenant.address || "-"]
+                      ["Address", supportTenant.address || "-"],
+                      ["Postgres DB", supportTenant.postgresConnection?.name || "Not attached"]
                     ]
                   },
                   {
@@ -628,6 +775,72 @@ export default function AdminTenantsPage() {
               <div className="mt-2 flex justify-end">
                 <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" onClick={() => setSupportTenant(null)}>
                   Close
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </Modal>
+
+        <Modal
+          open={Boolean(pipelineTenant)}
+          title="Order Pipeline"
+          description={pipelineTenant ? `Configure order flow for ${pipelineTenant.name}.` : ""}
+          onClose={() => {
+            setPipelineTenant(null);
+            setPipelineForm(null);
+          }}
+        >
+          {pipelineLoading ? <LoadingSpinner label="Loading pipeline" /> : null}
+          {pipelineForm ? (
+            <div className="grid gap-4 text-sm">
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-line bg-panel2 p-3">
+                <span className="font-semibold">Pipeline enabled</span>
+                <input
+                  checked={pipelineForm.enabled}
+                  onChange={(event) => setPipelineForm((current) => (current ? { ...current, enabled: event.target.checked } : current))}
+                  type="checkbox"
+                />
+              </label>
+              <div className="grid gap-2">
+                {pipelineForm.stages.map((stage) => (
+                  <label key={stage.key} className="grid gap-3 rounded-lg border border-line bg-panel2 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <span>
+                      <span className="block font-semibold">{stage.label}</span>
+                      <span className="text-xs text-muted">{actorLabels[stage.actorType]} stage</span>
+                    </span>
+                    <input
+                      checked={stage.enabled}
+                      disabled={!pipelineForm.enabled}
+                      onChange={(event) =>
+                        setPipelineForm((current) =>
+                          current
+                            ? {
+                                ...current,
+                                stages: current.stages.map((item) =>
+                                  item.key === stage.key ? { ...item, enabled: event.target.checked } : item
+                                )
+                              }
+                            : current
+                        )
+                      }
+                      type="checkbox"
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold"
+                  onClick={() => {
+                    setPipelineTenant(null);
+                    setPipelineForm(null);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} onClick={savePipeline} type="button">
+                  {saving ? "Saving..." : "Save Pipeline"}
                 </button>
               </div>
             </div>
