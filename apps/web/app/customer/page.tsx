@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ShoppingCart, Star, Trash2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { AppShell } from "../../components/shell";
-import { DateInput, addLocalDays, localDateInput } from "../../components/date-input";
+import { addLocalDays, localDateInput } from "../../components/date-input";
 import { LoadingSpinner } from "../../components/loading-spinner";
 import { SearchableSelect } from "../../components/searchable-select";
 import { useToast } from "../../components/toast-provider";
@@ -23,8 +23,11 @@ type Product = {
 type Category = { id: string; name: string; active?: boolean };
 type CartItem = { id: string; name: string; unitPrice: string | number; quantity: number };
 
-const tomorrow = localDateInput(addLocalDays(new Date(), 1));
 const cartStoragePrefix = "bakersmania_customer_cart";
+
+function customerOrderDate() {
+  return localDateInput(addLocalDays(new Date(), 1));
+}
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -44,7 +47,6 @@ export default function CustomerPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [date, setDate] = useState(tomorrow);
   const [shopCategoryFilter, setShopCategoryFilter] = useState("");
   const [shopProductFilter, setShopProductFilter] = useState("");
   const [notes, setNotes] = useState("");
@@ -53,6 +55,7 @@ export default function CustomerPage() {
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
   const cartStorageKey = tenantSlug ? `${cartStoragePrefix}_${tenantSlug}` : cartStoragePrefix;
+  const defaultCustomerOrderDate = customerOrderDate();
 
   const categoryOptions = useMemo(
     () => categories.filter((category) => category.active !== false).map((category) => ({ value: category.id, label: category.name })),
@@ -185,7 +188,7 @@ export default function CustomerPage() {
         body: JSON.stringify({
           source: "CUSTOMER_PORTAL",
           fulfillmentType: "DELIVERY",
-          dueAt: date,
+          dueAt: defaultCustomerOrderDate,
           notes: notes || undefined,
           items: orderItems.map((item) => ({ productId: item.id, quantity: item.quantity }))
         })
@@ -227,7 +230,10 @@ export default function CustomerPage() {
             <span>Qty: <strong className="text-ink">{formatQty(cartTotals.quantity)}</strong></span>
             <span>Total: <strong className="text-ink">{formatAmount(cartTotals.amount)}</strong></span>
           </div>
-          <label className="mt-3 grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
+          <div className="mt-3 rounded-md border border-line bg-panel2 px-3 py-2 text-sm">
+            <span className="block font-semibold">Order date</span>
+            <span className="text-muted">{defaultCustomerOrderDate}</span>
+          </div>
           <label className="mt-3 grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-16 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setNotes(event.target.value)} value={notes} /></label>
           <button className="focus-ring mt-3 w-full rounded-md bg-mint px-4 py-2.5 font-semibold text-white" disabled={saving || !orderItems.length} type="submit">{saving ? "Placing..." : "Place Order"}</button>
         </form> : null}

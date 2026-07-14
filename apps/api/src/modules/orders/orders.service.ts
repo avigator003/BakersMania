@@ -39,6 +39,12 @@ function rowNameSort(a: { name: string }, b: { name: string }) {
   return naturalSort.compare(a.name || "", b.name || "");
 }
 
+function customerDefaultDueAt() {
+  const dueAt = new Date();
+  dueAt.setUTCDate(dueAt.getUTCDate() + 1);
+  return new Date(Date.UTC(dueAt.getUTCFullYear(), dueAt.getUTCMonth(), dueAt.getUTCDate()));
+}
+
 async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput) {
   const customer = await ordersRepository.findCustomer(tenantId, customerId);
   if (!customer) {
@@ -152,13 +158,16 @@ export const ordersService = {
     if (auth?.actorType === "customer" && input.source !== "CUSTOMER_PORTAL") {
       throw new HttpError(403, "Customers can only create customer portal orders");
     }
+    const effectiveInput = auth?.actorType === "customer"
+      ? { ...input, dueAt: customerDefaultDueAt() }
+      : input;
 
-    const resolvedCustomerId = auth?.actorType === "customer" ? auth.customerId : input.customerId;
+    const resolvedCustomerId = auth?.actorType === "customer" ? auth.customerId : effectiveInput.customerId;
     if (!resolvedCustomerId) {
       throw new HttpError(422, "customerId is required for staff-created orders");
     }
-    await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, input);
-    const payload = await buildOrderPayload(tenantId, resolvedCustomerId, input);
+    await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, effectiveInput);
+    const payload = await buildOrderPayload(tenantId, resolvedCustomerId, effectiveInput);
     const pipelineStages = await pipelineStagesForTenant(tenantId);
     const initialPipelineStage = nextStageAfterActor(pipelineStages, pipelineActorForAuth(auth));
 
@@ -197,10 +206,13 @@ export const ordersService = {
         throw new HttpError(403, "Customers cannot move orders to another customer");
       }
     }
+    const effectiveInput = auth?.actorType === "customer"
+      ? { ...input, dueAt: existing.dueAt || existing.createdAt }
+      : input;
 
-    const resolvedCustomerId = auth?.actorType === "customer" || auth?.actorType === "vehicle" ? existing.customerId : input.customerId || existing.customerId;
-    await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, input, orderId);
-    const payload = await buildOrderPayload(tenantId, resolvedCustomerId, input);
+    const resolvedCustomerId = auth?.actorType === "customer" || auth?.actorType === "vehicle" ? existing.customerId : effectiveInput.customerId || existing.customerId;
+    await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, effectiveInput, orderId);
+    const payload = await buildOrderPayload(tenantId, resolvedCustomerId, effectiveInput);
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     const paymentStatus = paid >= payload.totals.grandTotal && payload.totals.grandTotal > 0
       ? "PAID"

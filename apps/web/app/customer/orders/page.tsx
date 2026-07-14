@@ -415,7 +415,6 @@ export default function CustomerOrdersPage() {
         body: JSON.stringify({
           source: editOrder.source,
           fulfillmentType: editOrder.fulfillmentType,
-          dueAt: editForm.dueAt,
           notes: editForm.notes || undefined,
           items
         })
@@ -535,7 +534,6 @@ export default function CustomerOrdersPage() {
       <Modal open={Boolean(editOrder)} title="Edit pending order" description="Pending orders can be changed until the bakery or vehicle accepts them." onClose={() => setEditOrder(null)}>
         {editOrder ? (
           <form className="grid gap-4" onSubmit={updateOrder}>
-            <label className="grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setEditForm((current) => ({ ...current, dueAt: value }))} value={editForm.dueAt} /></label>
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold">Products</p>

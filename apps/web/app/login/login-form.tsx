@@ -37,9 +37,18 @@ function desiredActorFromPath(path: string) {
 function fallbackPath(session: LoginResponse) {
   const tenantBase = session.tenantSlug ? `/${session.tenantSlug}` : "";
   if (session.actorType === "platform_admin") return "/admin";
-  if (session.actorType === "customer") return `${tenantBase}/customer`;
+  if (session.actorType === "customer") return `${tenantBase}/customer/cart`;
   if (session.actorType === "vehicle") return `${tenantBase}/vehicle`;
   return `${tenantBase}/bakery`;
+}
+
+function normalizeNextPath(session: LoginResponse, nextPath: string) {
+  if (session.actorType !== "customer") return nextPath;
+  if (nextPath === "/customer") return "/customer/cart";
+  if (session.tenantSlug && nextPath === `/${session.tenantSlug}/customer`) {
+    return `/${session.tenantSlug}/customer/cart`;
+  }
+  return nextPath;
 }
 
 function nextPathAllowed(session: LoginResponse, nextPath: string) {
@@ -76,7 +85,7 @@ export function LoginForm({ forcedActor }: LoginFormProps) {
         body: JSON.stringify({ email, password, desiredActor })
       });
       storeSession(session);
-      router.push(nextPathAllowed(session, nextPath) ? nextPath : fallbackPath(session));
+      router.push(nextPathAllowed(session, nextPath) ? normalizeNextPath(session, nextPath) : fallbackPath(session));
     } catch {
       setError("Login failed. Check credentials and portal type.");
     } finally {
