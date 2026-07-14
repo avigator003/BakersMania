@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { CalendarCheck, Download, IndianRupee, RefreshCw, Search, UserPlus } from "lucide-react";
+import { CalendarCheck, Download, IndianRupee, Pencil, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -115,6 +115,7 @@ export default function LabourManagementPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [labourOpen, setLabourOpen] = useState(false);
+  const [editLabour, setEditLabour] = useState<Labour | null>(null);
   const [labourForm, setLabourForm] = useState(initialLabourForm);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
@@ -160,27 +161,55 @@ export default function LabourManagementPage() {
     loadLabour();
   }, [page, pageSize, search, statusFilter]);
 
-  async function createLabour(event: FormEvent<HTMLFormElement>) {
+  function openEditLabour(labour: Labour) {
+    setEditLabour(labour);
+    setLabourForm({
+      name: labour.name || "",
+      phone: labour.phone || "",
+      skill: labour.skill || "",
+      dailyWage: labour.dailyWage ? String(labour.dailyWage) : "",
+      monthlySalary: labour.monthlySalary ? String(labour.monthlySalary) : "",
+      joinedAt: labour.joinedAt ? labour.joinedAt.slice(0, 10) : localDateInput(),
+      notes: labour.notes || ""
+    });
+    setLabourOpen(true);
+  }
+
+  function closeLabourModal() {
+    setLabourOpen(false);
+    setEditLabour(null);
+    setLabourForm(initialLabourForm);
+  }
+
+  async function saveLabour(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!apiPath) return;
     setSaving(true);
     try {
-      await authFetch(`${apiPath}/labour`, {
-        method: "POST",
-        body: JSON.stringify({
-          ...labourForm,
-          role: "LABOURER",
-          dailyWage: labourForm.dailyWage ? Number(labourForm.dailyWage) : undefined,
-          monthlySalary: labourForm.monthlySalary ? Number(labourForm.monthlySalary) : undefined,
-          joinedAt: labourForm.joinedAt || undefined
-        })
-      });
-      toast.success("Labour created", `${labourForm.name} was added to the bakery workforce.`);
-      setLabourForm(initialLabourForm);
-      setLabourOpen(false);
+      const payload = {
+        ...labourForm,
+        role: "LABOURER",
+        dailyWage: labourForm.dailyWage ? Number(labourForm.dailyWage) : undefined,
+        monthlySalary: labourForm.monthlySalary ? Number(labourForm.monthlySalary) : undefined,
+        joinedAt: labourForm.joinedAt || undefined
+      };
+      if (editLabour) {
+        await authFetch(`${apiPath}/labour/${editLabour.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload)
+        });
+        toast.success("Labour updated", `${labourForm.name} details were saved.`);
+      } else {
+        await authFetch(`${apiPath}/labour`, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        toast.success("Labour created", `${labourForm.name} was added to the bakery workforce.`);
+      }
+      closeLabourModal();
       await loadLabour();
     } catch (error) {
-      toast.error("Labour creation failed", error instanceof Error ? error.message : "Could not create labour.");
+      toast.error(editLabour ? "Labour update failed" : "Labour creation failed", error instanceof Error ? error.message : "Could not save labour.");
     } finally {
       setSaving(false);
     }
@@ -269,7 +298,7 @@ export default function LabourManagementPage() {
                 <Download size={16} />
                 {exporting === "attendance" ? "Preparing..." : "Attendance Excel"}
               </button>
-              <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" onClick={() => setLabourOpen(true)}>
+              <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" onClick={() => { setEditLabour(null); setLabourForm(initialLabourForm); setLabourOpen(true); }}>
                 <UserPlus size={16} />
                 Add Labour
               </button>
@@ -375,6 +404,10 @@ export default function LabourManagementPage() {
                   <Link className="focus-ring mt-3 grid h-10 place-items-center rounded-md border border-line bg-panel text-sm font-semibold" href={`labour/${labour.id}`}>
                     View Overview
                   </Link>
+                  <button className="focus-ring mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel text-sm font-semibold" onClick={() => openEditLabour(labour)} type="button">
+                    <Pencil size={15} />
+                    Edit Details
+                  </button>
                 </article>
               );
             })}
@@ -393,7 +426,7 @@ export default function LabourManagementPage() {
                   <th className="px-4 py-3">Last attendance</th>
                   <th className="px-4 py-3">Last payment</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Overview</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -436,9 +469,15 @@ export default function LabourManagementPage() {
                         </select>
                       </td>
                       <td className="px-4 py-3">
-                        <Link className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" href={`labour/${labour.id}`}>
-                          View
-                        </Link>
+                        <div className="flex flex-wrap gap-2">
+                          <Link className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" href={`labour/${labour.id}`}>
+                            View
+                          </Link>
+                          <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" onClick={() => openEditLabour(labour)} type="button">
+                            <Pencil size={15} />
+                            Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -455,8 +494,8 @@ export default function LabourManagementPage() {
           </div>
         </section>
 
-        <Modal open={labourOpen} title="Add Labour" description="Create a bakery labour profile for attendance and payment tracking." onClose={() => setLabourOpen(false)}>
-          <form className="grid gap-3" onSubmit={createLabour}>
+        <Modal open={labourOpen} title={editLabour ? "Edit Labour" : "Add Labour"} description={editLabour ? "Update labour profile details used for attendance and salary calculations." : "Create a bakery labour profile for attendance and payment tracking."} onClose={closeLabourModal}>
+          <form className="grid gap-3" onSubmit={saveLabour}>
             {[
               ["name", "Name"],
               ["phone", "Phone"],
@@ -485,8 +524,8 @@ export default function LabourManagementPage() {
               </label>
             ))}
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setLabourOpen(false)} type="button">Cancel</button>
-              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Create Labour"}</button>
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={closeLabourModal} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : editLabour ? "Save Labour" : "Create Labour"}</button>
             </div>
           </form>
         </Modal>

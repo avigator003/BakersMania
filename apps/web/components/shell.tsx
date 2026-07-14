@@ -74,6 +74,12 @@ type CustomerRouteSummary = {
   driverPhone: string;
 };
 
+type VehicleRouteSummary = {
+  routeName: string;
+  driverName: string;
+  driverPhone: string;
+};
+
 export function AppShell({
   title,
   subtitle,
@@ -97,6 +103,7 @@ export function AppShell({
   const [workspaceName, setWorkspaceName] = useState(surface === "bakery" || surface === "customer" || surface === "vehicle" ? getStoredTenantName() || "" : "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [customerRoute, setCustomerRoute] = useState<CustomerRouteSummary | null>(null);
+  const [vehicleRoute, setVehicleRoute] = useState<VehicleRouteSummary | null>(null);
 
   const requiredActor =
     surface === "admin" ? "platform_admin" : surface === "customer" ? "customer" : surface === "vehicle" ? "vehicle" : "bakery_user";
@@ -279,6 +286,41 @@ export function AppShell({
     };
   }, [surface, tenantSlug]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadVehicleRoute() {
+      if (surface !== "vehicle" || !tenantSlug) {
+        setVehicleRoute(null);
+        return;
+      }
+
+      try {
+        const data = await authFetch<{
+          vehicle: {
+            driverName?: string | null;
+            driverPhone?: string | null;
+            routes?: { name?: string | null }[];
+          };
+        }>(`/t/${tenantSlug}/routes/vehicles/me`);
+        if (!cancelled) {
+          setVehicleRoute({
+            routeName: data.vehicle.routes?.map((route) => route.name).filter(Boolean).join(", ") || "No route assigned",
+            driverName: data.vehicle.driverName || "No driver assigned",
+            driverPhone: data.vehicle.driverPhone || ""
+          });
+        }
+      } catch {
+        if (!cancelled) setVehicleRoute(null);
+      }
+    }
+
+    loadVehicleRoute();
+    return () => {
+      cancelled = true;
+    };
+  }, [surface, tenantSlug]);
+
   const nav = surface === "customer"
     ? [
         { href: `${routeBase}/customer/cart`, label: "Cart", icon: ShoppingCart },
@@ -369,6 +411,11 @@ export function AppShell({
           customerRoute.vehicleNumber
         ].filter(Boolean).join(" · ")
       }
+    : surface === "vehicle" && vehicleRoute
+      ? {
+          title: vehicleRoute.routeName,
+          body: [vehicleRoute.driverName, vehicleRoute.driverPhone].filter(Boolean).join(" · ")
+        }
     : footerCopy;
 
   useEffect(() => {

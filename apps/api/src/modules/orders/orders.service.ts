@@ -44,19 +44,23 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
   if (!customer) {
     throw new HttpError(404, "Customer not found");
   }
+  const positiveItems = input.items.filter((item) => Number(item.quantity || 0) > 0);
+  if (!positiveItems.length) {
+    throw new HttpError(422, "At least one product quantity is required");
+  }
 
   const products = await ordersRepository.findProducts(
     tenantId,
-    input.items.map((item) => item.productId),
+    positiveItems.map((item) => item.productId),
     customerId,
     customer.routeId
   );
 
-  if (products.length !== input.items.length) {
+  if (products.length !== positiveItems.length) {
     throw new HttpError(422, "One or more products are unavailable");
   }
 
-  const orderItems = input.items.map((item) => {
+  const orderItems = positiveItems.map((item) => {
     const product = products.find((candidate) => candidate.id === item.productId)!;
     const pricedProduct = product as typeof product & { customerPrices?: Array<{ price: unknown }>; routePrices?: Array<{ price: unknown }> };
     const unitPrice = Number(pricedProduct.customerPrices?.[0]?.price || pricedProduct.routePrices?.[0]?.price || product.unitPrice);
@@ -99,6 +103,17 @@ async function assertOneOrderPerCustomerDate(tenantId: string, customerId: strin
   const existing = await ordersRepository.findCustomerOrderOnDate(tenantId, customerId, orderDate, excludeOrderId);
   if (existing) {
     throw new HttpError(409, "Only one order is allowed per customer for the selected order date");
+  }
+}
+
+async function assertRouteNotLockedForVehicle(tenantId: string, auth: AccessTokenPayload | undefined, order: { routeId?: string | null; dueAt?: Date | null; createdAt: Date; customer?: { routeId?: string | null } | null }) {
+  if (auth?.actorType !== "vehicle") return;
+  const routeId = order.routeId || order.customer?.routeId;
+  if (!routeId) return;
+  const orderDate = order.dueAt || order.createdAt;
+  const lock = await ordersRepository.findRouteOrderLock(tenantId, routeId, orderDate);
+  if (lock) {
+    throw new HttpError(423, "Orders are locked for this route and date");
   }
 }
 
@@ -167,6 +182,7 @@ export const ordersService = {
     if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
       throw new HttpError(403, "This order is not assigned to this vehicle");
     }
+    await assertRouteNotLockedForVehicle(tenantId, auth, existing);
     if (auth?.actorType !== "vehicle" && existing.status !== "PENDING") {
       throw new HttpError(422, "Only pending orders can be edited");
     }
@@ -229,7 +245,8 @@ export const ordersService = {
     if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
       throw new HttpError(403, "This order is not assigned to this vehicle");
     }
-    if (auth?.actorType === "vehicle" && input.status && input.status !== "PENDING" && input.status !== "ACCEPTED") {
+    await assertRouteNotLockedForVehicle(tenantId, auth, existing);
+    if (auth?.actorType === "vehicle" && input.status) {
       throw new HttpError(403, "Vehicles cannot change bakery order status");
     }
     if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user" && input.vehicleStatus) {
@@ -381,6 +398,17 @@ export const ordersService = {
     return result;
   },
 
+  async setRouteInvoiceLock(tenantId: string, auth: AccessTokenPayload | undefined, routeId: string, input: { date: string; locked: boolean }) {
+    if (auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Bakery access required");
+    }
+    const result = await ordersRepository.setRouteOrderLock(tenantId, routeId, input.date, input.locked, auth.sub);
+    if (!result) {
+      throw new HttpError(404, "Route not found");
+    }
+    return result;
+  },
+
   async recordCustomerPayment(tenantId: string, auth: AccessTokenPayload | undefined, customerId: string, input: CustomerPaymentInput) {
     if (auth?.actorType !== "bakery_user" && auth?.actorType !== "vehicle" && auth?.actorType !== "customer") {
       throw new HttpError(403, "Bakery, vehicle, or customer access required");
@@ -425,11 +453,12 @@ export const ordersService = {
   async truckLoading(tenantId: string, filters: { date: string; categoryId?: string; groupBy?: string }, auth?: AccessTokenPayload) {
     const routeIds = await vehicleRouteIds(tenantId, auth);
     const groupByCustomer = auth?.actorType === "vehicle" || filters.groupBy === "customer";
+    const bakeryVisibleOnly = auth?.actorType !== "vehicle";
     const [orders, routeTotals] = await Promise.all([
-      ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined }),
+      ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined, bakeryVisibleOnly }),
       groupByCustomer
-        ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined })
-        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined })
+        ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly })
+        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly })
     ]);
     const productMap = new Map<string, { id: string; name: string; category: string }>();
     const rowTotalsMap = groupByCustomer

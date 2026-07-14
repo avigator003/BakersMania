@@ -6,13 +6,20 @@ export const orderItemSchema = z.object({
   quantity: z.coerce.number().positive()
 });
 
+const orderItemsSchema = z.preprocess(
+  (items) => Array.isArray(items)
+    ? items.filter((item) => Number((item as { quantity?: unknown }).quantity || 0) > 0)
+    : items,
+  z.array(orderItemSchema).min(1)
+);
+
 export const createOrderSchema = z.object({
   customerId: z.string().optional(),
   source: z.nativeEnum(OrderSource),
   fulfillmentType: z.enum(["PICKUP", "DELIVERY"]).default("PICKUP"),
   dueAt: z.coerce.date().optional(),
   notes: z.string().optional(),
-  items: z.array(orderItemSchema).min(1)
+  items: orderItemsSchema
 });
 
 export const updateOrderSchema = createOrderSchema;
@@ -38,6 +45,11 @@ export const routeInvoicePaymentSchema = z.object({
   reference: z.string().optional()
 });
 
+export const routeInvoiceLockSchema = z.object({
+  date: z.string().min(10),
+  locked: z.boolean()
+});
+
 export const customerPaymentSchema = z.object({
   amount: z.coerce.number().positive().optional(),
   mode: z.enum(["PARTIAL", "ORDER_FULL", "DUE_FULL"]),
@@ -52,4 +64,5 @@ export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type RepeatOrdersInput = z.infer<typeof repeatOrdersSchema>;
 export type RouteInvoicePaymentInput = z.infer<typeof routeInvoicePaymentSchema>;
+export type RouteInvoiceLockInput = z.infer<typeof routeInvoiceLockSchema>;
 export type CustomerPaymentInput = z.infer<typeof customerPaymentSchema>;

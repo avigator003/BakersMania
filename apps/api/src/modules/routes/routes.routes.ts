@@ -11,6 +11,7 @@ export const bakeryRoutesRouter = Router({ mergeParams: true });
 bakeryRoutesRouter.use(resolveTenant, requireAuth);
 
 bakeryRoutesRouter.get("/vehicles", asyncHandler(bakeryRoutesController.listVehicles));
+bakeryRoutesRouter.get("/vehicles/me", asyncHandler(bakeryRoutesController.myVehicle));
 bakeryRoutesRouter.post("/vehicles", validateBody(vehicleSchema), asyncHandler(bakeryRoutesController.createVehicle));
 bakeryRoutesRouter.patch("/vehicles/:vehicleId", validateBody(vehicleSchema), asyncHandler(bakeryRoutesController.updateVehicle));
 bakeryRoutesRouter.get("/", asyncHandler(bakeryRoutesController.list));

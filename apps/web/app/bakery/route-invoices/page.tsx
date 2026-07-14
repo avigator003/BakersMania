@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Download, Eye, PackageSearch, RefreshCw, Users } from "lucide-react";
+import { Download, Eye, Lock, PackageSearch, RefreshCw, Unlock, Users } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -18,6 +18,7 @@ type RouteInvoiceRow = {
   oldDue: number;
   paidAmount: number;
   totalDue: number;
+  locked?: boolean;
 };
 
 type RouteInvoiceResponse = {
@@ -51,6 +52,11 @@ type RoutePrice = {
 
 const today = localDateInput();
 const paymentMethods = ["Cash", "UPI"];
+const paymentTypes = [
+  { value: "PARTIAL", label: "Partial" },
+  { value: "ORDER_FULL", label: "Order Full Payment" },
+  { value: "DUE_FULL", label: "Due Full Payment" }
+];
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -169,7 +175,7 @@ export default function RouteInvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentRoute, setPaymentRoute] = useState<RouteInvoiceRow | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "Cash", reference: "" });
+  const [paymentForm, setPaymentForm] = useState({ type: "DUE_FULL", amount: "", method: "Cash", reference: "" });
   const [customerRoute, setCustomerRoute] = useState<RouteInvoiceRow | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [productsRoute, setProductsRoute] = useState<RouteInvoiceRow | null>(null);
@@ -210,7 +216,14 @@ export default function RouteInvoicesPage() {
   function openPayment(row: RouteInvoiceRow) {
     setPaymentRoute(row);
     const todaysDue = todaysDueAmount(row.oldDue, row.orderAmount, row.paidAmount);
-    setPaymentForm({ amount: todaysDue ? String(todaysDue) : "", method: "Cash", reference: "" });
+    setPaymentForm({ type: "DUE_FULL", amount: todaysDue ? String(todaysDue) : "", method: "Cash", reference: "" });
+  }
+
+  function paymentAmountForType(row: RouteInvoiceRow, type: string) {
+    const todaysDue = todaysDueAmount(row.oldDue, row.orderAmount, row.paidAmount);
+    if (type === "ORDER_FULL") return Math.min(Number(row.orderAmount || 0), todaysDue);
+    if (type === "DUE_FULL") return todaysDue;
+    return Number(paymentForm.amount || 0);
   }
 
   async function recordPayment(event: FormEvent<HTMLFormElement>) {
@@ -234,6 +247,24 @@ export default function RouteInvoicesPage() {
       await loadData();
     } catch (error) {
       toast.error("Payment failed", error instanceof Error ? error.message : "Could not record route payment.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleRouteLock(row: RouteInvoiceRow) {
+    if (!apiBase) return;
+    setSaving(true);
+    try {
+      const nextLocked = !row.locked;
+      await authFetch(`${apiBase}/orders/route-invoices/${row.routeId}/lock`, {
+        method: "POST",
+        body: JSON.stringify({ date, locked: nextLocked })
+      });
+      setRows((current) => current.map((item) => item.routeId === row.routeId ? { ...item, locked: nextLocked } : item));
+      toast.success(nextLocked ? "Orders locked" : "Orders unlocked", `${row.routeName} vehicle edits are ${nextLocked ? "blocked" : "allowed"} for ${date}.`);
+    } catch (error) {
+      toast.error("Lock failed", error instanceof Error ? error.message : "Could not update order lock.");
     } finally {
       setSaving(false);
     }
@@ -322,7 +353,10 @@ export default function RouteInvoicesPage() {
                 const todaysDue = todaysDueAmount(row.oldDue, row.orderAmount, row.paidAmount);
                 return (
                 <tr key={row.routeId}>
-                  <td className="px-4 py-3 font-semibold">{row.routeName}</td>
+                  <td className="px-4 py-3 font-semibold">
+                    <span className="block">{row.routeName}</span>
+                    {row.locked ? <span className="mt-1 inline-flex rounded-md border border-berry/30 bg-berry/10 px-2 py-0.5 text-xs font-semibold text-berry">Locked</span> : null}
+                  </td>
                   <td className="px-4 py-3 text-right">{row.customerCount}</td>
                   <td className="px-4 py-3 text-right">{formatAmount(row.oldDue)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.orderAmount)}</td>
@@ -332,6 +366,10 @@ export default function RouteInvoicesPage() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={!todaysDue || saving} onClick={() => openPayment(row)} type="button"><Eye size={14} /> Record Payment</button>
+                      <button className={`focus-ring inline-flex items-center gap-1 rounded-md px-3 py-2 text-xs font-semibold disabled:opacity-50 ${row.locked ? "border border-line bg-panel2" : "bg-berry text-white"}`} disabled={saving} onClick={() => toggleRouteLock(row)} type="button">
+                        {row.locked ? <Unlock size={14} /> : <Lock size={14} />}
+                        {row.locked ? "Unlock Orders" : "Lock Orders"}
+                      </button>
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => exportRouteInvoice(row)} type="button"><Download size={14} /> PDF</button>
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => openCustomers(row)} type="button"><Users size={14} /> Customers</button>
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => openProducts(row)} type="button"><PackageSearch size={14} /> Products</button>
@@ -353,7 +391,42 @@ export default function RouteInvoicesPage() {
       <Modal open={Boolean(paymentRoute)} title="Record route payment" description={paymentRoute ? `${paymentRoute.routeName} today's due amount ${formatAmount(todaysDueAmount(paymentRoute.oldDue, paymentRoute.orderAmount, paymentRoute.paidAmount))}` : ""} onClose={() => setPaymentRoute(null)}>
         {paymentRoute ? (
           <form className="grid gap-4" onSubmit={recordPayment}>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={todaysDueAmount(paymentRoute.oldDue, paymentRoute.orderAmount, paymentRoute.paidAmount)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} required type="number" value={paymentForm.amount} /></label>
+            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-4">
+              <div>
+                <p className="text-xs uppercase text-muted">Previous Due Amount</p>
+                <p className="mt-1 font-semibold">{formatAmount(paymentRoute.oldDue)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-muted">Order Amount</p>
+                <p className="mt-1 font-semibold">{formatAmount(paymentRoute.orderAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-muted">Paid Amount</p>
+                <p className="mt-1 font-semibold">{formatAmount(paymentRoute.paidAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-muted">Today&apos;s Due Amount</p>
+                <p className="mt-1 font-semibold text-berry">{formatAmount(todaysDueAmount(paymentRoute.oldDue, paymentRoute.orderAmount, paymentRoute.paidAmount))}</p>
+              </div>
+            </div>
+            <label className="grid gap-1 text-sm font-semibold">
+              Payment type
+              <select
+                className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                onChange={(event) => {
+                  const type = event.target.value;
+                  setPaymentForm((current) => ({
+                    ...current,
+                    type,
+                    amount: type === "PARTIAL" ? "" : String(paymentAmountForType(paymentRoute, type) || "")
+                  }));
+                }}
+                value={paymentForm.type}
+              >
+                {paymentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={todaysDueAmount(paymentRoute.oldDue, paymentRoute.orderAmount, paymentRoute.paidAmount)} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type !== "PARTIAL"} required type="number" value={paymentForm.amount} /></label>
             <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

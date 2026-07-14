@@ -4,7 +4,7 @@ import { resolveTenant } from "../../middleware/tenant.js";
 import { validateBody } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/http.js";
 import { ordersController } from "./orders.controller.js";
-import { createOrderSchema, customerPaymentSchema, repeatOrdersSchema, routeInvoicePaymentSchema, updateOrderSchema, updateOrderStatusSchema } from "./orders.schemas.js";
+import { createOrderSchema, customerPaymentSchema, repeatOrdersSchema, routeInvoiceLockSchema, routeInvoicePaymentSchema, updateOrderSchema, updateOrderStatusSchema } from "./orders.schemas.js";
 
 export const ordersRouter = Router({ mergeParams: true });
 
@@ -19,5 +19,6 @@ ordersRouter.post("/", requireAuth, validateBody(createOrderSchema), asyncHandle
 ordersRouter.post("/repeat", requireAuth, validateBody(repeatOrdersSchema), asyncHandler(ordersController.repeat));
 ordersRouter.post("/customers/:customerId/payments", requireAuth, validateBody(customerPaymentSchema), asyncHandler(ordersController.recordCustomerPayment));
 ordersRouter.post("/route-invoices/:routeId/payments", requireAuth, validateBody(routeInvoicePaymentSchema), asyncHandler(ordersController.recordRouteInvoicePayment));
+ordersRouter.post("/route-invoices/:routeId/lock", requireAuth, validateBody(routeInvoiceLockSchema), asyncHandler(ordersController.setRouteInvoiceLock));
 ordersRouter.patch("/:orderId/status", requireAuth, validateBody(updateOrderStatusSchema), asyncHandler(ordersController.updateStatus));
 ordersRouter.patch("/:orderId", requireAuth, validateBody(updateOrderSchema), asyncHandler(ordersController.update));

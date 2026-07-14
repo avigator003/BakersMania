@@ -44,6 +44,13 @@ export const bakeryRoutesRepository = {
     return prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId }, select: { id: true } });
   },
 
+  findVehicleDetail(tenantId: string, vehicleId: string) {
+    return prisma.vehicle.findFirst({
+      where: { id: vehicleId, tenantId, active: true },
+      include: { routes: { where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } } }
+    });
+  },
+
   findRoute(tenantId: string, routeId: string) {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
   },

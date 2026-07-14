@@ -11,7 +11,7 @@ export const labourSchema = z.object({
   notes: z.string().optional()
 });
 
-export const labourUpdateSchema = z.object({
+export const labourUpdateSchema = labourSchema.partial().extend({
   active: z.boolean().optional()
 });
 

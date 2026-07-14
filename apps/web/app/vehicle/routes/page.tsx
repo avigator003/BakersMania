@@ -91,7 +91,7 @@ function todaysDueAmount(previousDue: number, orderAmount: string | number, paid
 }
 
 function vehicleAccepted(order: Order) {
-  return order.vehicleStatus === "ACCEPTED" || order.status === "ACCEPTED";
+  return order.vehicleStatus === "ACCEPTED";
 }
 
 function vehicleStatusValue(order: Order) {
@@ -328,8 +328,8 @@ export default function VehicleRoutesPage() {
     setSaving(true);
     try {
       const result = await authFetch<{ order: Order }>(`${apiBase}/orders/${order.id}/status`, { method: "PATCH", body: JSON.stringify(patch) });
-      if (patch.vehicleStatus && (result.order.vehicleStatus || result.order.status) !== patch.vehicleStatus) {
-        throw new Error(`Order status stayed ${result.order.vehicleStatus || result.order.status || "PENDING"}`);
+      if (patch.vehicleStatus && (result.order.vehicleStatus || "PENDING") !== patch.vehicleStatus) {
+        throw new Error(`Vehicle status stayed ${result.order.vehicleStatus || "PENDING"}`);
       }
       const updatedOrder = result.order;
       setOrders((current) => current.map((item) => item.id === order.id ? { ...item, ...updatedOrder } : item));
@@ -475,7 +475,8 @@ export default function VehicleRoutesPage() {
     content += pdfLine(order.customer.name, 48, y, 10);
     content += pdfLine(`Order date: ${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(order.dueAt || order.createdAt))}`, 360, y, 9); y -= 16;
     content += pdfLine(`Vehicle status: ${vehicleAccepted(order) ? "Accepted" : "Pending"}`, 360, y, 9);
-    content += pdfLine(`Payment status: ${order.paymentStatus}`, 360, y - 14, 9); y -= 36;
+    content += pdfLine(`Bakery status: ${order.status}`, 360, y - 14, 9);
+    content += pdfLine(`Payment status: ${order.paymentStatus}`, 360, y - 28, 9); y -= 50;
     content += pdfLine("Products", 48, y, 13); y -= 18;
     content += pdfTableRow(["Product", "Qty", "Price", "Total"], productColumns, y, 22, { fill: true, size: 9 });
     y -= 22;
@@ -560,6 +561,7 @@ export default function VehicleRoutesPage() {
                   <th className="px-4 py-3 text-right">Previous Due Amount</th>
                   <th className="px-4 py-3 text-right">Paid Amount</th>
                   <th className="px-4 py-3 text-right">Today's Due Amount</th>
+                  <th className="px-4 py-3">Bakery Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -575,6 +577,9 @@ export default function VehicleRoutesPage() {
                       <td className="px-4 py-3 text-right">{formatAmount(orderPaid(order))}</td>
                       <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todayDue(order))}</td>
                       <td className="px-4 py-3">
+                        <span className="inline-flex rounded-md border border-line bg-panel2 px-2 py-1 text-xs font-semibold">{order.status}</span>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
                           <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
                           <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Order details</button>
@@ -583,7 +588,7 @@ export default function VehicleRoutesPage() {
                           <select
                             className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
                             disabled={saving}
-                            onChange={(event) => updateOrder(order, { status: event.target.value, vehicleStatus: event.target.value })}
+                            onChange={(event) => updateOrder(order, { vehicleStatus: event.target.value })}
                             value={vehicleStatusValue(order)}
                           >
                             <option value="PENDING">Pending</option>
@@ -596,7 +601,7 @@ export default function VehicleRoutesPage() {
                 ))}
                 {!loading && !visibleOrders.length ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={6}>No customers for this date.</td>
+                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={7}>No customers for this date.</td>
                   </tr>
                 ) : null}
               </tbody>

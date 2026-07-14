@@ -80,7 +80,19 @@ export default function VehiclePlaceOrderPage() {
     return true;
   }), [categoryFilter, productFilter, sortedProducts]);
 
-  const orderItems = useMemo(() => cart.filter((item) => item.quantity > 0), [cart]);
+  const preferredProducts = useMemo(() => sortedProducts.filter((product) => product.isPreferred), [sortedProducts]);
+
+  const cartRows = useMemo(() => {
+    const preferredIds = new Set(preferredProducts.map((product) => product.id));
+    const preferredRows = preferredProducts.map((product) => {
+      const existing = cart.find((item) => item.id === product.id);
+      return existing || { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity: 0 };
+    });
+    const extraRows = cart.filter((item) => !preferredIds.has(item.id));
+    return [...preferredRows, ...extraRows];
+  }, [cart, preferredProducts]);
+
+  const orderItems = useMemo(() => cartRows.filter((item) => item.quantity > 0), [cartRows]);
   const cartTotals = useMemo(() => ({
     items: orderItems.length,
     quantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -162,7 +174,7 @@ export default function VehiclePlaceOrderPage() {
           fulfillmentType: "DELIVERY",
           dueAt: date,
           notes: notes || undefined,
-          items: orderItems.map((item) => ({ productId: item.id, quantity: item.quantity }))
+          items: cartRows.map((item) => ({ productId: item.id, quantity: item.quantity }))
         })
       });
       toast.success("Order placed", "Customer order is now visible in vehicle and bakery orders.");
@@ -184,7 +196,7 @@ export default function VehiclePlaceOrderPage() {
             <h2 className="font-semibold">Customer Order</h2>
           </div>
           <div className="mt-3 grid gap-1.5">
-            {orderItems.map((item) => (
+            {cartRows.map((item) => (
               <div className="grid grid-cols-[minmax(0,1fr)_72px_34px] items-center gap-2 rounded-md border border-line bg-panel2 p-2" key={item.id}>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold">{item.name}</span>
@@ -194,7 +206,7 @@ export default function VehiclePlaceOrderPage() {
                 <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel" onClick={() => updateQuantity(item.id, 0)} title="Remove item" type="button"><Trash2 size={14} /></button>
               </div>
             ))}
-            {!orderItems.length ? <p className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">No products selected.</p> : null}
+            {!cartRows.length ? <p className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">No products selected.</p> : null}
           </div>
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-sm text-muted">
             <span>Items: <strong className="text-ink">{cartTotals.items}</strong></span>

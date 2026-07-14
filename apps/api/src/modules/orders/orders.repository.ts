@@ -24,6 +24,15 @@ function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
   };
 }
 
+function bakeryVisibleOrderFilter(): Prisma.OrderWhereInput {
+  return {
+    OR: [
+      { source: { not: "CUSTOMER_PORTAL" } },
+      { vehicleStatus: "ACCEPTED" }
+    ]
+  };
+}
+
 function pagination(filters: OrderListFilters) {
   const pageSize = Math.min(Math.max(Number(filters.pageSize) || 100, 1), 100);
   const page = Math.max(Number(filters.page) || 1, 1);
@@ -178,13 +187,7 @@ export const ordersRepository = {
   listForStaff(tenantId: string, filters: OrderListFilters = {}) {
     return paginatedOrders(
       buildOrderWhere(tenantId, filters, [
-        {
-          OR: [
-            { pipelineStageActor: "BAKERY" },
-            { pipelineStageActor: null },
-            { pipelineCompletedAt: { not: null } }
-          ]
-        }
+        bakeryVisibleOrderFilter()
       ]),
       filters,
       { createdAt: "desc" }
@@ -205,8 +208,7 @@ export const ordersRepository = {
   listForVehicle(tenantId: string, routeIds: string[], filters: OrderListFilters = {}) {
     return paginatedOrders(
       buildOrderWhere(tenantId, filters, [
-        routeScope(routeIds),
-        { OR: [{ pipelineStageActor: "VEHICLE" }, { pipelineStageActor: null }] }
+        routeScope(routeIds)
       ]),
       filters,
       { createdAt: "desc" }
@@ -232,6 +234,29 @@ export const ordersRepository = {
       where: { tenantId, id: orderId },
       include: { payments: true, invoice: true, customer: true, route: true }
     });
+  },
+
+  findRouteOrderLock(tenantId: string, routeId: string, date: Date) {
+    const lockDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    return prisma.routeOrderLock.findUnique({
+      where: { tenantId_routeId_date: { tenantId, routeId, date: lockDate } }
+    });
+  },
+
+  async setRouteOrderLock(tenantId: string, routeId: string, date: string, locked: boolean, lockedById?: string) {
+    const route = await prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
+    if (!route) return null;
+    const lockDate = new Date(`${date}T00:00:00.000Z`);
+    if (!locked) {
+      await prisma.routeOrderLock.deleteMany({ where: { tenantId, routeId, date: lockDate } });
+      return { routeId, date, locked: false };
+    }
+    const lock = await prisma.routeOrderLock.upsert({
+      where: { tenantId_routeId_date: { tenantId, routeId, date: lockDate } },
+      update: { lockedById },
+      create: { tenantId, routeId, date: lockDate, lockedById }
+    });
+    return { routeId, date: lock.date.toISOString().slice(0, 10), locked: true };
   },
 
   updateVehicleStatus(tenantId: string, orderId: string, vehicleStatus: VehicleOrderStatus) {
@@ -260,7 +285,7 @@ export const ordersRepository = {
     });
   },
 
-  truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[] }) {
+  truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[]; bakeryVisibleOnly?: boolean }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -272,6 +297,9 @@ export const ordersRepository = {
     }];
     if (filters.routeIds) {
       andFilters.push(routeScope(filters.routeIds));
+    }
+    if (filters.bakeryVisibleOnly) {
+      andFilters.push(bakeryVisibleOrderFilter());
     }
     return prisma.order.findMany({
       where: {
@@ -292,12 +320,15 @@ export const ordersRepository = {
     });
   },
 
-  async truckLoadingRouteTotals(tenantId: string, filters: { date: string; routeIds?: string[] }) {
+  async truckLoadingRouteTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
     const routeFilter = filters.routeIds?.length
       ? Prisma.sql`AND COALESCE(o."routeId", c."routeId") IN (${Prisma.join(filters.routeIds)})`
+      : Prisma.empty;
+    const visibilityFilter = filters.bakeryVisibleOnly
+      ? Prisma.sql`AND (o."source"::text <> 'CUSTOMER_PORTAL' OR o."vehicleStatus"::text = 'ACCEPTED')`
       : Prisma.empty;
     const rows = await prisma.$queryRaw<Array<{
       routeId: string;
@@ -315,6 +346,7 @@ export const ordersRepository = {
         JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
           AND COALESCE(o."routeId", c."routeId") IS NOT NULL
+          ${visibilityFilter}
           ${routeFilter}
       ),
       order_paid AS (
@@ -356,12 +388,15 @@ export const ordersRepository = {
     });
   },
 
-  async truckLoadingCustomerTotals(tenantId: string, filters: { date: string; routeIds?: string[] }) {
+  async truckLoadingCustomerTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
     const routeFilter = filters.routeIds?.length
       ? Prisma.sql`AND c."routeId" IN (${Prisma.join(filters.routeIds)})`
+      : Prisma.empty;
+    const visibilityFilter = filters.bakeryVisibleOnly
+      ? Prisma.sql`AND (o."source"::text <> 'CUSTOMER_PORTAL' OR o."vehicleStatus"::text = 'ACCEPTED')`
       : Prisma.empty;
     const rows = await prisma.$queryRaw<Array<{
       customerId: string;
@@ -378,6 +413,7 @@ export const ordersRepository = {
         FROM "Order" o
         JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
+          ${visibilityFilter}
           ${routeFilter}
       ),
       order_paid AS (
@@ -688,8 +724,17 @@ export const ordersRepository = {
       orderAmount: Number(row.orderAmount || 0),
       oldDue: Number(row.oldDue || 0),
       paidAmount: Number(row.paidAmount || 0),
-      totalDue: Number(row.totalDue || 0)
+      totalDue: Number(row.totalDue || 0),
+      locked: false
     }));
+    const locks = await prisma.routeOrderLock.findMany({
+      where: { tenantId, date: start },
+      select: { routeId: true }
+    });
+    const lockedRouteIds = new Set(locks.map((lock) => lock.routeId));
+    normalizedRows.forEach((row) => {
+      row.locked = lockedRouteIds.has(row.routeId);
+    });
 
     return {
       date,

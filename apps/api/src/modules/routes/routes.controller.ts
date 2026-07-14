@@ -12,6 +12,10 @@ export const bakeryRoutesController = {
     res.json(result);
   },
 
+  async myVehicle(req: Request, res: Response) {
+    res.json({ vehicle: await bakeryRoutesService.myVehicle(req.auth, req.tenant!.id) });
+  },
+
   async createVehicle(req: Request, res: Response) {
     const vehicle = await bakeryRoutesService.createVehicle(req.tenant!.id, req.body);
     res.status(201).json({ vehicle });

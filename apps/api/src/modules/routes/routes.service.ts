@@ -17,6 +17,17 @@ export const bakeryRoutesService = {
     return bakeryRoutesRepository.listVehicles(tenantId, filters);
   },
 
+  async myVehicle(auth: Express.Request["auth"], tenantId: string) {
+    if (auth?.actorType !== "vehicle" || !auth.vehicleId) {
+      throw new HttpError(403, "Vehicle workspace access required");
+    }
+    const vehicle = await bakeryRoutesRepository.findVehicleDetail(tenantId, auth.vehicleId);
+    if (!vehicle) {
+      throw new HttpError(404, "Vehicle not found");
+    }
+    return vehicle;
+  },
+
   async createVehicle(tenantId: string, input: VehicleInput) {
     const phone = normalizePhone(input.driverPhone);
     if (!phone) {

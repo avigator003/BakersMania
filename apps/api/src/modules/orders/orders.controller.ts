@@ -80,6 +80,12 @@ export const ordersController = {
     });
   },
 
+  async setRouteInvoiceLock(req: Request, res: Response) {
+    res.json({
+      lock: await ordersService.setRouteInvoiceLock(req.tenant!.id, req.auth, req.params.routeId, req.body)
+    });
+  },
+
   async recordCustomerPayment(req: Request, res: Response) {
     res.status(201).json({
       result: await ordersService.recordCustomerPayment(req.tenant!.id, req.auth, req.params.customerId, req.body)
