@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Eye, PackageSearch, RefreshCw, Users } from "lucide-react";
+import { Download, Eye, PackageSearch, RefreshCw, Users } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -56,6 +56,10 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
+function formatPdfAmount(value?: string | number | null) {
+  return `Rs ${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
 function totalAmount(previousDue: number, orderAmount: number) {
   return Number(previousDue || 0) + Number(orderAmount || 0);
 }
@@ -66,6 +70,94 @@ function todaysDueAmount(previousDue: number, orderAmount: number, paidAmount: n
 
 function productCategory(price: RoutePrice) {
   return price.product.categoryRef?.name || price.product.category || "General";
+}
+
+function pdfText(value: string) {
+  return value.replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7E]/g, " ");
+}
+
+function pdfLine(value: string, x: number, y: number, size = 10) {
+  return `BT /F1 ${size} Tf ${x} ${y} Td (${pdfText(value)}) Tj ET\n`;
+}
+
+function pdfBox(x: number, y: number, width: number, height: number, fill = false) {
+  const fillCommand = fill ? `q 0.95 0.96 0.98 rg ${x} ${y} ${width} ${height} re f Q\n` : "";
+  return `${fillCommand}q 0.74 0.78 0.84 RG 0.7 w ${x} ${y} ${width} ${height} re S Q\n`;
+}
+
+function pdfSummaryRow(label: string, value: string, topY: number) {
+  const bottomY = topY - 26;
+  return [
+    pdfBox(48, bottomY, 310, 26),
+    pdfBox(358, bottomY, 188, 26, true),
+    pdfLine(label, 60, bottomY + 9, 10),
+    pdfLine(value, 370, bottomY + 9, 10)
+  ].join("");
+}
+
+function buildPdf(content: string) {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${content.length} >>\nstream\n${content}endstream`
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return pdf;
+}
+
+function downloadPdf(fileName: string, pdf: string) {
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function routeInvoicePdf(row: RouteInvoiceRow, date: string) {
+  const total = totalAmount(row.oldDue, row.orderAmount);
+  const due = todaysDueAmount(row.oldDue, row.orderAmount, row.paidAmount);
+  let content = "";
+  content += pdfLine("Route Invoice", 48, 792, 18);
+  content += pdfLine(`Route: ${row.routeName}`, 48, 765, 12);
+  content += pdfLine(`Date: ${date}`, 48, 746, 10);
+  content += pdfLine("BakersMania", 452, 792, 12);
+  content += pdfLine("Route invoice summary", 420, 774, 9);
+
+  const rows = [
+    ["Customers", String(row.customerCount)],
+    ["Priced Products", String(row.pricedProductCount)],
+    ["Previous Due Amount", formatPdfAmount(row.oldDue)],
+    ["Order Amount", formatPdfAmount(row.orderAmount)],
+    ["Total Amount", formatPdfAmount(total)],
+    ["Paid Amount", formatPdfAmount(row.paidAmount)],
+    ["Today's Due Amount", formatPdfAmount(due)]
+  ];
+  let y = 700;
+  rows.forEach(([label, value]) => {
+    content += pdfSummaryRow(label, value, y);
+    y -= 32;
+  });
+  content += pdfLine("Generated from Route Invoices", 48, 72, 9);
+  return buildPdf(content);
+}
+
+function safeFilePart(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "route";
 }
 
 export default function RouteInvoicesPage() {
@@ -175,6 +267,15 @@ export default function RouteInvoicesPage() {
     }
   }
 
+  function exportRouteInvoice(row: RouteInvoiceRow) {
+    try {
+      downloadPdf(`route-invoice-${safeFilePart(row.routeName)}-${date}.pdf`, routeInvoicePdf(row, date));
+      toast.success("PDF downloaded", `${row.routeName} route invoice is ready.`);
+    } catch (error) {
+      toast.error("PDF failed", error instanceof Error ? error.message : "Could not generate route invoice PDF.");
+    }
+  }
+
   return (
     <AppShell title="Star Bakery" subtitle="Route invoices, dues, and payments" surface="bakery">
       <section className="rounded-lg border border-line bg-panel shadow-subtle">
@@ -231,6 +332,7 @@ export default function RouteInvoicesPage() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={!todaysDue || saving} onClick={() => openPayment(row)} type="button"><Eye size={14} /> Record Payment</button>
+                      <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => exportRouteInvoice(row)} type="button"><Download size={14} /> PDF</button>
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => openCustomers(row)} type="button"><Users size={14} /> Customers</button>
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => openProducts(row)} type="button"><PackageSearch size={14} /> Products</button>
                     </div>

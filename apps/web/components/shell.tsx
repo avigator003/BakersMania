@@ -35,7 +35,6 @@ import {
 const bakeryNav = [
   { href: "/bakery", label: "Dashboard", icon: Home },
   { href: "/bakery/orders", label: "Orders", icon: ClipboardList },
-  { href: "/bakery/route-invoices", label: "Route Invoices", icon: CreditCard },
   { href: "/bakery/truck-loading", label: "Truck Loading", icon: Truck },
   { href: "/bakery/customers", label: "Customers", icon: Users },
   { href: "/bakery/products", label: "Products", icon: Boxes },
@@ -45,6 +44,7 @@ const bakeryNav = [
   { href: "/bakery/inventory", label: "Inventory", icon: Boxes },
   { href: "/bakery/expenses", label: "Expenses", icon: CreditCard },
   { href: "/bakery/routes", label: "Routes", icon: Truck },
+  { href: "/bakery/route-invoices", label: "Route Invoices", icon: CreditCard },
 ];
 
 const sessionVerificationTtlMs = 60_000;
@@ -407,10 +407,12 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="mt-4 shrink-0 rounded-lg border border-white/10 bg-sidebar2 p-4">
-          <p className="text-sm font-semibold">{sidebarFooter.title}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>
-        </div>
+        {surface !== "bakery" ? (
+          <div className="mt-4 shrink-0 rounded-lg border border-white/10 bg-sidebar2 p-4">
+            <p className="text-sm font-semibold">{sidebarFooter.title}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>
+          </div>
+        ) : null}
       </aside>
 
       <header className="sticky top-0 z-20 max-w-full border-b border-line bg-white/90 backdrop-blur lg:ml-72">
@@ -485,10 +487,12 @@ export function AppShell({
               })}
             </nav>
 
-            <div className="mt-auto rounded-lg border border-white/10 bg-sidebar2 p-4">
-              <p className="text-sm font-semibold">{sidebarFooter.title}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>
-            </div>
+            {surface !== "bakery" ? (
+              <div className="mt-auto rounded-lg border border-white/10 bg-sidebar2 p-4">
+                <p className="text-sm font-semibold">{sidebarFooter.title}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>
+              </div>
+            ) : null}
           </aside>
         </div>
       ) : null}
