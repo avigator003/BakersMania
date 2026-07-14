@@ -18,10 +18,10 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/40 px-4 py-6">
-      <section className="flex max-h-[calc(100vh-3rem)] w-full max-w-[min(80vw,1200px)] flex-col rounded-lg border border-line bg-panel shadow-subtle">
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line p-4">
-          <div>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-950/45 px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:items-center sm:px-6 sm:py-6">
+      <section className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-lg border border-line bg-panel shadow-subtle sm:max-h-[calc(100dvh-3rem)] sm:max-w-[min(92vw,1200px)]">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line p-3 sm:gap-4 sm:p-4">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold">{title}</h2>
             {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>

@@ -145,37 +145,7 @@ export default function VehiclePlaceOrderPage() {
   return (
     <AppShell title="Vehicle Workspace" subtitle="Orders" surface="vehicle">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-lg border border-line bg-panel shadow-subtle">
-          <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
-            <SearchableSelect className="min-w-0" onChange={setCustomerId} options={customerOptions} placeholder="Select customer" searchPlaceholder="Search assigned customers" value={customerId} />
-            <SearchableSelect className="min-w-0" onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
-            <SearchableSelect className="min-w-0" onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
-          </div>
-          {loading ? <LoadingSpinner label="Loading order form" /> : null}
-          <div className="grid min-h-[180px] gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {visibleProducts.map((product) => (
-              <article className="flex min-h-36 flex-col rounded-md border border-line bg-panel2 p-3" key={product.id}>
-                <p className="truncate text-xs font-semibold uppercase text-mint">{productCategory(product)}</p>
-                <h2 className="mt-1 text-sm font-semibold leading-5">{product.name}</h2>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-                  <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
-                  <input
-                    className="w-24 rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint"
-                    min="0"
-                    onChange={(event) => updateQuantity(product.id, Number(event.target.value))}
-                    placeholder="Qty"
-                    step="0.001"
-                    type="number"
-                    value={cart.find((item) => item.id === product.id)?.quantity || ""}
-                  />
-                </div>
-              </article>
-            ))}
-            {!loading && !visibleProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-sm text-muted">No active products found.</p> : null}
-          </div>
-        </div>
-
-        <form className="rounded-lg border border-line bg-panel p-3 shadow-subtle xl:sticky xl:top-24 xl:self-start" onSubmit={placeOrder}>
+        <form className="order-1 rounded-lg border border-line bg-panel p-3 shadow-subtle xl:order-2 xl:sticky xl:top-24 xl:self-start" onSubmit={placeOrder}>
           <div className="flex items-center gap-2">
             <ShoppingCart className="text-mint" size={18} />
             <h2 className="font-semibold">Customer Order</h2>
@@ -204,6 +174,36 @@ export default function VehiclePlaceOrderPage() {
             {saving ? "Placing..." : "Place Order"}
           </button>
         </form>
+
+        <div className="order-2 rounded-lg border border-line bg-panel shadow-subtle xl:order-1">
+          <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
+            <SearchableSelect className="min-w-0" onChange={setCustomerId} options={customerOptions} placeholder="Select customer" searchPlaceholder="Search assigned customers" value={customerId} />
+            <SearchableSelect className="min-w-0" onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
+            <SearchableSelect className="min-w-0" onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
+          </div>
+          {loading ? <LoadingSpinner label="Loading order form" /> : null}
+          <div className="grid min-h-[180px] gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {visibleProducts.map((product) => (
+              <article className="flex min-h-36 flex-col rounded-md border border-line bg-panel2 p-3" key={product.id}>
+                <p className="truncate text-xs font-semibold uppercase text-mint">{productCategory(product)}</p>
+                <h2 className="mt-1 text-sm font-semibold leading-5">{product.name}</h2>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+                  <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
+                  <input
+                    className="w-24 rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint"
+                    min="0"
+                    onChange={(event) => updateQuantity(product.id, Number(event.target.value))}
+                    placeholder="Qty"
+                    step="0.001"
+                    type="number"
+                    value={cart.find((item) => item.id === product.id)?.quantity || ""}
+                  />
+                </div>
+              </article>
+            ))}
+            {!loading && !visibleProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-sm text-muted">No active products found.</p> : null}
+          </div>
+        </div>
       </section>
     </AppShell>
   );

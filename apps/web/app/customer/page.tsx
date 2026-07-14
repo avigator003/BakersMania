@@ -204,7 +204,35 @@ export default function CustomerPage() {
   return (
     <AppShell title="Customer Portal" subtitle="Shop and create orders" surface="customer">
       <section className={`grid gap-4 ${preferenceOnly ? "xl:grid-cols-[minmax(0,1fr)_360px]" : ""}`}>
-        <div className="rounded-lg border border-line bg-panel shadow-subtle">
+        {preferenceOnly ? <form className="order-1 rounded-lg border border-line bg-panel p-3 shadow-subtle xl:order-2 xl:sticky xl:top-24 xl:self-start" onSubmit={placeOrder}>
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="text-mint" size={18} />
+            <h2 className="font-semibold">Order Cart</h2>
+          </div>
+          <div className="mt-3 grid gap-1.5">
+            {cartRows.map((item) => (
+              <div className="grid grid-cols-[minmax(0,1fr)_72px_34px] items-center gap-2 rounded-md border border-line bg-panel2 p-2" key={item.id}>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{item.name}</span>
+                  <span className="text-xs text-muted">{formatAmount(item.unitPrice)}</span>
+                </span>
+                <input className="rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint" min="0" onChange={(event) => updateQuantity(item.id, Number(event.target.value))} step="0.001" type="number" value={item.quantity} />
+                <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel" onClick={() => updateQuantity(item.id, 0)} title="Remove item" type="button"><Trash2 size={14} /></button>
+              </div>
+            ))}
+            {!cartRows.length ? <p className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">No products selected.</p> : null}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-sm text-muted">
+            <span>Items: <strong className="text-ink">{cartTotals.items}</strong></span>
+            <span>Qty: <strong className="text-ink">{formatQty(cartTotals.quantity)}</strong></span>
+            <span>Total: <strong className="text-ink">{formatAmount(cartTotals.amount)}</strong></span>
+          </div>
+          <label className="mt-3 grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
+          <label className="mt-3 grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-16 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setNotes(event.target.value)} value={notes} /></label>
+          <button className="focus-ring mt-3 w-full rounded-md bg-mint px-4 py-2.5 font-semibold text-white" disabled={saving || !orderItems.length} type="submit">{saving ? "Placing..." : "Place Order"}</button>
+        </form> : null}
+
+        <div className="order-2 rounded-lg border border-line bg-panel shadow-subtle xl:order-1">
           <div className="grid gap-2 border-b border-line p-3 md:grid-cols-[minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
             <SearchableSelect className="min-w-0" onChange={setShopCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={shopCategoryFilter} />
             <SearchableSelect className="min-w-0" onChange={setShopProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={shopProductFilter} />
@@ -235,33 +263,6 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        {preferenceOnly ? <form className="rounded-lg border border-line bg-panel p-3 shadow-subtle xl:sticky xl:top-24 xl:self-start" onSubmit={placeOrder}>
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="text-mint" size={18} />
-            <h2 className="font-semibold">Order Cart</h2>
-          </div>
-          <div className="mt-3 grid gap-1.5">
-            {cartRows.map((item) => (
-              <div className="grid grid-cols-[minmax(0,1fr)_72px_34px] items-center gap-2 rounded-md border border-line bg-panel2 p-2" key={item.id}>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{item.name}</span>
-                  <span className="text-xs text-muted">{formatAmount(item.unitPrice)}</span>
-                </span>
-                <input className="rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint" min="0" onChange={(event) => updateQuantity(item.id, Number(event.target.value))} step="0.001" type="number" value={item.quantity} />
-                <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel" onClick={() => updateQuantity(item.id, 0)} title="Remove item" type="button"><Trash2 size={14} /></button>
-              </div>
-            ))}
-            {!cartRows.length ? <p className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">No products selected.</p> : null}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-sm text-muted">
-            <span>Items: <strong className="text-ink">{cartTotals.items}</strong></span>
-            <span>Qty: <strong className="text-ink">{formatQty(cartTotals.quantity)}</strong></span>
-            <span>Total: <strong className="text-ink">{formatAmount(cartTotals.amount)}</strong></span>
-          </div>
-          <label className="mt-3 grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={setDate} value={date} /></label>
-          <label className="mt-3 grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-16 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setNotes(event.target.value)} value={notes} /></label>
-          <button className="focus-ring mt-3 w-full rounded-md bg-mint px-4 py-2.5 font-semibold text-white" disabled={saving || !orderItems.length} type="submit">{saving ? "Placing..." : "Place Order"}</button>
-        </form> : null}
       </section>
     </AppShell>
   );

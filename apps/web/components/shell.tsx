@@ -11,6 +11,7 @@ import {
   Database,
   Home,
   IndianRupee,
+  LogOut,
   Menu,
   PhoneCall,
   Settings,
@@ -234,6 +235,17 @@ export function AppShell({
       try {
         const data = await authFetch<{
           profile: {
+            customer?: {
+              route?: {
+                name?: string | null;
+                vehicle?: {
+                  name?: string | null;
+                  number?: string | null;
+                  driverName?: string | null;
+                  driverPhone?: string | null;
+                } | null;
+              } | null;
+            };
             route?: {
               name?: string | null;
               vehicle?: {
@@ -245,7 +257,7 @@ export function AppShell({
             } | null;
           };
         }>(`/t/${tenantSlug}/customers/me`);
-        const route = data.profile.route;
+        const route = data.profile.customer?.route || data.profile.route;
         const vehicle = route?.vehicle;
         if (!cancelled) {
           setCustomerRoute({
@@ -269,8 +281,8 @@ export function AppShell({
 
   const nav = surface === "customer"
     ? [
-        { href: `${routeBase}/customer`, label: "Shop", icon: ShoppingBag },
         { href: `${routeBase}/customer/cart`, label: "Cart", icon: ShoppingCart },
+        { href: `${routeBase}/customer`, label: "Shop", icon: ShoppingBag },
         { href: `${routeBase}/customer/orders`, label: "Orders", icon: ClipboardList }
       ]
     : surface === "vehicle"
@@ -455,14 +467,25 @@ export function AppShell({
                   <span className="block truncate text-xs text-slate-300">{subtitle}</span>
                 </span>
               </Link>
-              <button
-                className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-md border border-white/10 bg-sidebar2"
-                onClick={() => setMenuOpen(false)}
-                title="Close menu"
-                type="button"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-sidebar2 px-3 text-xs font-semibold"
+                  onClick={handleLogout}
+                  title="Sign out"
+                  type="button"
+                >
+                  <LogOut size={18} />
+                  <span>Sign out</span>
+                </button>
+                <button
+                  className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-white/10 bg-sidebar2"
+                  onClick={() => setMenuOpen(false)}
+                  title="Close menu"
+                  type="button"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <nav className="mt-7 grid gap-1 overflow-auto pb-4">
