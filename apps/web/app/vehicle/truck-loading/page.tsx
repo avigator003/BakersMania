@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
-import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
+import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
@@ -23,27 +23,10 @@ type TruckLoading = {
     orderAmount: number;
     paidAmount: number;
     todaysDue: number;
+    customerCount?: number;
   }[];
   totals: Record<string, number>;
 };
-type Payment = { amount: string | number; paidAt?: string | null };
-type Order = {
-  id: string;
-  grandTotal: string | number;
-  dueAt?: string | null;
-  createdAt: string;
-  customer: { id?: string; name: string; phone?: string | null; updatedAt?: string | null };
-  items: {
-    productId: string;
-    name: string;
-    quantity: string | number;
-    unitPrice?: string | number | null;
-    lineTotal?: string | number | null;
-    product?: { category?: string | null; updatedAt?: string | null; categoryRef?: { name: string } | null } | null;
-  }[];
-  payments?: Payment[];
-};
-
 const today = localDateInput();
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 
@@ -97,104 +80,8 @@ function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { u
   return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
-function newestDate(current?: string | null, candidate?: string | null) {
-  if (!candidate) return current;
-  if (!current) return candidate;
-  return new Date(candidate).getTime() > new Date(current).getTime() ? candidate : current;
-}
-
 function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
   return updatedAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
-}
-
-function customerKey(order: Order) {
-  return order.customer.id || order.customer.name;
-}
-
-function paymentInRange(payment: Payment, start: Date, end: Date) {
-  if (!payment.paidAt) return false;
-  const paidAt = new Date(payment.paidAt);
-  return paidAt >= start && paidAt < end;
-}
-
-function paidBefore(order: Order, end: Date) {
-  return (order.payments || []).reduce((sum, payment) => {
-    if (!payment.paidAt || new Date(payment.paidAt) < end) return sum + Number(payment.amount || 0);
-    return sum;
-  }, 0);
-}
-
-function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders: Order[]): TruckLoading {
-  const start = new Date(`${date}T00:00:00.000Z`);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-  const previousDueByCustomer = new Map<string, number>();
-  const paidTodayByCustomer = new Map<string, number>();
-
-  previousOrders.forEach((order) => {
-    const key = customerKey(order);
-    const previousDue = Math.max(Number(order.grandTotal || 0) - paidBefore(order, start), 0);
-    previousDueByCustomer.set(key, (previousDueByCustomer.get(key) || 0) + previousDue);
-    const paidToday = (order.payments || []).reduce((sum, payment) => paymentInRange(payment, start, end) ? sum + Number(payment.amount || 0) : sum, 0);
-    paidTodayByCustomer.set(key, (paidTodayByCustomer.get(key) || 0) + paidToday);
-  });
-
-  const productMap = new Map<string, TruckLoading["products"][number]>();
-  const rows = new Map<string, TruckLoading["routes"][number]>();
-
-  orders.forEach((order) => {
-    const key = customerKey(order);
-    const paidToday = (order.payments || []).reduce((sum, payment) => paymentInRange(payment, start, end) ? sum + Number(payment.amount || 0) : sum, 0);
-    paidTodayByCustomer.set(key, (paidTodayByCustomer.get(key) || 0) + paidToday);
-    if (!rows.has(key)) {
-      rows.set(key, {
-        id: key,
-        name: order.customer.name,
-        updatedAt: order.customer.updatedAt || undefined,
-        quantities: {},
-        total: 0,
-        previousDue: previousDueByCustomer.get(key) || 0,
-        orderAmount: 0,
-        paidAmount: paidTodayByCustomer.get(key) || 0,
-        todaysDue: 0
-      });
-    }
-
-    const row = rows.get(key)!;
-    row.updatedAt = newestDate(row.updatedAt, order.customer.updatedAt) || undefined;
-    row.orderAmount += Number(order.grandTotal || 0);
-    row.paidAmount = paidTodayByCustomer.get(key) || 0;
-    order.items.forEach((item) => {
-      const category = item.product?.categoryRef?.name || item.product?.category || "General";
-      const existingProduct = productMap.get(item.productId);
-      productMap.set(item.productId, {
-        id: item.productId,
-        name: item.name,
-        category,
-        updatedAt: newestDate(existingProduct?.updatedAt, item.product?.updatedAt) || undefined
-      });
-      const quantity = Number(item.quantity || 0);
-      row.quantities[item.productId] = (row.quantities[item.productId] || 0) + quantity;
-      row.total += quantity;
-    });
-  });
-
-  const routes = Array.from(rows.values()).map((row) => ({
-    ...row,
-    todaysDue: Math.max(row.previousDue + row.orderAmount - row.paidAmount, 0)
-  })).sort(updatedAscending);
-  const products = Array.from(productMap.values()).sort(productSort);
-
-  return {
-    date,
-    orderCount: orders.length,
-    products,
-    routes,
-    totals: products.reduce<Record<string, number>>((acc, product) => {
-      acc[product.id] = routes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0);
-      return acc;
-    }, {})
-  };
 }
 
 export default function VehicleTruckLoadingPage() {
@@ -213,14 +100,8 @@ export default function VehicleTruckLoadingPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ date, groupBy: "customer" });
-      const previousEndDate = localDateInput(addLocalDays(new Date(`${date}T00:00:00`), -1));
-      const previousParams = new URLSearchParams({ endDate: previousEndDate, pageSize: "500" });
-      const [data, orderData, previousData] = await Promise.all([
-        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`),
-        authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=500`),
-        authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
-      ]);
-      setTruckLoading(orderData.orders.length ? buildCustomerTruckLoading(date, orderData.orders, previousData.orders) : data.truckLoading);
+      const data = await authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`);
+      setTruckLoading(data.truckLoading);
     } catch (error) {
       toast.error("Could not load truck loading", error instanceof Error ? error.message : "Please sign in again.");
     } finally {
@@ -276,6 +157,7 @@ export default function VehicleTruckLoadingPage() {
   }, [visibleProducts, visibleRoutes]);
 
   const totalQuantity = useMemo(() => visibleRoutes.reduce((sum, route) => sum + routeTotal(route), 0), [visibleProducts, visibleRoutes]);
+  const totalCustomers = useMemo(() => visibleRoutes.reduce((sum, route) => sum + Number(route.customerCount || 1), 0), [visibleRoutes]);
   const amountTotals = useMemo(() => ({
     orderAmount: visibleRoutes.reduce((sum, route) => sum + Number(route.orderAmount || 0), 0),
     previousDue: visibleRoutes.reduce((sum, route) => sum + Number(route.previousDue || 0), 0),
@@ -289,14 +171,15 @@ export default function VehicleTruckLoadingPage() {
     const rows = [
       `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}</tr>`,
       `<tr>${excelCell("Customer Name", "meta-label")}${excelCell(selectedCustomers, "meta-value")}</tr>`,
+      `<tr>${excelCell("No of Customers", "meta-label")}${excelCell(totalCustomers, "meta-value")}</tr>`,
       `<tr></tr>`,
-      `<tr>${excelHeader("Customer Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}</tr>`,
+      `<tr>${excelHeader("Customer Name", "name-cell")}${excelHeader("No of Customers")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}</tr>`,
       ...visibleRoutes.map((route) => {
         const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
         const total = routeTotal(route);
-        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}${excelCell(route.orderAmount || "", "amount-cell")}${excelCell(route.previousDue || "", "amount-cell")}${excelCell(route.paidAmount || "", "amount-cell")}${excelCell(route.todaysDue || "", "amount-cell")}</tr>`;
+        return `<tr>${excelCell(route.name, "name-cell")}${excelCell(route.customerCount || 1)}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}${excelCell(route.orderAmount || "", "amount-cell")}${excelCell(route.previousDue || "", "amount-cell")}${excelCell(route.paidAmount || "", "amount-cell")}${excelCell(route.todaysDue || "", "amount-cell")}</tr>`;
       }),
-      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}${excelCell(amountTotals.orderAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.previousDue || "", "amount-cell summary-cell")}${excelCell(amountTotals.paidAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.todaysDue || "", "amount-cell summary-cell")}</tr>`
+      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${excelCell(totalCustomers, "summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}${excelCell(amountTotals.orderAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.previousDue || "", "amount-cell summary-cell")}${excelCell(amountTotals.paidAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.todaysDue || "", "amount-cell summary-cell")}</tr>`
     ];
     exportExcel(`vehicle-truck-loading-${truckLoading.date}.xls`, rows);
   }
@@ -310,7 +193,7 @@ export default function VehicleTruckLoadingPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm text-muted">
-              <span>Customers: <span className="font-semibold text-ink">{visibleRoutes.length}</span></span>
+              <span>Customers: <span className="font-semibold text-ink">{totalCustomers}</span></span>
               <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
               <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
               <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
@@ -332,6 +215,7 @@ export default function VehicleTruckLoadingPage() {
             <thead className="sticky top-0 z-20 text-xs uppercase text-muted">
               <tr>
                 <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Customer Name</th>
+                <th className="min-w-24 border-b border-r border-line bg-panel2 px-3 py-3">No of Customers</th>
                 {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
@@ -349,6 +233,7 @@ export default function VehicleTruckLoadingPage() {
               {visibleRoutes.map((route, index) => (
                 <tr className={index % 2 ? "bg-panel2/30" : "bg-panel"} key={route.id}>
                   <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.name}</td>
+                  <td className="border-b border-r border-line px-3 py-3 font-semibold text-ink">{route.customerCount || 1}</td>
                   {visibleProducts.map((product) => {
                     const quantity = route.quantities[product.id] || 0;
                     return (
@@ -367,6 +252,7 @@ export default function VehicleTruckLoadingPage() {
               {truckLoading && visibleProducts.length ? (
                 <tr className="bg-mint/10 font-bold">
                   <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
+                  <td className="border-b border-r border-line px-3 py-3">{totalCustomers || "-"}</td>
                   {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(productTotals[product.id]) || "-"}</td>)}
                   <td className="border-b border-r border-line px-4 py-3 text-mint">{formatQty(totalQuantity) || "-"}</td>
                   <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.orderAmount)}</td>
@@ -377,7 +263,7 @@ export default function VehicleTruckLoadingPage() {
               ) : null}
               {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 6}>No truck loading data for this date.</td>
+                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 7}>No truck loading data for this date.</td>
                 </tr>
               ) : null}
             </tbody>

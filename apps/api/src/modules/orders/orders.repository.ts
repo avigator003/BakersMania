@@ -219,6 +219,41 @@ export const ordersRepository = {
     return prisma.customer.findFirst({ where: { tenantId, id: customerId }, include: { route: true } });
   },
 
+  truckLoadingProducts(tenantId: string, filters: { categoryId?: string }) {
+    return prisma.product.findMany({
+      where: {
+        tenantId,
+        active: true,
+        ...(filters.categoryId && filters.categoryId !== "all" ? { categoryId: filters.categoryId } : {})
+      },
+      include: { categoryRef: true },
+      orderBy: [{ updatedAt: "asc" }, { name: "asc" }]
+    });
+  },
+
+  truckLoadingRoutes(tenantId: string, filters: { routeIds?: string[] }) {
+    return prisma.route.findMany({
+      where: {
+        tenantId,
+        active: true,
+        ...(filters.routeIds?.length ? { id: { in: filters.routeIds } } : {})
+      },
+      include: { _count: { select: { customers: true } } },
+      orderBy: [{ updatedAt: "asc" }, { name: "asc" }]
+    });
+  },
+
+  truckLoadingCustomers(tenantId: string, filters: { routeIds?: string[] }) {
+    return prisma.customer.findMany({
+      where: {
+        tenantId,
+        ...(filters.routeIds?.length ? { routeId: { in: filters.routeIds } } : {})
+      },
+      include: { route: true },
+      orderBy: [{ updatedAt: "asc" }, { name: "asc" }]
+    });
+  },
+
   findProducts(tenantId: string, productIds: string[], customerId?: string, routeId?: string | null) {
     return prisma.product.findMany({
       where: { tenantId, id: { in: productIds } },

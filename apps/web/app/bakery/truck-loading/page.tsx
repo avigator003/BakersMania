@@ -13,7 +13,7 @@ type TruckLoading = {
   date: string;
   orderCount: number;
   products: { id: string; name: string; category: string; updatedAt?: string }[];
-  routes: { id: string; name: string; updatedAt?: string; quantities: Record<string, number>; total: number }[];
+  routes: { id: string; name: string; updatedAt?: string; quantities: Record<string, number>; total: number; customerCount?: number }[];
   totals: Record<string, number>;
 };
 
@@ -142,6 +142,7 @@ export default function BakeryTruckLoadingPage() {
   }, [visibleProducts, visibleRoutes]);
 
   const totalQuantity = useMemo(() => visibleRoutes.reduce((sum, route) => sum + routeTotal(route), 0), [visibleProducts, visibleRoutes]);
+  const totalCustomers = useMemo(() => visibleRoutes.reduce((sum, route) => sum + Number(route.customerCount || 0), 0), [visibleRoutes]);
 
   function exportTruckLoading() {
     if (!truckLoading) return;
@@ -149,14 +150,15 @@ export default function BakeryTruckLoadingPage() {
     const rows = [
       `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}</tr>`,
       `<tr>${excelCell("Route Name", "meta-label")}${excelCell(selectedRoutes, "meta-value")}</tr>`,
+      `<tr>${excelCell("No of Customers", "meta-label")}${excelCell(totalCustomers, "meta-value")}</tr>`,
       `<tr></tr>`,
-      `<tr>${excelHeader("Route Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total")}</tr>`,
+      `<tr>${excelHeader("Route Name", "name-cell")}${excelHeader("No of Customers")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total")}</tr>`,
       ...visibleRoutes.map((route) => {
         const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
         const total = routeTotal(route);
-        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}</tr>`;
+        return `<tr>${excelCell(route.name, "name-cell")}${excelCell(route.customerCount || "")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}</tr>`;
       }),
-      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}</tr>`
+      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${excelCell(totalCustomers, "summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}</tr>`
     ];
     exportExcel(`truck-loading-${truckLoading.date}.xls`, rows);
   }
@@ -167,6 +169,7 @@ export default function BakeryTruckLoadingPage() {
         <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
             <span>Routes: <span className="font-semibold text-ink">{visibleRoutes.length}</span></span>
+            <span>Customers: <span className="font-semibold text-ink">{totalCustomers}</span></span>
             <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
             <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
             <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
@@ -188,6 +191,7 @@ export default function BakeryTruckLoadingPage() {
             <thead className="sticky top-0 z-20 text-xs uppercase text-muted">
               <tr>
                 <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Route Name</th>
+                <th className="min-w-24 border-b border-r border-line bg-panel2 px-3 py-3">No of Customers</th>
                 {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
@@ -201,6 +205,7 @@ export default function BakeryTruckLoadingPage() {
               {visibleRoutes.map((route, index) => (
                 <tr className={index % 2 ? "bg-panel2/30" : "bg-panel"} key={route.id}>
                   <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.name}</td>
+                  <td className="border-b border-r border-line px-3 py-3 font-semibold text-ink">{route.customerCount || "-"}</td>
                   {visibleProducts.map((product) => {
                     const quantity = route.quantities[product.id] || 0;
                     return (
@@ -215,13 +220,14 @@ export default function BakeryTruckLoadingPage() {
               {truckLoading && visibleProducts.length ? (
                 <tr className="bg-mint/10 font-bold">
                   <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
+                  <td className="border-b border-r border-line px-3 py-3">{totalCustomers || "-"}</td>
                   {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(productTotals[product.id]) || "-"}</td>)}
                   <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-mint shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatQty(totalQuantity) || "-"}</td>
                 </tr>
               ) : null}
               {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 2}>No truck loading data for this date.</td>
+                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 3}>No truck loading data for this date.</td>
                 </tr>
               ) : null}
             </tbody>

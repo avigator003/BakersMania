@@ -474,17 +474,47 @@ export const ordersService = {
     const routeIds = await vehicleRouteIds(tenantId, auth);
     const groupByCustomer = auth?.actorType === "vehicle" || filters.groupBy === "customer";
     const bakeryVisibleOnly = auth?.actorType !== "vehicle";
-    const [orders, routeTotals] = await Promise.all([
+    const [orders, routeTotals, baseProducts, baseRows] = await Promise.all([
       ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined, bakeryVisibleOnly }),
       groupByCustomer
         ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly })
-        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly })
+        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly }),
+      ordersRepository.truckLoadingProducts(tenantId, { categoryId: filters.categoryId }),
+      groupByCustomer
+        ? ordersRepository.truckLoadingCustomers(tenantId, { routeIds: routeIds || undefined })
+        : ordersRepository.truckLoadingRoutes(tenantId, { routeIds: routeIds || undefined })
     ]);
     const productMap = new Map<string, { id: string; name: string; category: string; updatedAt: Date | string | null }>();
     const rowTotalsMap = groupByCustomer
       ? new Map(routeTotals.map((row) => ["customerId" in row ? row.customerId : row.routeId, row]))
       : new Map(routeTotals.map((row) => ["routeId" in row ? row.routeId : row.customerId, row]));
-    const routeMap = new Map<string, { id: string; name: string; updatedAt: Date | string | null; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number }>();
+    const routeMap = new Map<string, { id: string; name: string; updatedAt: Date | string | null; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number; customerCount: number; customerIds: Set<string> }>();
+
+    baseProducts.forEach((product) => {
+      productMap.set(product.id, {
+        id: product.id,
+        name: product.name,
+        category: product.categoryRef?.name || product.category,
+        updatedAt: product.updatedAt
+      });
+    });
+
+    baseRows.forEach((baseRow) => {
+      const totals = rowTotalsMap.get(baseRow.id);
+      routeMap.set(baseRow.id, {
+        id: baseRow.id,
+        name: baseRow.name,
+        updatedAt: baseRow.updatedAt,
+        quantities: {},
+        total: 0,
+        previousDue: totals?.previousDue || 0,
+        orderAmount: totals?.orderAmount || 0,
+        paidAmount: totals?.paidAmount || 0,
+        todaysDue: totals?.todaysDue || 0,
+        customerCount: groupByCustomer ? 1 : ("_count" in baseRow ? baseRow._count.customers : 0),
+        customerIds: new Set<string>(groupByCustomer ? [baseRow.id] : [])
+      });
+    });
 
     orders.forEach((order) => {
       const route = order.route || order.customer.route;
@@ -502,11 +532,14 @@ export const ordersService = {
           previousDue: totals?.previousDue || 0,
           orderAmount: totals?.orderAmount || 0,
           paidAmount: totals?.paidAmount || 0,
-          todaysDue: totals?.todaysDue || 0
+          todaysDue: totals?.todaysDue || 0,
+          customerCount: 0,
+          customerIds: new Set<string>()
         });
       }
       const row = routeMap.get(rowId)!;
       row.updatedAt = newestDate(row.updatedAt, rowUpdatedAt) || null;
+      row.customerIds.add(order.customerId);
       order.items.forEach((item) => {
         const existingProduct = productMap.get(item.productId);
         const productUpdatedAt = newestDate(existingProduct?.updatedAt, item.product.updatedAt) || null;
@@ -523,7 +556,10 @@ export const ordersService = {
     });
 
     const products = Array.from(productMap.values()).sort(productSort);
-    const routes = Array.from(routeMap.values()).sort(updatedAscending);
+    const routes = Array.from(routeMap.values()).map((row) => {
+      const { customerIds, ...route } = row;
+      return { ...route, customerCount: Math.max(route.customerCount, customerIds.size) };
+    }).sort(updatedAscending);
     return {
       date: filters.date,
       products,
