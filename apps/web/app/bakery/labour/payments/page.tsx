@@ -67,11 +67,6 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
-}
-
 function paymentClass(type: PaymentType) {
   if (type === "ADVANCE") return "border-saffron/30 bg-saffron/10 text-saffron";
   if (type === "PARTIAL") return "border-berry/30 bg-berry/10 text-berry";

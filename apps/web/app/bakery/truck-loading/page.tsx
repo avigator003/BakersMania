@@ -25,12 +25,19 @@ function formatQty(value?: string | number | null) {
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
 }
 
+function excelAttrs(className: string) {
+  const squareAttrs = className.split(/\s+/).includes("square-cell")
+    ? ' width="48" height="48" style="width:48pt;min-width:48pt;max-width:48pt;height:48pt;min-height:48pt;max-height:48pt;text-align:center;vertical-align:middle;white-space:normal;"'
+    : "";
+  return ` class="${className}"${squareAttrs}`;
+}
+
 function excelCell(value: string | number | null | undefined, className = "") {
-  return `<td class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</td>`;
+  return `<td${excelAttrs(className)}>${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</td>`;
 }
 
 function excelHeader(value: string | number | null | undefined, className = "") {
-  return `<th class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</th>`;
+  return `<th${excelAttrs(className)}>${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</th>`;
 }
 
 function exportExcel(filename: string, rows: string[]) {
@@ -45,6 +52,7 @@ function exportExcel(filename: string, rows: string[]) {
     .meta-label { min-width: 92pt; width: 92pt; height: 24pt; text-align: left; background: #f3f4f6; font-weight: 700; }
     .meta-value { min-width: 180pt; width: 180pt; height: 24pt; text-align: left; }
     .name-cell { min-width: 130pt; width: 130pt; text-align: left; font-weight: 700; }
+    .square-cell { min-width: 48pt !important; width: 48pt !important; max-width: 48pt !important; height: 48pt !important; max-height: 48pt !important; }
     .summary-cell { background: #f3f4f6; font-weight: 700; }
   </style>
 </head>
@@ -154,17 +162,16 @@ export default function BakeryTruckLoadingPage() {
   function exportTruckLoading() {
     if (!truckLoading) return;
     const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
+    const productQuantitySummary = `${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`;
     const rows = [
-      `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}</tr>`,
-      `<tr>${excelCell("Route Name", "meta-label")}${excelCell(selectedRoutes, "meta-value")}</tr>`,
+      `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(selectedRoutes, "meta-value")}${excelCell("No of Products * Quantity", "meta-label")}${excelCell(productQuantitySummary, "meta-value")}</tr>`,
       `<tr></tr>`,
-      `<tr>${excelHeader("Route Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total")}</tr>`,
+      `<tr>${excelHeader("Route Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name, "square-cell")).join("")}${excelHeader("Total")}</tr>`,
       ...visibleRoutes.map((route) => {
-        const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
         const total = routeTotal(route);
-        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}</tr>`;
+        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "", "square-cell")).join("")}${excelCell(total || "")}</tr>`;
       }),
-      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}</tr>`
+      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "square-cell summary-cell")).join("")}${excelCell(totalQuantity || "", "summary-cell")}</tr>`
     ];
     exportExcel(`truck-loading-${truckLoading.date}.xls`, rows);
   }

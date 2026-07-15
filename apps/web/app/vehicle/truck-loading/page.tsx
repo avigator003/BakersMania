@@ -40,12 +40,19 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
+function excelAttrs(className: string) {
+  const squareAttrs = className.split(/\s+/).includes("square-cell")
+    ? ' width="48" height="48" style="width:48pt;min-width:48pt;max-width:48pt;height:48pt;min-height:48pt;max-height:48pt;text-align:center;vertical-align:middle;white-space:normal;"'
+    : "";
+  return ` class="${className}"${squareAttrs}`;
+}
+
 function excelCell(value: string | number | null | undefined, className = "") {
-  return `<td class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</td>`;
+  return `<td${excelAttrs(className)}>${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</td>`;
 }
 
 function excelHeader(value: string | number | null | undefined, className = "") {
-  return `<th class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</th>`;
+  return `<th${excelAttrs(className)}>${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</th>`;
 }
 
 function exportExcel(filename: string, rows: string[]) {
@@ -61,6 +68,7 @@ function exportExcel(filename: string, rows: string[]) {
     .meta-value { min-width: 180pt; width: 180pt; height: 24pt; text-align: left; }
     .name-cell { min-width: 130pt; width: 130pt; text-align: left; font-weight: 700; }
     .amount-cell { min-width: 88pt; width: 88pt; text-align: right; }
+    .square-cell { min-width: 48pt !important; width: 48pt !important; max-width: 48pt !important; height: 48pt !important; max-height: 48pt !important; }
     .summary-cell { background: #f3f4f6; font-weight: 700; }
   </style>
 </head>
@@ -177,16 +185,16 @@ export default function VehicleTruckLoadingPage() {
   function exportTruckLoading() {
     if (!truckLoading) return;
     const routeNames = Array.from(new Set(visibleRoutes.map((route) => route.routeName).filter(Boolean))).join(", ") || "Assigned Routes";
+    const productQuantitySummary = `${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`;
     const rows = [
-      `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(routeNames, "meta-value")}</tr>`,
+      `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(routeNames, "meta-value")}${excelCell("No of Products * Quantity", "meta-label")}${excelCell(productQuantitySummary, "meta-value")}</tr>`,
       `<tr></tr>`,
-      `<tr>${excelHeader("Route Name", "name-cell")}${excelHeader("Customer Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}</tr>`,
+      `<tr>${excelHeader("Customer Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name, "square-cell")).join("")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}</tr>`,
       ...visibleRoutes.map((route) => {
-        const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
         const total = routeTotal(route);
-        return `<tr>${excelCell(route.routeName || "", "name-cell")}${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}${excelCell(route.orderAmount || "", "amount-cell")}${excelCell(route.previousDue || "", "amount-cell")}${excelCell(route.paidAmount || "", "amount-cell")}${excelCell(route.todaysDue || "", "amount-cell")}</tr>`;
+        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "", "square-cell")).join("")}${excelCell(total || "")}${excelCell(route.orderAmount || "", "amount-cell")}${excelCell(route.previousDue || "", "amount-cell")}${excelCell(route.paidAmount || "", "amount-cell")}${excelCell(route.todaysDue || "", "amount-cell")}</tr>`;
       }),
-      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${excelCell("", "summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}${excelCell(amountTotals.orderAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.previousDue || "", "amount-cell summary-cell")}${excelCell(amountTotals.paidAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.todaysDue || "", "amount-cell summary-cell")}</tr>`
+      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "square-cell summary-cell")).join("")}${excelCell(totalQuantity || "", "summary-cell")}${excelCell(amountTotals.orderAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.previousDue || "", "amount-cell summary-cell")}${excelCell(amountTotals.paidAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.todaysDue || "", "amount-cell summary-cell")}</tr>`
     ];
     exportExcel(`vehicle-truck-loading-${truckLoading.date}.xls`, rows);
   }
@@ -220,8 +228,7 @@ export default function VehicleTruckLoadingPage() {
           <table className="min-w-full border-separate border-spacing-0 text-center text-sm">
             <thead className="sticky top-0 z-20 text-xs uppercase text-muted">
               <tr>
-                <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Route Name</th>
-                <th className="min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left">Customer Name</th>
+                <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Customer Name</th>
                 {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
@@ -238,8 +245,7 @@ export default function VehicleTruckLoadingPage() {
             <tbody>
               {visibleRoutes.map((route, index) => (
                 <tr className={index % 2 ? "bg-panel2/30" : "bg-panel"} key={route.id}>
-                  <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.routeName || "-"}</td>
-                  <td className="border-b border-r border-line px-4 py-3 text-left font-semibold text-ink">{route.name}</td>
+                  <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.name}</td>
                   {visibleProducts.map((product) => {
                     const quantity = route.quantities[product.id] || 0;
                     return (
@@ -258,7 +264,6 @@ export default function VehicleTruckLoadingPage() {
               {truckLoading && visibleProducts.length ? (
                 <tr className="bg-mint/10 font-bold">
                   <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.06)]">Product Total</td>
-                  <td className="border-b border-r border-line px-4 py-3 text-left"></td>
                   {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3" key={product.id}>{formatQty(productTotals[product.id]) || "-"}</td>)}
                   <td className="border-b border-r border-line px-4 py-3 text-mint">{formatQty(totalQuantity) || "-"}</td>
                   <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(amountTotals.orderAmount)}</td>
@@ -269,7 +274,7 @@ export default function VehicleTruckLoadingPage() {
               ) : null}
               {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 7}>No truck loading data for this date.</td>
+                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 6}>No truck loading data for this date.</td>
                 </tr>
               ) : null}
             </tbody>

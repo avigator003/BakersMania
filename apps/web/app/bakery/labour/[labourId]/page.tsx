@@ -71,24 +71,19 @@ export default function LabourDetailPage() {
   const toast = useToast();
   const [month, setMonth] = useState(currentMonth());
   const [detail, setDetail] = useState<LabourDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
 
   async function loadDetail(nextMonth = month) {
     if (!tenantSlug) {
       toast.error("Bakery slug missing", "Please sign in again.");
-      setLoading(false);
       return;
     }
 
-    setLoading(true);
     try {
       const response = await authFetch<LabourDetail>(`/t/${tenantSlug}/staff/labour/${params.labourId}?month=${nextMonth}`);
       setDetail(response);
     } catch (error) {
       toast.error("Could not load labour overview", error instanceof Error ? error.message : "Please check API and login.");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -186,7 +181,6 @@ export default function LabourDetailPage() {
             </div>
           </div>
         </section>
-
       </div>
     </AppShell>
   );
