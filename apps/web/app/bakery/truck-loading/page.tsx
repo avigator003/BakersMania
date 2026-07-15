@@ -25,38 +25,46 @@ function formatQty(value?: string | number | null) {
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
 }
 
+function escapeExcelValue(value: string | number | null | undefined) {
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
 function excelAttrs(className: string) {
   const squareAttrs = className.split(/\s+/).includes("square-cell")
-    ? ' width="48" height="48" style="width:48pt;min-width:48pt;max-width:48pt;height:48pt;min-height:48pt;max-height:48pt;text-align:center;vertical-align:middle;white-space:normal;"'
+    ? ' width="64" height="64" style="width:64px;min-width:64px;max-width:64px;height:64px;min-height:64px;max-height:64px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word;overflow-wrap:anywhere;"'
     : "";
   return ` class="${className}"${squareAttrs}`;
 }
 
 function excelCell(value: string | number | null | undefined, className = "") {
-  return `<td${excelAttrs(className)}>${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</td>`;
+  return `<td${excelAttrs(className)}>${escapeExcelValue(value)}</td>`;
 }
 
 function excelHeader(value: string | number | null | undefined, className = "") {
-  return `<th${excelAttrs(className)}>${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</th>`;
+  return `<th${excelAttrs(className)}>${escapeExcelValue(value)}</th>`;
 }
 
-function exportExcel(filename: string, rows: string[]) {
+function excelColumn(width: number) {
+  return `<col style="width:${width}px;min-width:${width}px;max-width:${width}px;" width="${width}" />`;
+}
+
+function exportExcel(filename: string, rows: string[], columns: string[] = []) {
   const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <style>
-    table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10pt; }
-    th, td { border: 1px solid #1f2937; min-width: 48pt; width: 48pt; height: 48pt; text-align: center; vertical-align: middle; white-space: normal; mso-number-format: General; }
+    table { border-collapse: collapse; table-layout: fixed; font-family: Arial, sans-serif; font-size: 10pt; }
+    th, td { border: 1px solid #1f2937; height: 64px; text-align: center; vertical-align: middle; white-space: normal; mso-number-format: General; }
     th { background: #e7f4f0; font-weight: 700; }
     .meta-label { min-width: 92pt; width: 92pt; height: 24pt; text-align: left; background: #f3f4f6; font-weight: 700; }
     .meta-value { min-width: 180pt; width: 180pt; height: 24pt; text-align: left; }
     .name-cell { min-width: 130pt; width: 130pt; text-align: left; font-weight: 700; }
-    .square-cell { min-width: 48pt !important; width: 48pt !important; max-width: 48pt !important; height: 48pt !important; max-height: 48pt !important; }
+    .square-cell { min-width: 64px !important; width: 64px !important; max-width: 64px !important; height: 64px !important; max-height: 64px !important; word-break: break-word; overflow-wrap: anywhere; }
     .summary-cell { background: #f3f4f6; font-weight: 700; }
   </style>
 </head>
-<body><table>${rows.join("")}</table></body>
+<body><table>${columns.length ? `<colgroup>${columns.join("")}</colgroup>` : ""}${rows.join("")}</table></body>
 </html>`;
   const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -162,7 +170,12 @@ export default function BakeryTruckLoadingPage() {
   function exportTruckLoading() {
     if (!truckLoading) return;
     const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
-    const productQuantitySummary = `${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`;
+    const productQuantitySummary = visibleProducts.length * totalQuantity;
+    const columns = [
+      excelColumn(180),
+      ...visibleProducts.map(() => excelColumn(64)),
+      excelColumn(80)
+    ];
     const rows = [
       `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(selectedRoutes, "meta-value")}${excelCell("No of Products * Quantity", "meta-label")}${excelCell(productQuantitySummary, "meta-value")}</tr>`,
       `<tr></tr>`,
@@ -173,7 +186,7 @@ export default function BakeryTruckLoadingPage() {
       }),
       `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "square-cell summary-cell")).join("")}${excelCell(totalQuantity || "", "summary-cell")}</tr>`
     ];
-    exportExcel(`truck-loading-${truckLoading.date}.xls`, rows);
+    exportExcel(`truck-loading-${truckLoading.date}.xls`, rows, columns);
   }
 
   return (
