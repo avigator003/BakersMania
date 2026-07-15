@@ -31,7 +31,7 @@ export const staffRepository = {
         : {})
     };
 
-    const [labours, total, totalLabour, activeLabour, todayAttendance, paymentsThisMonth, recentAttendance, recentPayments] = await Promise.all([
+    const [labours, total, totalLabour, activeLabour, todayAttendance, paymentsThisMonth] = await Promise.all([
       prisma.labour.findMany({
         where: labourWhere,
         orderBy: [{ active: "desc" }, { createdAt: "desc" }],
@@ -54,18 +54,6 @@ export const staffRepository = {
         where: { tenantId, paidAt: { gte: monthStart, lt: nextMonth } },
         include: { labour: true },
         orderBy: { paidAt: "desc" }
-      }),
-      prisma.attendance.findMany({
-        where: { tenantId },
-        include: { labour: true },
-        orderBy: { workDate: "desc" },
-        take: 30
-      }),
-      prisma.salaryPayment.findMany({
-        where: { tenantId },
-        include: { labour: true },
-        orderBy: { paidAt: "desc" },
-        take: 30
       })
     ]);
     return {
@@ -74,9 +62,7 @@ export const staffRepository = {
       totalLabour,
       activeLabour,
       todayAttendance,
-      paymentsThisMonth,
-      recentAttendance,
-      recentPayments
+      paymentsThisMonth
     };
   },
 

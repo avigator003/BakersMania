@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { IndianRupee, RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
 import { DateInput, localDateInput, localMonthInput } from "../../../../components/date-input";
 import { LoadingSpinner } from "../../../../components/loading-spinner";
@@ -260,7 +260,6 @@ export default function LabourPaymentsPage() {
           <div className="divide-y divide-line">
             {visibleLabours.map((labour) => {
               const row = draft[labour.id] || emptyDraft();
-              const latestPayment = labour.salaryPayments[0];
               return (
                 <div key={labour.id} className="grid gap-3 p-4 xl:grid-cols-[1fr_180px_360px_1fr_180px] xl:items-center">
                   <div>
@@ -326,10 +325,6 @@ export default function LabourPaymentsPage() {
                       placeholder="Reference"
                       value={row.reference}
                     />
-                    <span className="text-xs text-muted">
-                      <IndianRupee className="mr-1 inline" size={12} />
-                      Last: {latestPayment ? `${formatAmount(latestPayment.amount)} · ${latestPayment.period} · ${formatDate(latestPayment.paidAt)}` : "No payment yet"}
-                    </span>
                   </div>
                 </div>
               );

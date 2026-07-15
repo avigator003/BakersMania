@@ -42,23 +42,6 @@ export type LabourYearExport = {
       payments: { total: number; byType: PaymentMap };
     }>;
   }>;
-  attendanceRows: Array<{
-    labourName: string;
-    workDate: string;
-    status: AttendanceStatus;
-    notes?: string | null;
-  }>;
-  paymentRows: Array<{
-    labourName: string;
-    amount: string | number;
-    period: string;
-    paymentType: PaymentType;
-    reason?: string | null;
-    method?: string | null;
-    reference?: string | null;
-    paidAt: string;
-    notes?: string | null;
-  }>;
 };
 
 type CellValue = string | number | null | undefined;
@@ -136,23 +119,6 @@ export function downloadLabourOverviewWorkbook(data: LabourYearExport) {
           month.payments.byType.FULL
         ])
       ]
-    },
-    {
-      name: "Payment Records",
-      rows: [
-        ["Labour", "Paid date", "Salary period", "Amount", "Type", "Method", "Reason", "Reference", "Notes"],
-        ...data.paymentRows.map((payment) => [
-          payment.labourName,
-          formatDate(payment.paidAt),
-          payment.period,
-          toNumber(payment.amount),
-          payment.paymentType,
-          payment.method || "",
-          payment.reason || "",
-          payment.reference || "",
-          payment.notes || ""
-        ])
-      ]
     }
   ]);
 
@@ -210,18 +176,6 @@ export function downloadLabourAttendanceWorkbook(data: LabourYearExport) {
           month.attendance.ABSENT,
           month.attendance.PAID_LEAVE,
           month.attendance.UNPAID_LEAVE
-        ])
-      ]
-    },
-    {
-      name: "Attendance Log",
-      rows: [
-        ["Labour", "Date", "Status", "Notes"],
-        ...data.attendanceRows.map((attendance) => [
-          attendance.labourName,
-          formatDate(attendance.workDate),
-          attendance.status,
-          attendance.notes || ""
         ])
       ]
     }

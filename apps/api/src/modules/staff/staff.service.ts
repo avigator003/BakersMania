@@ -126,7 +126,7 @@ function salaryCalculation(input: {
 export const staffService = {
   async listLabourDashboard(tenantId: string, attendanceDate?: Date, filters: LabourDashboardFilters = {}) {
     const dashboard = await staffRepository.listLabourDashboard(tenantId, attendanceDate, filters);
-    const { labours, todayAttendance, paymentsThisMonth, recentAttendance, recentPayments } = dashboard;
+    const { labours, todayAttendance, paymentsThisMonth } = dashboard;
 
     const stats = {
       totalLabour: dashboard.totalLabour,
@@ -143,19 +143,24 @@ export const staffService = {
     };
 
     const selectedMonth = monthRange(attendanceDate ? `${attendanceDate.getFullYear()}-${String(attendanceDate.getMonth() + 1).padStart(2, "0")}` : undefined);
-    const laboursWithSalary = labours.map((labour) => ({
-      ...labour,
-      salaryCalculation: salaryCalculation({
+    const laboursWithSalary = labours.map((labour) => {
+      const { attendance, salaryPayments, ...profile } = labour;
+      return {
+        ...profile,
+        attendance: [],
+        salaryPayments: [],
+        salaryCalculation: salaryCalculation({
         monthlySalary: labour.monthlySalary,
         joinedAt: labour.joinedAt,
-        attendance: labour.attendance,
-        payments: labour.salaryPayments,
+        attendance,
+        payments: salaryPayments,
         monthStart: selectedMonth.from,
         monthEnd: selectedMonth.to
       })
-    }));
+      };
+    });
 
-    return { stats, labours: laboursWithSalary, todayAttendance, recentAttendance, recentPayments, pagination: dashboard.pagination };
+    return { stats, labours: laboursWithSalary, todayAttendance, pagination: dashboard.pagination };
   },
 
   createLabour(tenantId: string, input: LabourInput) {
@@ -250,32 +255,7 @@ export const staffService = {
         payments: totals.payments
       },
       monthly,
-      labourSummaries,
-      attendanceRows: labours.flatMap((labour) =>
-        labour.attendance.map((attendance) => ({
-          id: attendance.id,
-          labourId: labour.id,
-          labourName: labour.name,
-          workDate: attendance.workDate,
-          status: attendance.status,
-          notes: attendance.notes
-        }))
-      ),
-      paymentRows: labours.flatMap((labour) =>
-        labour.salaryPayments.map((payment) => ({
-          id: payment.id,
-          labourId: labour.id,
-          labourName: labour.name,
-          amount: payment.amount,
-          period: payment.period,
-          paymentType: payment.paymentType,
-          reason: payment.reason,
-          method: payment.method,
-          reference: payment.reference,
-          paidAt: payment.paidAt,
-          notes: payment.notes
-        }))
-      )
+      labourSummaries
     };
   },
 
@@ -325,10 +305,10 @@ export const staffService = {
       month: range.label,
       labour,
       stats,
-      attendance,
-      payments,
-      absentDates: attendance.filter((item) => item.status === "ABSENT").map((item) => item.workDate),
-      halfDayDates: attendance.filter((item) => item.status === "HALF_DAY").map((item) => item.workDate)
+      attendance: [],
+      payments: [],
+      absentDates: [],
+      halfDayDates: []
     };
   },
 

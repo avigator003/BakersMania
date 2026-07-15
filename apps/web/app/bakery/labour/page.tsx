@@ -62,8 +62,6 @@ type LabourDashboard = {
   };
   labours: Labour[];
   todayAttendance: Attendance[];
-  recentAttendance: Attendance[];
-  recentPayments: SalaryPayment[];
   pagination?: PaginationMeta;
 };
 
@@ -89,24 +87,6 @@ const initialLabourForm = {
 function formatAmount(value?: string | number | null) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
-}
-
-function statusClass(status: Attendance["status"]) {
-  if (status === "PRESENT") return "border-mint/30 bg-mint/10 text-mint";
-  if (status === "ABSENT") return "border-berry/30 bg-berry/10 text-berry";
-  if (status === "HALF_DAY") return "border-saffron/30 bg-saffron/10 text-saffron";
-  return "border-slate-400/30 bg-slate-100 text-slate-600";
-}
-
-function paymentClass(type: SalaryPayment["paymentType"]) {
-  if (type === "ADVANCE") return "border-saffron/30 bg-saffron/10 text-saffron";
-  if (type === "PARTIAL") return "border-berry/30 bg-berry/10 text-berry";
-  return "border-mint/30 bg-mint/10 text-mint";
 }
 
 export default function LabourManagementPage() {
@@ -362,8 +342,6 @@ export default function LabourManagementPage() {
 
           <div className="grid gap-3 p-3 sm:hidden">
             {(data?.labours || []).map((labour) => {
-              const latestAttendance = labour.attendance[0];
-              const latestPayment = labour.salaryPayments[0];
               return (
                 <article key={labour.id} className="rounded-lg border border-line bg-panel2 p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -393,17 +371,6 @@ export default function LabourManagementPage() {
                       <span className="font-semibold">{formatAmount(labour.monthlySalary)}</span>
                     </span>
                   </div>
-                  <div className="mt-3 grid gap-2 text-xs">
-                    <span className="rounded-md bg-panel px-3 py-2">
-                      Attendance: {latestAttendance ? `${latestAttendance.status.replace("_", " ")} · ${formatDate(latestAttendance.workDate)}` : "-"}
-                    </span>
-                    <span className="rounded-md bg-panel px-3 py-2">
-                      Payment: {latestPayment ? `${latestPayment.paymentType} · ${formatAmount(latestPayment.amount)}` : "-"}
-                    </span>
-                  </div>
-                  <Link className="focus-ring mt-3 grid h-10 place-items-center rounded-md border border-line bg-panel text-sm font-semibold" href={`labour/${labour.id}`}>
-                    View Overview
-                  </Link>
                   <button className="focus-ring mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel text-sm font-semibold" onClick={() => openEditLabour(labour)} type="button">
                     <Pencil size={15} />
                     Edit Details
@@ -423,16 +390,12 @@ export default function LabourManagementPage() {
                   <th className="px-4 py-3">Labour</th>
                   <th className="px-4 py-3">Daily wage</th>
                   <th className="px-4 py-3">Monthly salary</th>
-                  <th className="px-4 py-3">Last attendance</th>
-                  <th className="px-4 py-3">Last payment</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {(data?.labours || []).map((labour) => {
-                  const latestAttendance = labour.attendance[0];
-                  const latestPayment = labour.salaryPayments[0];
                   return (
                     <tr key={labour.id}>
                       <td className="px-4 py-3">
@@ -441,20 +404,6 @@ export default function LabourManagementPage() {
                       </td>
                       <td className="px-4 py-3">{formatAmount(labour.dailyWage)}</td>
                       <td className="px-4 py-3">{formatAmount(labour.monthlySalary)}</td>
-                      <td className="px-4 py-3">
-                        {latestAttendance ? (
-                          <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${statusClass(latestAttendance.status)}`}>
-                            {latestAttendance.status.replace("_", " ")} · {formatDate(latestAttendance.workDate)}
-                          </span>
-                        ) : "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {latestPayment ? (
-                          <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${paymentClass(latestPayment.paymentType)}`}>
-                            {latestPayment.paymentType} · {formatAmount(latestPayment.amount)}
-                          </span>
-                        ) : "-"}
-                      </td>
                       <td className="px-4 py-3">
                         <select
                           className={`focus-ring rounded-md border px-2 py-1 text-xs font-semibold outline-none ${
@@ -470,9 +419,6 @@ export default function LabourManagementPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
-                          <Link className="focus-ring rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" href={`labour/${labour.id}`}>
-                            View
-                          </Link>
                           <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" onClick={() => openEditLabour(labour)} type="button">
                             <Pencil size={15} />
                             Edit
@@ -484,7 +430,7 @@ export default function LabourManagementPage() {
                 })}
                 {!loading && !(data?.labours || []).length ? (
                   <tr>
-                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={7}>
+                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={5}>
                       No labour matched your search.
                     </td>
                   </tr>
