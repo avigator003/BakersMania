@@ -488,7 +488,7 @@ export const ordersService = {
     const rowTotalsMap = groupByCustomer
       ? new Map(routeTotals.map((row) => ["customerId" in row ? row.customerId : row.routeId, row]))
       : new Map(routeTotals.map((row) => ["routeId" in row ? row.routeId : row.customerId, row]));
-    const routeMap = new Map<string, { id: string; name: string; updatedAt: Date | string | null; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number; customerCount: number; customerIds: Set<string> }>();
+    const routeMap = new Map<string, { id: string; name: string; routeName?: string | null; updatedAt: Date | string | null; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number; customerCount: number; customerIds: Set<string> }>();
 
     baseProducts.forEach((product) => {
       productMap.set(product.id, {
@@ -504,6 +504,7 @@ export const ordersService = {
       routeMap.set(baseRow.id, {
         id: baseRow.id,
         name: baseRow.name,
+        routeName: groupByCustomer && "route" in baseRow ? baseRow.route?.name || null : null,
         updatedAt: baseRow.updatedAt,
         quantities: {},
         total: 0,
@@ -520,12 +521,14 @@ export const ordersService = {
       const route = order.route || order.customer.route;
       const rowId = groupByCustomer ? order.customerId : route?.id || "no-route";
       const rowName = groupByCustomer ? order.customer.name : route?.name || "No route";
+      const rowRouteName = groupByCustomer ? route?.name || null : null;
       const rowUpdatedAt = groupByCustomer ? order.customer.updatedAt : route?.updatedAt || order.updatedAt;
       if (!routeMap.has(rowId)) {
         const totals = rowTotalsMap.get(rowId);
         routeMap.set(rowId, {
           id: rowId,
           name: rowName,
+          routeName: rowRouteName,
           updatedAt: rowUpdatedAt,
           quantities: {},
           total: 0,
@@ -538,6 +541,7 @@ export const ordersService = {
         });
       }
       const row = routeMap.get(rowId)!;
+      row.routeName = row.routeName || rowRouteName;
       row.updatedAt = newestDate(row.updatedAt, rowUpdatedAt) || null;
       row.customerIds.add(order.customerId);
       order.items.forEach((item) => {
