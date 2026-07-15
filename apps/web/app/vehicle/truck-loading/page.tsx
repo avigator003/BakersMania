@@ -40,6 +40,10 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
+function shortProductName(name: string) {
+  return name.length > 6 ? name.slice(0, 6) : name;
+}
+
 function escapeExcelValue(value: string | number | null | undefined) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
@@ -61,6 +65,10 @@ function excelHeader(value: string | number | null | undefined, className = "") 
 
 function excelColumn(width: number) {
   return `<col style="width:${width}px;min-width:${width}px;max-width:${width}px;" width="${width}" />`;
+}
+
+function excelRow(content: string, height = 64) {
+  return `<tr height="${height}" style="height:${height}px;max-height:${height}px;">${content}</tr>`;
 }
 
 function exportExcel(filename: string, rows: string[], columns: string[] = []) {
@@ -204,14 +212,14 @@ export default function VehicleTruckLoadingPage() {
       excelColumn(130)
     ];
     const rows = [
-      `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(routeNames, "meta-value")}${excelCell("No of Products * Quantity", "meta-label")}${excelCell(productQuantitySummary, "meta-value")}</tr>`,
-      `<tr></tr>`,
-      `<tr>${excelHeader("Customer Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name, "square-cell")).join("")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}</tr>`,
+      excelRow(`${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(routeNames, "meta-value")}${excelCell("No of Products * Quantity", "meta-label")}${excelCell(productQuantitySummary, "meta-value")}`, 24),
+      excelRow("", 16),
+      excelRow(`${excelHeader("Customer Name", "name-cell")}${visibleProducts.map((product) => excelHeader(shortProductName(product.name), "square-cell")).join("")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}`),
       ...visibleRoutes.map((route) => {
         const total = routeTotal(route);
-        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "", "square-cell")).join("")}${excelCell(total || "")}${excelCell(route.orderAmount || "", "amount-cell")}${excelCell(route.previousDue || "", "amount-cell")}${excelCell(route.paidAmount || "", "amount-cell")}${excelCell(route.todaysDue || "", "amount-cell")}</tr>`;
+        return excelRow(`${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "", "square-cell")).join("")}${excelCell(total || "")}${excelCell(route.orderAmount || "", "amount-cell")}${excelCell(route.previousDue || "", "amount-cell")}${excelCell(route.paidAmount || "", "amount-cell")}${excelCell(route.todaysDue || "", "amount-cell")}`);
       }),
-      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "square-cell summary-cell")).join("")}${excelCell(totalQuantity || "", "summary-cell")}${excelCell(amountTotals.orderAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.previousDue || "", "amount-cell summary-cell")}${excelCell(amountTotals.paidAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.todaysDue || "", "amount-cell summary-cell")}</tr>`
+      excelRow(`${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "square-cell summary-cell")).join("")}${excelCell(totalQuantity || "", "summary-cell")}${excelCell(amountTotals.orderAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.previousDue || "", "amount-cell summary-cell")}${excelCell(amountTotals.paidAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.todaysDue || "", "amount-cell summary-cell")}`)
     ];
     exportExcel(`vehicle-truck-loading-${truckLoading.date}.xls`, rows, columns);
   }
