@@ -254,12 +254,11 @@ export const ordersRepository = {
     });
   },
 
-  findProducts(tenantId: string, productIds: string[], customerId?: string, routeId?: string | null) {
+  findProducts(tenantId: string, productIds: string[], customerId?: string) {
     return prisma.product.findMany({
       where: { tenantId, id: { in: productIds } },
       include: {
-        ...(customerId ? { customerPrices: { where: { customerId } } } : {}),
-        ...(routeId ? { routePrices: { where: { routeId } } } : {})
+        ...(customerId ? { customerPrices: { where: { customerId } } } : {})
       }
     });
   },
