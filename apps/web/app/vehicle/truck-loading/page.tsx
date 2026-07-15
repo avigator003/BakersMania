@@ -158,6 +158,47 @@ export default function VehicleTruckLoadingPage() {
     ]));
   }, [visibleProducts, visibleRoutes]);
 
+  const routeSummaryRows = useMemo(() => {
+    const summaries = new Map<string, {
+      routeName: string;
+      customerCount: number;
+      quantities: Record<string, number>;
+      total: number;
+      orderAmount: number;
+      previousDue: number;
+      paidAmount: number;
+      todaysDue: number;
+    }>();
+
+    visibleRoutes.forEach((route) => {
+      const routeName = route.routeName || "No route";
+      if (!summaries.has(routeName)) {
+        summaries.set(routeName, {
+          routeName,
+          customerCount: 0,
+          quantities: {},
+          total: 0,
+          orderAmount: 0,
+          previousDue: 0,
+          paidAmount: 0,
+          todaysDue: 0
+        });
+      }
+      const summary = summaries.get(routeName)!;
+      summary.customerCount += Number(route.customerCount || 1);
+      summary.total += routeTotal(route);
+      summary.orderAmount += Number(route.orderAmount || 0);
+      summary.previousDue += Number(route.previousDue || 0);
+      summary.paidAmount += Number(route.paidAmount || 0);
+      summary.todaysDue += Number(route.todaysDue || 0);
+      visibleProducts.forEach((product) => {
+        summary.quantities[product.id] = (summary.quantities[product.id] || 0) + Number(route.quantities[product.id] || 0);
+      });
+    });
+
+    return Array.from(summaries.values()).sort((a, b) => naturalSort.compare(a.routeName, b.routeName));
+  }, [visibleProducts, visibleRoutes]);
+
   const totalQuantity = useMemo(() => visibleRoutes.reduce((sum, route) => sum + routeTotal(route), 0), [visibleProducts, visibleRoutes]);
   const totalCustomers = useMemo(() => visibleRoutes.reduce((sum, route) => sum + Number(route.customerCount || 1), 0), [visibleRoutes]);
   const amountTotals = useMemo(() => ({
@@ -174,6 +215,10 @@ export default function VehicleTruckLoadingPage() {
       `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(routeNames, "meta-value")}${excelCell("No of Customers", "meta-label")}${excelCell(totalCustomers, "meta-value")}</tr>`,
       `<tr></tr>`,
       `<tr>${excelHeader("Route Name", "name-cell")}${excelHeader("Customer Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}</tr>`,
+      ...routeSummaryRows.map((route) => {
+        const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
+        return `<tr>${excelCell(route.routeName, "name-cell summary-cell")}${excelCell(`${route.customerCount} customers`, "summary-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "", "summary-cell")).join("")}${excelCell(route.total ? `${productCount} * ${formatQty(route.total)}` : "", "summary-cell")}${excelCell(route.total || "", "summary-cell")}${excelCell(route.orderAmount || "", "amount-cell summary-cell")}${excelCell(route.previousDue || "", "amount-cell summary-cell")}${excelCell(route.paidAmount || "", "amount-cell summary-cell")}${excelCell(route.todaysDue || "", "amount-cell summary-cell")}</tr>`;
+      }),
       ...visibleRoutes.map((route) => {
         const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
         const total = routeTotal(route);
@@ -230,6 +275,18 @@ export default function VehicleTruckLoadingPage() {
               </tr>
             </thead>
             <tbody>
+              {routeSummaryRows.map((route) => (
+                <tr className="bg-mint/10 font-bold" key={`summary-${route.routeName}`}>
+                  <td className="sticky left-0 z-30 border-b border-r border-line bg-[#e7f4f0] px-4 py-3 text-left text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)]">{route.routeName}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-left text-ink">{route.customerCount} customers</td>
+                  {visibleProducts.map((product) => <td className="border-b border-r border-line px-3 py-3 text-ink" key={product.id}>{formatQty(route.quantities[product.id]) || "-"}</td>)}
+                  <td className="border-b border-r border-line px-4 py-3 text-mint">{formatQty(route.total) || "-"}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(route.orderAmount)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(route.previousDue)}</td>
+                  <td className="border-b border-r border-line px-4 py-3 text-right">{formatAmount(route.paidAmount)}</td>
+                  <td className="sticky right-0 z-30 border-b border-line bg-[#e7f4f0] px-4 py-3 text-right text-berry shadow-[-8px_0_12px_rgba(23,32,51,0.06)]">{formatAmount(route.todaysDue)}</td>
+                </tr>
+              ))}
               {visibleRoutes.map((route, index) => (
                 <tr className={index % 2 ? "bg-panel2/30" : "bg-panel"} key={route.id}>
                   <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.routeName || "-"}</td>
