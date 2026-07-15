@@ -1,8 +1,13 @@
+import { Prisma } from "@prisma/client";
 import { catalogRepository } from "./catalog.repository.js";
 import type { PriceHistoryFilters, ProductListFilters } from "./catalog.repository.js";
 import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductPreferenceInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
 import { HttpError } from "../../utils/http.js";
 import type { AccessTokenPayload } from "../../utils/tokens.js";
+
+function isProductNameUniqueError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && Array.isArray(error.meta?.target) && error.meta.target.includes("tenantId") && error.meta.target.includes("name");
+}
 
 export const catalogService = {
   listCategories(tenantId: string) {
@@ -88,7 +93,14 @@ export const catalogService = {
         throw new HttpError(400, "Selected category does not belong to this bakery");
       }
     }
-    return catalogRepository.createProduct(tenantId, input);
+    try {
+      return await catalogRepository.createProduct(tenantId, input);
+    } catch (error) {
+      if (isProductNameUniqueError(error)) {
+        throw new HttpError(409, "Product name already exists");
+      }
+      throw error;
+    }
   },
 
   async updateProduct(tenantId: string, productId: string, input: ProductUpdateInput) {
@@ -102,7 +114,14 @@ export const catalogService = {
         throw new HttpError(400, "Selected category does not belong to this bakery");
       }
     }
-    return catalogRepository.updateProduct(tenantId, productId, input);
+    try {
+      return await catalogRepository.updateProduct(tenantId, productId, input);
+    } catch (error) {
+      if (isProductNameUniqueError(error)) {
+        throw new HttpError(409, "Product name already exists");
+      }
+      throw error;
+    }
   },
 
   async upsertCustomerPrice(tenantId: string, input: CustomerPriceInput) {
