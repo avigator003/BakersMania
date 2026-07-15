@@ -31,12 +31,20 @@ function orderRouteId(order: Awaited<ReturnType<typeof ordersRepository.findOrde
 
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 
-function productSort(a: { name: string; category: string }, b: { name: string; category: string }) {
-  return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
+function updatedFirst(a: { updatedAt?: Date | string | null; name: string }, b: { updatedAt?: Date | string | null; name: string }) {
+  const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+  const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
-function rowNameSort(a: { name: string }, b: { name: string }) {
-  return naturalSort.compare(a.name || "", b.name || "");
+function newestDate(current: Date | string | null | undefined, candidate: Date | string | null | undefined) {
+  if (!candidate) return current;
+  if (!current) return candidate;
+  return new Date(candidate).getTime() > new Date(current).getTime() ? candidate : current;
+}
+
+function productSort(a: { name: string; category: string; updatedAt?: Date | string | null }, b: { name: string; category: string; updatedAt?: Date | string | null }) {
+  return updatedFirst(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 function customerDefaultDueAt() {
@@ -472,21 +480,23 @@ export const ordersService = {
         ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly })
         : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly })
     ]);
-    const productMap = new Map<string, { id: string; name: string; category: string }>();
+    const productMap = new Map<string, { id: string; name: string; category: string; updatedAt: Date | string | null }>();
     const rowTotalsMap = groupByCustomer
       ? new Map(routeTotals.map((row) => ["customerId" in row ? row.customerId : row.routeId, row]))
       : new Map(routeTotals.map((row) => ["routeId" in row ? row.routeId : row.customerId, row]));
-    const routeMap = new Map<string, { id: string; name: string; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number }>();
+    const routeMap = new Map<string, { id: string; name: string; updatedAt: Date | string | null; quantities: Record<string, number>; total: number; previousDue: number; orderAmount: number; paidAmount: number; todaysDue: number }>();
 
     orders.forEach((order) => {
       const route = order.route || order.customer.route;
       const rowId = groupByCustomer ? order.customerId : route?.id || "no-route";
       const rowName = groupByCustomer ? order.customer.name : route?.name || "No route";
+      const rowUpdatedAt = groupByCustomer ? order.customer.updatedAt : route?.updatedAt || order.updatedAt;
       if (!routeMap.has(rowId)) {
         const totals = rowTotalsMap.get(rowId);
         routeMap.set(rowId, {
           id: rowId,
           name: rowName,
+          updatedAt: rowUpdatedAt,
           quantities: {},
           total: 0,
           previousDue: totals?.previousDue || 0,
@@ -496,11 +506,15 @@ export const ordersService = {
         });
       }
       const row = routeMap.get(rowId)!;
+      row.updatedAt = newestDate(row.updatedAt, rowUpdatedAt) || null;
       order.items.forEach((item) => {
+        const existingProduct = productMap.get(item.productId);
+        const productUpdatedAt = newestDate(existingProduct?.updatedAt, item.product.updatedAt) || null;
         productMap.set(item.productId, {
           id: item.productId,
           name: item.name,
-          category: item.product.categoryRef?.name || item.product.category
+          category: item.product.categoryRef?.name || item.product.category,
+          updatedAt: productUpdatedAt
         });
         const quantity = Number(item.quantity);
         row.quantities[item.productId] = (row.quantities[item.productId] || 0) + quantity;
@@ -509,7 +523,7 @@ export const ordersService = {
     });
 
     const products = Array.from(productMap.values()).sort(productSort);
-    const routes = Array.from(routeMap.values()).sort(rowNameSort);
+    const routes = Array.from(routeMap.values()).sort(updatedFirst);
     return {
       date: filters.date,
       products,

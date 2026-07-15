@@ -12,10 +12,11 @@ import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 type TruckLoading = {
   date: string;
   orderCount: number;
-  products: { id: string; name: string; category: string }[];
+  products: { id: string; name: string; category: string; updatedAt?: string }[];
   routes: {
     id: string;
     name: string;
+    updatedAt?: string;
     quantities: Record<string, number>;
     total: number;
     previousDue: number;
@@ -31,14 +32,14 @@ type Order = {
   grandTotal: string | number;
   dueAt?: string | null;
   createdAt: string;
-  customer: { id?: string; name: string; phone?: string | null };
+  customer: { id?: string; name: string; phone?: string | null; updatedAt?: string | null };
   items: {
     productId: string;
     name: string;
     quantity: string | number;
     unitPrice?: string | number | null;
     lineTotal?: string | number | null;
-    product?: { category?: string | null; categoryRef?: { name: string } | null } | null;
+    product?: { category?: string | null; updatedAt?: string | null; categoryRef?: { name: string } | null } | null;
   }[];
   payments?: Payment[];
 };
@@ -59,12 +60,20 @@ function csvCell(value: string | number | null | undefined) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
-function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return naturalSort.compare(a.category || "General", b.category || "General") || naturalSort.compare(a.name, b.name);
+function updatedFirst(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
+  const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+  const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
-function customerSort(a: TruckLoading["routes"][number], b: TruckLoading["routes"][number]) {
-  return naturalSort.compare(a.name || "", b.name || "");
+function newestDate(current?: string | null, candidate?: string | null) {
+  if (!candidate) return current;
+  if (!current) return candidate;
+  return new Date(candidate).getTime() > new Date(current).getTime() ? candidate : current;
+}
+
+function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
+  return updatedFirst(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 function customerKey(order: Order) {
@@ -99,7 +108,7 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
     paidTodayByCustomer.set(key, (paidTodayByCustomer.get(key) || 0) + paidToday);
   });
 
-  const productMap = new Map<string, { id: string; name: string; category: string }>();
+  const productMap = new Map<string, TruckLoading["products"][number]>();
   const rows = new Map<string, TruckLoading["routes"][number]>();
 
   orders.forEach((order) => {
@@ -110,6 +119,7 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
       rows.set(key, {
         id: key,
         name: order.customer.name,
+        updatedAt: order.customer.updatedAt || undefined,
         quantities: {},
         total: 0,
         previousDue: previousDueByCustomer.get(key) || 0,
@@ -120,11 +130,18 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
     }
 
     const row = rows.get(key)!;
+    row.updatedAt = newestDate(row.updatedAt, order.customer.updatedAt) || undefined;
     row.orderAmount += Number(order.grandTotal || 0);
     row.paidAmount = paidTodayByCustomer.get(key) || 0;
     order.items.forEach((item) => {
       const category = item.product?.categoryRef?.name || item.product?.category || "General";
-      productMap.set(item.productId, { id: item.productId, name: item.name, category });
+      const existingProduct = productMap.get(item.productId);
+      productMap.set(item.productId, {
+        id: item.productId,
+        name: item.name,
+        category,
+        updatedAt: newestDate(existingProduct?.updatedAt, item.product?.updatedAt) || undefined
+      });
       const quantity = Number(item.quantity || 0);
       row.quantities[item.productId] = (row.quantities[item.productId] || 0) + quantity;
       row.total += quantity;
@@ -134,7 +151,7 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
   const routes = Array.from(rows.values()).map((row) => ({
     ...row,
     todaysDue: Math.max(row.previousDue + row.orderAmount - row.paidAmount, 0)
-  })).sort(customerSort);
+  })).sort(updatedFirst);
   const products = Array.from(productMap.values()).sort(productSort);
 
   return {
@@ -195,7 +212,7 @@ export default function VehicleTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(customerSort), [truckLoading]);
+  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedFirst), [truckLoading]);
 
   const customerOptions = useMemo(() => sortedCustomers.map((route) => ({
     value: route.id,

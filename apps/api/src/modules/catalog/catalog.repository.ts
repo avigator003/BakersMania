@@ -27,11 +27,11 @@ export const catalogRepository = {
         categoryRef: true,
         routePrices: {
           include: { route: { include: { vehicle: true } } },
-          orderBy: { createdAt: "desc" }
+          orderBy: { updatedAt: "desc" }
         },
         customerPrices: {
           include: { customer: { include: { route: true } } },
-          orderBy: { createdAt: "desc" }
+          orderBy: { updatedAt: "desc" }
         }
       }
     });
@@ -82,14 +82,14 @@ export const catalogRepository = {
         product: { include: { categoryRef: true } },
         route: { include: { vehicle: true } }
       },
-      orderBy: [{ product: { name: "asc" } }]
+      orderBy: [{ updatedAt: "desc" }, { product: { name: "asc" } }]
     });
   },
 
   listCategories(tenantId: string) {
     return prisma.productCategory.findMany({
       where: { tenantId },
-      orderBy: [{ active: "desc" }, { name: "asc" }],
+      orderBy: [{ active: "desc" }, { updatedAt: "desc" }, { name: "asc" }],
       include: { _count: { select: { products: true } } }
     });
   },
@@ -126,7 +126,7 @@ export const catalogRepository = {
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
-        orderBy: [{ active: "desc" }, { name: "asc" }],
+        orderBy: [{ active: "desc" }, { updatedAt: "desc" }, { name: "asc" }],
         include: {
           categoryRef: true,
           ...(filters.customerIdForPreferences

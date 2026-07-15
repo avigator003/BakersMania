@@ -42,7 +42,7 @@ export const customersRepository = {
       prisma.customer.findMany({
         where,
         include: { route: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
         skip,
         take: pageSize
       }),

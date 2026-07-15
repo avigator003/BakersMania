@@ -167,6 +167,7 @@ const deleteTenantGraph = async (tenantId) => {
 
     await tx.payment.deleteMany({ where: { tenantId } });
     await tx.invoice.deleteMany({ where: { tenantId } });
+    await tx.orderStageHistory.deleteMany({ where: { tenantId } });
     if (orderIds.length) await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
     await tx.order.deleteMany({ where: { tenantId } });
     await tx.purchasePayment.deleteMany({ where: { tenantId } });
@@ -179,8 +180,10 @@ const deleteTenantGraph = async (tenantId) => {
     await tx.salaryPayment.deleteMany({ where: { tenantId } });
     await tx.labour.deleteMany({ where: { tenantId } });
     await tx.customerProductPriceHistory.deleteMany({ where: { tenantId } });
+    await tx.customerProductPreference.deleteMany({ where: { tenantId } });
     await tx.customerProductPrice.deleteMany({ where: { tenantId } });
     await tx.routeProductPrice.deleteMany({ where: { tenantId } });
+    await tx.routeOrderLock.deleteMany({ where: { tenantId } });
     await tx.customer.deleteMany({ where: { tenantId } });
     await tx.product.deleteMany({ where: { tenantId } });
     await tx.productCategory.deleteMany({ where: { tenantId } });

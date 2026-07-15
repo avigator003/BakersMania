@@ -30,8 +30,8 @@ export const bakeryRoutesRepository = {
     const [vehicles, total] = await Promise.all([
       prisma.vehicle.findMany({
         where,
-        include: { routes: { select: { id: true, name: true } } },
-        orderBy: [{ active: "desc" }, { createdAt: "desc" }],
+        include: { routes: { select: { id: true, name: true }, orderBy: { updatedAt: "desc" } } },
+        orderBy: [{ active: "desc" }, { updatedAt: "desc" }, { name: "asc" }],
         skip,
         take: pageSize
       }),
@@ -47,7 +47,7 @@ export const bakeryRoutesRepository = {
   findVehicleDetail(tenantId: string, vehicleId: string) {
     return prisma.vehicle.findFirst({
       where: { id: vehicleId, tenantId, active: true },
-      include: { routes: { where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } } }
+      include: { routes: { where: { active: true }, select: { id: true, name: true }, orderBy: { updatedAt: "desc" } } }
     });
   },
 
@@ -124,7 +124,7 @@ export const bakeryRoutesRepository = {
       prisma.route.findMany({
         where,
         include: { vehicle: true },
-        orderBy: [{ active: "desc" }, { name: "asc" }],
+        orderBy: [{ active: "desc" }, { updatedAt: "desc" }, { name: "asc" }],
         skip,
         take: pageSize
       }),
