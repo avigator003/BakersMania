@@ -31,10 +31,10 @@ function orderRouteId(order: Awaited<ReturnType<typeof ordersRepository.findOrde
 
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 
-function updatedFirst(a: { updatedAt?: Date | string | null; name: string }, b: { updatedAt?: Date | string | null; name: string }) {
+function updatedAscending(a: { updatedAt?: Date | string | null; name: string }, b: { updatedAt?: Date | string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
+  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
 function newestDate(current: Date | string | null | undefined, candidate: Date | string | null | undefined) {
@@ -44,7 +44,7 @@ function newestDate(current: Date | string | null | undefined, candidate: Date |
 }
 
 function productSort(a: { name: string; category: string; updatedAt?: Date | string | null }, b: { name: string; category: string; updatedAt?: Date | string | null }) {
-  return updatedFirst(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
+  return updatedAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 function customerDefaultDueAt() {
@@ -523,7 +523,7 @@ export const ordersService = {
     });
 
     const products = Array.from(productMap.values()).sort(productSort);
-    const routes = Array.from(routeMap.values()).sort(updatedFirst);
+    const routes = Array.from(routeMap.values()).sort(updatedAscending);
     return {
       date: filters.date,
       products,

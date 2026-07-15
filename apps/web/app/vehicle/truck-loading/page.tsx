@@ -56,14 +56,45 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
-function csvCell(value: string | number | null | undefined) {
-  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+function excelCell(value: string | number | null | undefined, className = "") {
+  return `<td class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</td>`;
 }
 
-function updatedFirst(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
+function excelHeader(value: string | number | null | undefined, className = "") {
+  return `<th class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</th>`;
+}
+
+function exportExcel(filename: string, rows: string[]) {
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10pt; }
+    th, td { border: 1px solid #1f2937; min-width: 48pt; width: 48pt; height: 48pt; text-align: center; vertical-align: middle; white-space: normal; mso-number-format: General; }
+    th { background: #e7f4f0; font-weight: 700; }
+    .meta-label { min-width: 92pt; width: 92pt; height: 24pt; text-align: left; background: #f3f4f6; font-weight: 700; }
+    .meta-value { min-width: 180pt; width: 180pt; height: 24pt; text-align: left; }
+    .name-cell { min-width: 130pt; width: 130pt; text-align: left; font-weight: 700; }
+    .amount-cell { min-width: 88pt; width: 88pt; text-align: right; }
+    .summary-cell { background: #f3f4f6; font-weight: 700; }
+  </style>
+</head>
+<body><table>${rows.join("")}</table></body>
+</html>`;
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
+  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
 function newestDate(current?: string | null, candidate?: string | null) {
@@ -73,7 +104,7 @@ function newestDate(current?: string | null, candidate?: string | null) {
 }
 
 function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return updatedFirst(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
+  return updatedAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 function customerKey(order: Order) {
@@ -151,7 +182,7 @@ function buildCustomerTruckLoading(date: string, orders: Order[], previousOrders
   const routes = Array.from(rows.values()).map((row) => ({
     ...row,
     todaysDue: Math.max(row.previousDue + row.orderAmount - row.paidAmount, 0)
-  })).sort(updatedFirst);
+  })).sort(updatedAscending);
   const products = Array.from(productMap.values()).sort(productSort);
 
   return {
@@ -212,7 +243,7 @@ export default function VehicleTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedFirst), [truckLoading]);
+  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedAscending), [truckLoading]);
 
   const customerOptions = useMemo(() => sortedCustomers.map((route) => ({
     value: route.id,
@@ -254,33 +285,20 @@ export default function VehicleTruckLoadingPage() {
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const header = ["Customer Name", ...visibleProducts.map((product) => product.name), "Total Qty", "Order Amount", "Previous Due Amount", "Paid Amount", "Today's Due Amount"];
-    const rows = visibleRoutes.map((route) => [
-      route.name,
-      ...visibleProducts.map((product) => route.quantities[product.id] || ""),
-      routeTotal(route) || "",
-      route.orderAmount || "",
-      route.previousDue || "",
-      route.paidAmount || "",
-      route.todaysDue || ""
-    ]);
-    const totalRow = [
-      "Total",
-      ...visibleProducts.map((product) => productTotals[product.id] || ""),
-      totalQuantity || "",
-      amountTotals.orderAmount || "",
-      amountTotals.previousDue || "",
-      amountTotals.paidAmount || "",
-      amountTotals.todaysDue || ""
+    const selectedCustomers = customerFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Customers";
+    const rows = [
+      `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}</tr>`,
+      `<tr>${excelCell("Customer Name", "meta-label")}${excelCell(selectedCustomers, "meta-value")}</tr>`,
+      `<tr></tr>`,
+      `<tr>${excelHeader("Customer Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total Qty")}${excelHeader("Order Amount", "amount-cell")}${excelHeader("Previous Due Amount", "amount-cell")}${excelHeader("Paid Amount", "amount-cell")}${excelHeader("Today's Due Amount", "amount-cell")}</tr>`,
+      ...visibleRoutes.map((route) => {
+        const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
+        const total = routeTotal(route);
+        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}${excelCell(route.orderAmount || "", "amount-cell")}${excelCell(route.previousDue || "", "amount-cell")}${excelCell(route.paidAmount || "", "amount-cell")}${excelCell(route.todaysDue || "", "amount-cell")}</tr>`;
+      }),
+      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}${excelCell(amountTotals.orderAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.previousDue || "", "amount-cell summary-cell")}${excelCell(amountTotals.paidAmount || "", "amount-cell summary-cell")}${excelCell(amountTotals.todaysDue || "", "amount-cell summary-cell")}</tr>`
     ];
-    const csv = [header, ...rows, totalRow].map((row) => row.map(csvCell).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `vehicle-truck-loading-${truckLoading.date}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    exportExcel(`vehicle-truck-loading-${truckLoading.date}.xls`, rows);
   }
 
   return (

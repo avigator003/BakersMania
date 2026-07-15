@@ -25,18 +25,48 @@ function formatQty(value?: string | number | null) {
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
 }
 
-function csvCell(value: string | number | null | undefined) {
-  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+function excelCell(value: string | number | null | undefined, className = "") {
+  return `<td class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</td>`;
 }
 
-function updatedFirst(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
+function excelHeader(value: string | number | null | undefined, className = "") {
+  return `<th class="${className}">${String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</th>`;
+}
+
+function exportExcel(filename: string, rows: string[]) {
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10pt; }
+    th, td { border: 1px solid #1f2937; min-width: 48pt; width: 48pt; height: 48pt; text-align: center; vertical-align: middle; white-space: normal; mso-number-format: General; }
+    th { background: #e7f4f0; font-weight: 700; }
+    .meta-label { min-width: 92pt; width: 92pt; height: 24pt; text-align: left; background: #f3f4f6; font-weight: 700; }
+    .meta-value { min-width: 180pt; width: 180pt; height: 24pt; text-align: left; }
+    .name-cell { min-width: 130pt; width: 130pt; text-align: left; font-weight: 700; }
+    .summary-cell { background: #f3f4f6; font-weight: 700; }
+  </style>
+</head>
+<body><table>${rows.join("")}</table></body>
+</html>`;
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
+  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
 function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return updatedFirst(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
+  return updatedAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 export default function BakeryTruckLoadingPage() {
@@ -79,7 +109,7 @@ export default function BakeryTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedFirst), [truckLoading]);
+  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedAscending), [truckLoading]);
 
   const routeOptions = useMemo(() => sortedRoutes.map((route) => ({
     value: route.id,
@@ -115,21 +145,20 @@ export default function BakeryTruckLoadingPage() {
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const header = ["Route Name", ...visibleProducts.map((product) => product.name), "Total"];
-    const rows = visibleRoutes.map((route) => [
-      route.name,
-      ...visibleProducts.map((product) => route.quantities[product.id] || ""),
-      routeTotal(route) || ""
-    ]);
-    const totalRow = ["Product Total", ...visibleProducts.map((product) => productTotals[product.id] || ""), totalQuantity || ""];
-    const csv = [header, ...rows, totalRow].map((row) => row.map(csvCell).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `truck-loading-${truckLoading.date}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
+    const rows = [
+      `<tr>${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}</tr>`,
+      `<tr>${excelCell("Route Name", "meta-label")}${excelCell(selectedRoutes, "meta-value")}</tr>`,
+      `<tr></tr>`,
+      `<tr>${excelHeader("Route Name", "name-cell")}${visibleProducts.map((product) => excelHeader(product.name)).join("")}${excelHeader("No of Products * Quantity")}${excelHeader("Total")}</tr>`,
+      ...visibleRoutes.map((route) => {
+        const productCount = visibleProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0).length;
+        const total = routeTotal(route);
+        return `<tr>${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "")).join("")}${excelCell(total ? `${productCount} * ${formatQty(total)}` : "")}${excelCell(total || "")}</tr>`;
+      }),
+      `<tr>${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "summary-cell")).join("")}${excelCell(`${visibleProducts.length} * ${formatQty(totalQuantity) || "0"}`, "summary-cell")}${excelCell(totalQuantity || "", "summary-cell")}</tr>`
+    ];
+    exportExcel(`truck-loading-${truckLoading.date}.xls`, rows);
   }
 
   return (
