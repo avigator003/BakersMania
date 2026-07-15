@@ -8,6 +8,7 @@ import { LoadingSpinner } from "../../../components/loading-spinner";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { downloadXlsx, type XlsxColumn, type XlsxRow } from "../../../lib/xlsx-export";
 
 type TruckLoading = {
   date: string;
@@ -27,60 +28,6 @@ function formatQty(value?: string | number | null) {
 
 function shortProductName(name: string) {
   return name.length > 6 ? name.slice(0, 6) : name;
-}
-
-function escapeExcelValue(value: string | number | null | undefined) {
-  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-function excelAttrs(className: string) {
-  const squareAttrs = className.split(/\s+/).includes("square-cell")
-    ? ' width="64" height="64" style="width:64px;min-width:64px;max-width:64px;height:64px;min-height:64px;max-height:64px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word;overflow-wrap:anywhere;"'
-    : "";
-  return ` class="${className}"${squareAttrs}`;
-}
-
-function excelCell(value: string | number | null | undefined, className = "") {
-  return `<td${excelAttrs(className)}>${escapeExcelValue(value)}</td>`;
-}
-
-function excelHeader(value: string | number | null | undefined, className = "") {
-  return `<th${excelAttrs(className)}>${escapeExcelValue(value)}</th>`;
-}
-
-function excelColumn(width: number) {
-  return `<col style="width:${width}px;min-width:${width}px;max-width:${width}px;" width="${width}" />`;
-}
-
-function excelRow(content: string, height = 64) {
-  return `<tr height="${height}" style="height:${height}px;max-height:${height}px;">${content}</tr>`;
-}
-
-function exportExcel(filename: string, rows: string[], columns: string[] = []) {
-  const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <style>
-    table { border-collapse: collapse; table-layout: fixed; font-family: Arial, sans-serif; font-size: 10pt; }
-    th, td { border: 1px solid #1f2937; height: 64px; text-align: center; vertical-align: middle; white-space: normal; mso-number-format: General; }
-    th { background: #e7f4f0; font-weight: 700; }
-    .meta-label { min-width: 92pt; width: 92pt; height: 24pt; text-align: left; background: #f3f4f6; font-weight: 700; }
-    .meta-value { min-width: 180pt; width: 180pt; height: 24pt; text-align: left; }
-    .name-cell { min-width: 130pt; width: 130pt; text-align: left; font-weight: 700; }
-    .square-cell { min-width: 64px !important; width: 64px !important; max-width: 64px !important; height: 64px !important; max-height: 64px !important; word-break: break-word; overflow-wrap: anywhere; }
-    .summary-cell { background: #f3f4f6; font-weight: 700; }
-  </style>
-</head>
-<body><table>${columns.length ? `<colgroup>${columns.join("")}</colgroup>` : ""}${rows.join("")}</table></body>
-</html>`;
-  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
@@ -179,22 +126,53 @@ export default function BakeryTruckLoadingPage() {
     if (!truckLoading) return;
     const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
     const productQuantitySummary = visibleProducts.length * totalQuantity;
-    const columns = [
-      excelColumn(180),
-      ...visibleProducts.map(() => excelColumn(64)),
-      excelColumn(80)
+    const columns: XlsxColumn[] = [
+      { width: 22 },
+      ...visibleProducts.map(() => ({ width: 8.43 })),
+      { width: 10 }
     ];
-    const rows = [
-      excelRow(`${excelCell("Date", "meta-label")}${excelCell(truckLoading.date, "meta-value")}${excelCell("Route Name", "meta-label")}${excelCell(selectedRoutes, "meta-value")}${excelCell("No of Products * Quantity", "meta-label")}${excelCell(productQuantitySummary, "meta-value")}`, 24),
-      excelRow("", 16),
-      excelRow(`${excelHeader("Route Name", "name-cell")}${visibleProducts.map((product) => excelHeader(shortProductName(product.name), "square-cell")).join("")}${excelHeader("Total")}`),
+    const rows: XlsxRow[] = [
+      {
+        height: 18,
+        cells: [
+          { value: "Date", style: "metaLabel" },
+          { value: truckLoading.date, style: "metaValue" },
+          { value: "Route Name", style: "metaLabel" },
+          { value: selectedRoutes, style: "metaValue" },
+          { value: "No of Products * Quantity", style: "metaLabel" },
+          { value: productQuantitySummary, style: "metaValue" }
+        ]
+      },
+      { height: 12, cells: [] },
+      {
+        height: 48,
+        cells: [
+          { value: "Route Name", style: "header" },
+          ...visibleProducts.map((product) => ({ value: shortProductName(product.name), style: "header" as const })),
+          { value: "Total", style: "header" }
+        ]
+      },
       ...visibleRoutes.map((route) => {
         const total = routeTotal(route);
-        return excelRow(`${excelCell(route.name, "name-cell")}${visibleProducts.map((product) => excelCell(route.quantities[product.id] || "", "square-cell")).join("")}${excelCell(total || "")}`);
+        return {
+          height: 48,
+          cells: [
+            { value: route.name, style: "name" as const },
+            ...visibleProducts.map((product) => ({ value: route.quantities[product.id] || null })),
+            { value: total || null }
+          ]
+        };
       }),
-      excelRow(`${excelCell("Product Total", "name-cell summary-cell")}${visibleProducts.map((product) => excelCell(productTotals[product.id] || "", "square-cell summary-cell")).join("")}${excelCell(totalQuantity || "", "summary-cell")}`)
+      {
+        height: 48,
+        cells: [
+          { value: "Product Total", style: "summary" },
+          ...visibleProducts.map((product) => ({ value: productTotals[product.id] || null, style: "summary" as const })),
+          { value: totalQuantity || null, style: "summary" }
+        ]
+      }
     ];
-    exportExcel(`truck-loading-${truckLoading.date}.xls`, rows, columns);
+    downloadXlsx(`truck-loading-${truckLoading.date}.xlsx`, rows, columns);
   }
 
   return (
