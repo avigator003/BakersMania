@@ -25,6 +25,10 @@ export const bakeryRoutesController = {
     res.json({ vehicle: await bakeryRoutesService.updateVehicle(req.tenant!.id, req.params.vehicleId, req.body) });
   },
 
+  async resetVehiclePassword(req: Request, res: Response) {
+    res.json({ result: await bakeryRoutesService.resetVehiclePassword(req.auth, req.tenant!.id, req.params.vehicleId, req.body) });
+  },
+
   async list(req: Request, res: Response) {
     const result = await bakeryRoutesService.list(req.tenant!.id, {
       page: numberQueryParam(req.query.page),

@@ -17,5 +17,10 @@ export const customerSchema = z.object({
 
 export const customerUpdateSchema = customerSchema.partial();
 
+export const passwordUpdateSchema = z.object({
+  password: z.string().min(6)
+});
+
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type CustomerUpdateInput = z.infer<typeof customerUpdateSchema>;
+export type PasswordUpdateInput = z.infer<typeof passwordUpdateSchema>;

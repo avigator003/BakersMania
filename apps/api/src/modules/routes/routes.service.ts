@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { bakeryRoutesRepository } from "./routes.repository.js";
 import type { RouteListFilters, VehicleListFilters } from "./routes.repository.js";
-import type { RouteInput, VehicleInput } from "./routes.schemas.js";
+import type { PasswordUpdateInput, RouteInput, VehicleInput } from "./routes.schemas.js";
 import { HttpError } from "../../utils/http.js";
 
 function normalizePhone(value?: string | null) {
@@ -53,14 +53,34 @@ export const bakeryRoutesService = {
     if (!phone) {
       throw new HttpError(422, "Driver phone number is required for vehicle portal credentials");
     }
-    const passwordHash = await bcrypt.hash("123456", 12);
-    const user = await bakeryRoutesRepository.upsertVehicleUser({
+    const userInput = {
       email: vehicleEmail(tenantId, phone),
       phone,
-      name: input.driverName || input.name,
-      passwordHash
-    });
+      name: input.driverName || input.name
+    };
+    const user = vehicle.userId
+      ? await bakeryRoutesRepository.updateVehicleUser(vehicle.userId, userInput)
+      : await bakeryRoutesRepository.upsertVehicleUser({
+          ...userInput,
+          passwordHash: await bcrypt.hash("123456", 12)
+        });
     return bakeryRoutesRepository.updateVehicle(tenantId, vehicleId, { ...input, driverPhone: phone, userId: user.id });
+  },
+
+  async resetVehiclePassword(auth: Express.Request["auth"], tenantId: string, vehicleId: string, input: PasswordUpdateInput) {
+    if (auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Bakery access required");
+    }
+    const vehicle = await bakeryRoutesRepository.findVehicle(tenantId, vehicleId);
+    if (!vehicle) {
+      throw new HttpError(404, "Vehicle not found");
+    }
+    if (!vehicle.userId) {
+      throw new HttpError(404, "Vehicle login account not found");
+    }
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    await bakeryRoutesRepository.updateUserPassword(vehicle.userId, passwordHash);
+    return { vehicleId: vehicle.id, vehicleName: vehicle.name, password: input.password };
   },
 
   list(tenantId: string, filters: RouteListFilters = {}) {

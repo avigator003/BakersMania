@@ -108,6 +108,29 @@ export const customersRepository = {
     });
   },
 
+  findForPasswordReset(tenantId: string, customerId: string) {
+    return prisma.customer.findFirst({
+      where: { tenantId, id: customerId },
+      select: { id: true, userId: true, routeId: true, name: true }
+    });
+  },
+
+  updateUserPassword(userId: string, passwordHash: string) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+      select: { id: true }
+    });
+  },
+
+  updatePortalUser(userId: string, input: { email: string; name: string; phone: string }) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: input,
+      select: { id: true }
+    });
+  },
+
   upsertPortalUser(input: { email: string; name: string; phone: string; passwordHash: string }) {
     return prisma.user.upsert({
       where: { email: input.email },

@@ -22,5 +22,10 @@ export const vehicleSchema = z.object({
   active: z.boolean().default(true)
 });
 
+export const passwordUpdateSchema = z.object({
+  password: z.string().min(6)
+});
+
 export type RouteInput = z.infer<typeof routeSchema>;
 export type VehicleInput = z.infer<typeof vehicleSchema>;
+export type PasswordUpdateInput = z.infer<typeof passwordUpdateSchema>;

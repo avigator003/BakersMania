@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { HttpError } from "../../utils/http.js";
 import { customersRepository } from "./customers.repository.js";
 import type { CustomerListFilters } from "./customers.repository.js";
-import type { CustomerInput, CustomerUpdateInput } from "./customers.schemas.js";
+import type { CustomerInput, CustomerUpdateInput, PasswordUpdateInput } from "./customers.schemas.js";
 
 function normalizePhone(value?: string | null) {
   return (value || "").replace(/[^\d+]/g, "");
@@ -89,13 +89,17 @@ export const customersService = {
     if (!phone) {
       throw new HttpError(422, "Customer phone number is required for portal credentials");
     }
-    const passwordHash = await bcrypt.hash("123456", 12);
-    const user = await customersRepository.upsertPortalUser({
+    const userInput = {
       email: customerEmail(tenantId, phone, input.email || customer.email || undefined),
       name: input.name || customer.name,
-      phone,
-      passwordHash
-    });
+      phone
+    };
+    const user = customer.userId
+      ? await customersRepository.updatePortalUser(customer.userId, userInput)
+      : await customersRepository.upsertPortalUser({
+          ...userInput,
+          passwordHash: await bcrypt.hash("123456", 12)
+        });
     return customersRepository.update(tenantId, customerId, { ...input, phone, userId: user.id });
   },
 
@@ -182,5 +186,41 @@ export const customersService = {
       notes: input.notes
     };
     return customersRepository.update(tenantId, customer.id, allowedInput);
+  },
+
+  async updateMyPassword(auth: Express.Request["auth"], tenantId: string, input: PasswordUpdateInput) {
+    if (auth?.actorType !== "customer" || !auth.customerId) {
+      throw new HttpError(403, "Customer access required");
+    }
+    const customer = await customersRepository.findForPasswordReset(tenantId, auth.customerId);
+    if (!customer?.userId) {
+      throw new HttpError(404, "Customer login account not found");
+    }
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    await customersRepository.updateUserPassword(customer.userId, passwordHash);
+    return { updated: true };
+  },
+
+  async resetCustomerPassword(auth: Express.Request["auth"], tenantId: string, customerId: string, input: PasswordUpdateInput) {
+    if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Vehicle or bakery access required");
+    }
+    const customer = await customersRepository.findForPasswordReset(tenantId, customerId);
+    if (!customer) {
+      throw new HttpError(404, "Customer not found");
+    }
+    if (!customer.userId) {
+      throw new HttpError(404, "Customer login account not found");
+    }
+    if (auth.actorType === "vehicle") {
+      const vehicle = await customersRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
+      const routeIds = vehicle?.routes.map((route) => route.id) || [];
+      if (!customer.routeId || !routeIds.includes(customer.routeId)) {
+        throw new HttpError(403, "This customer is not assigned to this vehicle");
+      }
+    }
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    await customersRepository.updateUserPassword(customer.userId, passwordHash);
+    return { customerId: customer.id, customerName: customer.name, password: input.password };
   }
 };

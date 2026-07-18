@@ -125,11 +125,9 @@ export default function BakeryTruckLoadingPage() {
   function exportTruckLoading() {
     if (!truckLoading) return;
     const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
-    const productQuantitySummary = visibleProducts.length * totalQuantity;
     const columns: XlsxColumn[] = [
-      { width: 22 },
-      ...visibleProducts.map(() => ({ width: 8.43 })),
-      { width: 10 }
+      { width: 11 },
+      ...visibleProducts.map(() => ({ width: 4.215 }))
     ];
     const rows: XlsxRow[] = [
       {
@@ -139,8 +137,8 @@ export default function BakeryTruckLoadingPage() {
           { value: truckLoading.date, style: "metaValue" },
           { value: "Route Name", style: "metaLabel" },
           { value: selectedRoutes, style: "metaValue" },
-          { value: "No of Products * Quantity", style: "metaLabel" },
-          { value: productQuantitySummary, style: "metaValue" }
+          { value: "No of Products", style: "metaLabel" },
+          { value: totalQuantity, style: "metaValue" }
         ]
       },
       { height: 12, cells: [] },
@@ -148,27 +146,21 @@ export default function BakeryTruckLoadingPage() {
         height: 48,
         cells: [
           { value: "Route Name", style: "header" },
-          ...visibleProducts.map((product) => ({ value: shortProductName(product.name), style: "header" as const })),
-          { value: "Total", style: "header" }
+          ...visibleProducts.map((product) => ({ value: shortProductName(product.name), style: "header" as const }))
         ]
       },
-      ...visibleRoutes.map((route) => {
-        const total = routeTotal(route);
-        return {
-          height: 48,
-          cells: [
-            { value: route.name, style: "name" as const },
-            ...visibleProducts.map((product) => ({ value: route.quantities[product.id] || null })),
-            { value: total || null }
-          ]
-        };
-      }),
+      ...visibleRoutes.map((route) => ({
+        height: 48,
+        cells: [
+          { value: route.name, style: "name" as const },
+          ...visibleProducts.map((product) => ({ value: route.quantities[product.id] || null }))
+        ]
+      })),
       {
         height: 48,
         cells: [
           { value: "Product Total", style: "summary" },
-          ...visibleProducts.map((product) => ({ value: productTotals[product.id] || null, style: "summary" as const })),
-          { value: totalQuantity || null, style: "summary" }
+          ...visibleProducts.map((product) => ({ value: productTotals[product.id] || null, style: "summary" as const }))
         ]
       }
     ];

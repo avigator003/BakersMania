@@ -41,7 +41,7 @@ export const bakeryRoutesRepository = {
   },
 
   findVehicle(tenantId: string, vehicleId: string) {
-    return prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId }, select: { id: true } });
+    return prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId }, select: { id: true, userId: true, name: true } });
   },
 
   findVehicleDetail(tenantId: string, vehicleId: string) {
@@ -92,6 +92,22 @@ export const bakeryRoutesRepository = {
     }
 
     return prisma.user.create({ data: input });
+  },
+
+  updateUserPassword(userId: string, passwordHash: string) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+      select: { id: true }
+    });
+  },
+
+  updateVehicleUser(userId: string, input: { email: string; phone: string; name: string }) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: input,
+      select: { id: true }
+    });
   },
 
   createVehicle(tenantId: string, input: VehicleInput & { userId?: string }) {

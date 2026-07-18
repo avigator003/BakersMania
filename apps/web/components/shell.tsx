@@ -11,6 +11,7 @@ import {
   Database,
   Home,
   IndianRupee,
+  KeyRound,
   LogOut,
   Menu,
   PhoneCall,
@@ -46,6 +47,7 @@ const bakeryNav = [
   { href: "/bakery/expenses", label: "Expenses", icon: CreditCard },
   { href: "/bakery/routes", label: "Routes", icon: Truck },
   { href: "/bakery/route-invoices", label: "Route Invoices", icon: CreditCard },
+  { href: "/bakery/passwords", label: "Passwords", icon: KeyRound },
 ];
 
 const sessionVerificationTtlMs = 60_000;
@@ -325,14 +327,16 @@ export function AppShell({
     ? [
         { href: `${routeBase}/customer/cart`, label: "Cart", icon: ShoppingCart },
         { href: `${routeBase}/customer`, label: "Shop", icon: ShoppingBag },
-        { href: `${routeBase}/customer/orders`, label: "Orders", icon: ClipboardList }
+        { href: `${routeBase}/customer/orders`, label: "Orders", icon: ClipboardList },
+        { href: `${routeBase}/customer/password`, label: "Password", icon: KeyRound }
       ]
     : surface === "vehicle"
       ? [
         { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList },
         { href: `${routeBase}/vehicle/place-order`, label: "Place Order", icon: ShoppingCart },
         { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck },
-        { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee }
+        { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee },
+        { href: `${routeBase}/vehicle/passwords`, label: "Passwords", icon: KeyRound }
       ]
     : surface === "admin"
       ? [
@@ -377,6 +381,8 @@ export function AppShell({
       expenses: "Expenses",
       sellers: "Sellers",
       routes: "Routes",
+      passwords: "Passwords",
+      password: "Password",
       profile: "Profile"
     };
 

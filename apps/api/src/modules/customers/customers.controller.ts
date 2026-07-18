@@ -25,6 +25,14 @@ export const customersController = {
     res.json({ customer: await customersService.updateMyProfile(req.auth, req.tenant!.id, req.body) });
   },
 
+  async updateMyPassword(req: Request, res: Response) {
+    res.json({ result: await customersService.updateMyPassword(req.auth, req.tenant!.id, req.body) });
+  },
+
+  async resetPassword(req: Request, res: Response) {
+    res.json({ result: await customersService.resetCustomerPassword(req.auth, req.tenant!.id, req.params.customerId, req.body) });
+  },
+
   async update(req: Request, res: Response) {
     const customer = await customersService.updateCustomer(req.auth?.actorType, req.tenant!.id, req.params.customerId, req.body);
     res.json({ customer });
