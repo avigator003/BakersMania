@@ -14,7 +14,8 @@ type Customer = {
   name: string;
   phone?: string | null;
   city?: string | null;
-  route?: { name: string } | null;
+  routeId?: string | null;
+  route?: { id: string; name: string } | null;
   dueBalance?: string | number | null;
 };
 
@@ -39,6 +40,11 @@ type CustomerProductPrice = {
   notes?: string | null;
 };
 
+type RouteProductPrice = {
+  productId: string;
+  price: string | number;
+};
+
 type PriceModalState = {
   customer: Customer;
   mode: "edit" | "view";
@@ -61,6 +67,7 @@ export default function VehiclePricesPage() {
   const [priceModal, setPriceModal] = useState<PriceModalState | null>(null);
   const [priceMap, setPriceMap] = useState<Record<string, string>>({});
   const [existingPriceMap, setExistingPriceMap] = useState<Record<string, number>>({});
+  const [vehicleBasePriceMap, setVehicleBasePriceMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -108,9 +115,17 @@ export default function VehiclePricesPage() {
     setCategoryFilter("");
     setLoadingPrices(true);
     try {
-      const data = await authFetch<{ ledger: { productPrices: CustomerProductPrice[] } }>(`${apiBase}/customers/${customer.id}/ledger`);
-      const existing = new Map(data.ledger.productPrices.map((price) => [price.productId, Number(price.price || 0)]));
+      const routeId = customer.route?.id || customer.routeId || "";
+      const [customerPriceData, routePriceData] = await Promise.all([
+        authFetch<{ ledger: { productPrices: CustomerProductPrice[] } }>(`${apiBase}/customers/${customer.id}/ledger`),
+        routeId
+          ? authFetch<{ routePrices: RouteProductPrice[] }>(`${apiBase}/catalog/route-prices?routeId=${encodeURIComponent(routeId)}`)
+          : Promise.resolve({ routePrices: [] })
+      ]);
+      const existing = new Map(customerPriceData.ledger.productPrices.map((price) => [price.productId, Number(price.price || 0)]));
+      const vehicleBase = new Map(routePriceData.routePrices.map((price) => [price.productId, Number(price.price || 0)]));
       setExistingPriceMap(Object.fromEntries(existing.entries()));
+      setVehicleBasePriceMap(Object.fromEntries(vehicleBase.entries()));
       setPriceMap(Object.fromEntries(products.map((product) => [product.id, String(existing.get(product.id) ?? Number(product.unitPrice || 0))])));
     } catch (error) {
       toast.error("Could not load customer prices", error instanceof Error ? error.message : "Please try again.");
@@ -148,6 +163,7 @@ export default function VehiclePricesPage() {
       setPriceModal(null);
       setPriceMap({});
       setExistingPriceMap({});
+      setVehicleBasePriceMap({});
     } catch (error) {
       toast.error("Price update failed", error instanceof Error ? error.message : "Could not save customer prices.");
     } finally {
@@ -269,7 +285,8 @@ export default function VehiclePricesPage() {
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold">{product.name}</h3>
                         <p className="mt-1 text-xs text-muted">{productCategory(product)}</p>
-                        <p className="mt-1 text-xs text-muted">Base {formatAmount(product.unitPrice)}</p>
+                        <p className="mt-1 text-xs text-muted">Bakery base {formatAmount(product.unitPrice)}</p>
+                        <p className="mt-1 text-xs text-muted">Vehicle base {vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</p>
                       </div>
                       {priceModal.mode === "view" ? (
                         <span className="shrink-0 text-sm font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
@@ -296,7 +313,8 @@ export default function VehiclePricesPage() {
                   <tr>
                     <th className="px-4 py-3">Product</th>
                     <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3 text-right">Base Price</th>
+                    <th className="px-4 py-3 text-right">Bakery Base Price</th>
+                    <th className="px-4 py-3 text-right">Vehicle Base Price</th>
                     <th className="px-4 py-3 text-right">Customer Price</th>
                   </tr>
                 </thead>
@@ -306,6 +324,7 @@ export default function VehiclePricesPage() {
                       <td className="px-4 py-3 font-semibold">{product.name}</td>
                       <td className="px-4 py-3 text-muted">{productCategory(product)}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(product.unitPrice)}</td>
+                      <td className="px-4 py-3 text-right">{vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</td>
                       <td className="px-4 py-3 text-right">
                         {priceModal.mode === "view" ? (
                           <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
@@ -323,7 +342,7 @@ export default function VehiclePricesPage() {
                   ))}
                   {!filteredProducts.length ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-muted" colSpan={4}>No products in this category.</td>
+                      <td className="px-4 py-8 text-center text-muted" colSpan={5}>No products in this category.</td>
                     </tr>
                   ) : null}
                 </tbody>
