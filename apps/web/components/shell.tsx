@@ -82,6 +82,12 @@ type VehicleRouteSummary = {
   driverPhone: string;
 };
 
+type AccountSummary = {
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+};
+
 export function AppShell({
   title,
   subtitle,
@@ -106,6 +112,7 @@ export function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [customerRoute, setCustomerRoute] = useState<CustomerRouteSummary | null>(null);
   const [vehicleRoute, setVehicleRoute] = useState<VehicleRouteSummary | null>(null);
+  const [accountSummary, setAccountSummary] = useState<AccountSummary | null>(null);
 
   const requiredActor =
     surface === "admin" ? "platform_admin" : surface === "customer" ? "customer" : surface === "vehicle" ? "vehicle" : "bakery_user";
@@ -180,9 +187,12 @@ export function AppShell({
       }
 
       try {
-        const data = await authFetch<{ session: { actorType: string } }>("/auth/me");
+        const data = await authFetch<{ session: { actorType: string }; user?: AccountSummary | null }>("/auth/me");
         if (data.session.actorType !== requiredActor) {
           throw new Error("Wrong actor type");
+        }
+        if (!cancelled && data.user) {
+          setAccountSummary(data.user);
         }
         markSessionVerified(token, requiredActor);
         if (!cancelled) setAuthState("allowed");
@@ -200,6 +210,30 @@ export function AppShell({
       cancelled = true;
     };
   }, [pathTenantSlug, pathname, requiredActor, router, surface]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAccountSummary() {
+      if (surface === "admin") {
+        setAccountSummary(null);
+        return;
+      }
+      try {
+        const data = await authFetch<{ session: { actorType: string }; user?: AccountSummary | null }>("/auth/me");
+        if (!cancelled) setAccountSummary(data.user || null);
+      } catch {
+        if (!cancelled) setAccountSummary(null);
+      }
+    }
+
+    if (authState === "allowed") {
+      void loadAccountSummary();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [authState, surface]);
 
   useEffect(() => {
     let cancelled = false;
@@ -409,18 +443,21 @@ export function AppShell({
 
   const sidebarFooter = surface === "customer" && customerRoute
     ? {
-        title: customerRoute.routeName,
+        title: accountSummary?.name || customerRoute.routeName,
         body: [
-          customerRoute.driverName,
-          customerRoute.driverPhone,
-          customerRoute.vehicleName,
-          customerRoute.vehicleNumber
+          accountSummary?.phone || accountSummary?.email || null,
+          customerRoute.routeName
         ].filter(Boolean).join(" · ")
       }
     : surface === "vehicle" && vehicleRoute
       ? {
-          title: vehicleRoute.routeName,
-          body: [vehicleRoute.driverName, vehicleRoute.driverPhone].filter(Boolean).join(" · ")
+          title: accountSummary?.name || vehicleRoute.driverName || vehicleRoute.routeName,
+          body: [accountSummary?.phone || accountSummary?.email || null, vehicleRoute.routeName].filter(Boolean).join(" · ")
+        }
+    : (surface === "bakery" && accountSummary) || (surface === "customer" && accountSummary) || (surface === "vehicle" && accountSummary)
+      ? {
+          title: accountSummary.name,
+          body: accountSummary.phone || accountSummary.email || "No phone"
         }
     : footerCopy;
 
@@ -472,7 +509,7 @@ export function AppShell({
           })}
         </nav>
 
-        {surface !== "bakery" ? (
+        {surface !== "admin" ? (
           <div className="mt-4 shrink-0 rounded-lg border border-white/10 bg-sidebar2 p-4">
             <p className="text-sm font-semibold">{sidebarFooter.title}</p>
             <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>
@@ -563,7 +600,7 @@ export function AppShell({
               })}
             </nav>
 
-            {surface !== "bakery" ? (
+            {surface !== "admin" ? (
               <div className="mt-auto rounded-lg border border-white/10 bg-sidebar2 p-4">
                 <p className="text-sm font-semibold">{sidebarFooter.title}</p>
                 <p className="mt-1 text-xs leading-5 text-slate-300">{sidebarFooter.body}</p>

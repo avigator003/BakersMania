@@ -141,8 +141,19 @@ export const authService = {
     throw new HttpError(403, "No active bakery membership, customer account, or vehicle account found");
   },
 
-  getSession(auth: NonNullable<Express.Request["auth"]>) {
-    return { session: auth };
+  async getSession(auth: NonNullable<Express.Request["auth"]>) {
+    const user = auth.actorType === "platform_admin" ? null : await authRepository.findUserSummary(auth.sub);
+    return {
+      session: auth,
+      user: user
+        ? {
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+            email: user.email
+          }
+        : null
+    };
   },
 
   async signupCustomer(input: CustomerSignupInput) {

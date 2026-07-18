@@ -20,6 +20,13 @@ export const authRepository = {
     return prisma.tenant.findUnique({ where: { slug } });
   },
 
+  findUserSummary(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, phone: true, email: true }
+    });
+  },
+
   findCustomerForUserTenant(userId: string, tenantId: string) {
     return prisma.customer.findFirst({
       where: { userId, tenantId }

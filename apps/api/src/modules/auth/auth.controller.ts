@@ -11,6 +11,6 @@ export const authController = {
   },
 
   async me(req: Request, res: Response) {
-    res.json(authService.getSession(req.auth!));
+    res.json(await authService.getSession(req.auth!));
   }
 };
