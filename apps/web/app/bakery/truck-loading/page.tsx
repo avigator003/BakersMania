@@ -125,9 +125,11 @@ export default function BakeryTruckLoadingPage() {
   function exportTruckLoading() {
     if (!truckLoading) return;
     const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
+    const productQuantitySummary = visibleProducts.length * totalQuantity;
     const columns: XlsxColumn[] = [
-      { width: 11 },
-      ...visibleProducts.map(() => ({ width: 4.215 }))
+      { width: 22 },
+      ...visibleProducts.map(() => ({ width: 8.43 })),
+      { width: 10 }
     ];
     const rows: XlsxRow[] = [
       {
@@ -137,8 +139,8 @@ export default function BakeryTruckLoadingPage() {
           { value: truckLoading.date, style: "metaValue" },
           { value: "Route Name", style: "metaLabel" },
           { value: selectedRoutes, style: "metaValue" },
-          { value: "No of Products", style: "metaLabel" },
-          { value: totalQuantity, style: "metaValue" }
+          { value: "No of Products * Quantity", style: "metaLabel" },
+          { value: productQuantitySummary, style: "metaValue" }
         ]
       },
       { height: 12, cells: [] },
@@ -146,21 +148,27 @@ export default function BakeryTruckLoadingPage() {
         height: 48,
         cells: [
           { value: "Route Name", style: "header" },
-          ...visibleProducts.map((product) => ({ value: shortProductName(product.name), style: "header" as const }))
+          ...visibleProducts.map((product) => ({ value: shortProductName(product.name), style: "header" as const })),
+          { value: "Total", style: "header" }
         ]
       },
-      ...visibleRoutes.map((route) => ({
-        height: 48,
-        cells: [
-          { value: route.name, style: "name" as const },
-          ...visibleProducts.map((product) => ({ value: route.quantities[product.id] || null }))
-        ]
-      })),
+      ...visibleRoutes.map((route) => {
+        const total = routeTotal(route);
+        return {
+          height: 48,
+          cells: [
+            { value: route.name, style: "name" as const },
+            ...visibleProducts.map((product) => ({ value: route.quantities[product.id] || null })),
+            { value: total || null }
+          ]
+        };
+      }),
       {
         height: 48,
         cells: [
           { value: "Product Total", style: "summary" },
-          ...visibleProducts.map((product) => ({ value: productTotals[product.id] || null, style: "summary" as const }))
+          ...visibleProducts.map((product) => ({ value: productTotals[product.id] || null, style: "summary" as const })),
+          { value: totalQuantity || null, style: "summary" }
         ]
       }
     ];
@@ -182,7 +190,7 @@ export default function BakeryTruckLoadingPage() {
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
             <SearchableSelect className="min-w-52" multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
             <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setDate} value={date} />
-            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={loading || !truckLoading} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
+            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!visibleRoutes.length || !visibleProducts.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh loading" type="button"><RefreshCw size={16} /></button>
           </div>
         </div>

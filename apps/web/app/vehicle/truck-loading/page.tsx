@@ -147,13 +147,15 @@ export default function VehicleTruckLoadingPage() {
   function exportTruckLoading() {
     if (!truckLoading) return;
     const routeNames = Array.from(new Set(visibleRoutes.map((route) => route.routeName).filter(Boolean))).join(", ") || "Assigned Routes";
+    const productQuantitySummary = visibleProducts.length * totalQuantity;
     const columns: XlsxColumn[] = [
-      { width: 11 },
-      ...visibleProducts.map(() => ({ width: 4.215 })),
-      { width: 7 },
-      { width: 8 },
-      { width: 7 },
-      { width: 8 }
+      { width: 22 },
+      ...visibleProducts.map(() => ({ width: 8.43 })),
+      { width: 10 },
+      { width: 14 },
+      { width: 16 },
+      { width: 14 },
+      { width: 16 }
     ];
     const rows: XlsxRow[] = [
       {
@@ -163,8 +165,8 @@ export default function VehicleTruckLoadingPage() {
           { value: truckLoading.date, style: "metaValue" },
           { value: "Route Name", style: "metaLabel" },
           { value: routeNames, style: "metaValue" },
-          { value: "No of Products", style: "metaLabel" },
-          { value: totalQuantity, style: "metaValue" }
+          { value: "No of Products * Quantity", style: "metaLabel" },
+          { value: productQuantitySummary, style: "metaValue" }
         ]
       },
       { height: 12, cells: [] },
@@ -173,6 +175,7 @@ export default function VehicleTruckLoadingPage() {
         cells: [
           { value: "Customer Name", style: "header" },
           ...visibleProducts.map((product) => ({ value: shortProductName(product.name), style: "header" as const })),
+          { value: "Total Qty", style: "header" },
           { value: "Order Amount", style: "header" },
           { value: "Previous Due Amount", style: "header" },
           { value: "Paid Amount", style: "header" },
@@ -180,11 +183,13 @@ export default function VehicleTruckLoadingPage() {
         ]
       },
       ...visibleRoutes.map((route) => {
+        const total = routeTotal(route);
         return {
           height: 48,
           cells: [
             { value: route.name, style: "name" as const },
             ...visibleProducts.map((product) => ({ value: route.quantities[product.id] || null })),
+            { value: total || null },
             { value: route.orderAmount || null, style: "amount" as const },
             { value: route.previousDue || null, style: "amount" as const },
             { value: route.paidAmount || null, style: "amount" as const },
@@ -197,6 +202,7 @@ export default function VehicleTruckLoadingPage() {
         cells: [
           { value: "Product Total", style: "summary" },
           ...visibleProducts.map((product) => ({ value: productTotals[product.id] || null, style: "summary" as const })),
+          { value: totalQuantity || null, style: "summary" },
           { value: amountTotals.orderAmount || null, style: "summary" },
           { value: amountTotals.previousDue || null, style: "summary" },
           { value: amountTotals.paidAmount || null, style: "summary" },
@@ -225,7 +231,7 @@ export default function VehicleTruckLoadingPage() {
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
             <SearchableSelect className="min-w-52" multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
             <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setDate} value={date} />
-            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={loading || !truckLoading} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
+            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!visibleRoutes.length || !visibleProducts.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
         </div>
