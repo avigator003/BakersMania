@@ -143,12 +143,12 @@ async function pipelineStagesForTenant(tenantId: string) {
 }
 
 export const ordersService = {
-  cleanupExpiredPendingOrders() {
-    return ordersRepository.cleanupExpiredPendingOrders();
+  cleanupExpiredPendingOrders(tenantId?: string) {
+    return ordersRepository.cleanupExpiredPendingOrders(undefined, tenantId);
   },
 
   async listOrders(tenantId: string, auth: AccessTokenPayload | undefined, filters: OrderFilters = {}) {
-    await ordersRepository.cleanupExpiredPendingOrders();
+    await ordersRepository.cleanupExpiredPendingOrders(undefined, tenantId);
 
     if (auth?.actorType === "customer") {
       return ordersRepository.listForCustomer(tenantId, auth.customerId!, filters);

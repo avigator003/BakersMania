@@ -152,10 +152,11 @@ export const ordersRepository = {
     });
   },
 
-  async cleanupExpiredPendingOrders(cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)) {
+  async cleanupExpiredPendingOrders(cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000), tenantId?: string) {
     return prisma.$transaction(async (tx) => {
       const expiredOrders = await tx.order.findMany({
         where: {
+          ...(tenantId ? { tenantId } : {}),
           status: "PENDING",
           OR: [
             { dueAt: { lt: cutoff } },
@@ -177,6 +178,7 @@ export const ordersRepository = {
           ]
         }
       });
+      await tx.orderStageHistory.deleteMany({ where: { orderId: { in: orderIds } } });
       await tx.invoice.deleteMany({ where: { orderId: { in: orderIds } } });
       await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
       await tx.order.deleteMany({ where: { id: { in: orderIds } } });
