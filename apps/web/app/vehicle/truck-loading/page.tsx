@@ -52,6 +52,11 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
+function formatExcelDate(value: string) {
+  const [year, month, day] = value.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
 function compactProductName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 6);
 }
@@ -172,6 +177,7 @@ export default function VehicleTruckLoadingPage() {
     if (!truckLoading) return;
     const exportProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
     const routeNames = Array.from(new Set(visibleRoutes.map((route) => route.routeName).filter(Boolean))).join(", ") || "Assigned Routes";
+    const selectedCategories = categoryFilter.length ? categoryFilter.join(", ") : "All categories";
     const exportProductTotals = Object.fromEntries(exportProducts.map((product) => [
       product.id,
       visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0)
@@ -191,14 +197,13 @@ export default function VehicleTruckLoadingPage() {
       {
         height: 18,
         cells: [
-          { value: "Date", style: "metaLabel" },
-          { value: truckLoading.date, style: "metaValue", colSpan: 2 },
-          { value: "Route", style: "metaLabel" },
-          { value: routeNames, style: "metaValue", colSpan: 3 },
-          { value: "Products", style: "metaLabel" },
-          { value: exportProducts.length, style: "metaValue" },
-          { value: "Qty", style: "metaLabel" },
-          { value: exportTotalQuantity, style: "metaValue" }
+          { value: `Date: ${formatExcelDate(truckLoading.date)}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
+        ]
+      },
+      {
+        height: 18,
+        cells: [
+          { value: `Category: ${selectedCategories} | Route: ${routeNames} | Products: ${exportProducts.length} | Qty: ${formatQty(exportTotalQuantity) || "0"}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
         ]
       },
       { height: 12, cells: [] },

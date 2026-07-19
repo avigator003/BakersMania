@@ -13,7 +13,7 @@ import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 import { fetchAllProducts } from "../../../lib/catalog";
 
 type Route = { id: string; name: string };
-type Customer = { id: string; name: string; phone?: string | null; route?: Route | null };
+type Customer = { id: string; name: string; phone?: string | null; route?: Route | null; tags?: string[] };
 type Category = { id: string; name: string };
 type Product = { id: string; name: string; category: string; unitPrice: string; categoryRef?: Category | null };
 type OrderItem = { id: string; productId: string; name: string; quantity: string | number; unitPrice: string | number; lineTotal: string | number };
@@ -292,6 +292,14 @@ export default function BakeryOrdersPage() {
     return order.route?.name || order.customer.route?.name || "No route";
   }
 
+  function orderDisplayName(order: Order) {
+    return getOrderRouteName(order);
+  }
+
+  function orderDisplaySubtitle(order: Order) {
+    return "";
+  }
+
   async function loadData() {
     if (!apiBase) {
       toast.error("Bakery slug missing", "Please sign in again.");
@@ -550,7 +558,7 @@ export default function BakeryOrdersPage() {
           reference: paymentForm.reference || undefined
         })
       });
-      toast.success("Payment saved", `${paymentOrder.customer.name} payment was updated.`);
+      toast.success("Payment saved", `${orderDisplayName(paymentOrder)} payment was updated.`);
       setPaymentOrder(null);
       setPaymentForm({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
       await loadData();
@@ -613,8 +621,8 @@ export default function BakeryOrdersPage() {
       <div class="muted">Order ${escapeHtml(order.id)}</div>
     </div>
     <div>
-      <div class="strong">${escapeHtml(order.customer.name)}</div>
-      <div class="muted">${escapeHtml(getOrderRouteName(order))}</div>
+      <div class="strong">${escapeHtml(orderDisplayName(order))}</div>
+      ${orderDisplaySubtitle(order) ? `<div class="muted">${escapeHtml(orderDisplaySubtitle(order))}</div>` : ""}
       <div class="muted">Order date: ${escapeHtml(formatDate(order.dueAt || order.createdAt))}</div>
     </div>
   </div>
@@ -767,8 +775,8 @@ export default function BakeryOrdersPage() {
                     <article key={order.id} className="rounded-lg border border-line bg-panel2 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h3 className="truncate font-semibold">{order.customer.name}</h3>
-                          <p className="truncate text-xs text-muted">{getOrderRouteName(order)} · {formatDate(order.dueAt || order.createdAt)}</p>
+                          <h3 className="truncate font-semibold">{orderDisplayName(order)}</h3>
+                          <p className="truncate text-xs text-muted">{[orderDisplaySubtitle(order), formatDate(order.dueAt || order.createdAt)].filter(Boolean).join(" · ")}</p>
                         </div>
                         <span className="shrink-0 rounded-md bg-panel px-2 py-1 text-xs font-semibold">{order.items.length} items</span>
                       </div>
@@ -833,7 +841,7 @@ export default function BakeryOrdersPage() {
                 <table className="min-w-[1180px] text-left text-xs">
                   <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                     <tr>
-                      <th className="px-3 py-2">Customer (Route)</th>
+                      <th className="px-3 py-2">Route</th>
                       <th className="px-3 py-2 text-right">Products</th>
                       <th className="px-3 py-2 text-right">Prev Due</th>
                       <th className="px-3 py-2 text-right">Order</th>
@@ -866,8 +874,8 @@ export default function BakeryOrdersPage() {
                               </button>
                             </div>
                             <div>
-                              <span className="block font-semibold">{order.customer.name}</span>
-                              <span className="text-xs text-muted">{getOrderRouteName(order)}</span>
+                              <span className="block font-semibold">{orderDisplayName(order)}</span>
+                              {orderDisplaySubtitle(order) ? <span className="text-xs text-muted">{orderDisplaySubtitle(order)}</span> : null}
                             </div>
                           </div>
                         </td>
@@ -969,9 +977,9 @@ export default function BakeryOrdersPage() {
           <div className="grid gap-4">
             <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs uppercase text-muted">Customer (Route)</p>
-                <p className="mt-1 font-semibold">{viewOrder.customer.name}</p>
-                <p className="text-sm text-muted">{getOrderRouteName(viewOrder)}</p>
+                <p className="text-xs uppercase text-muted">Route</p>
+                <p className="mt-1 font-semibold">{orderDisplayName(viewOrder)}</p>
+                {orderDisplaySubtitle(viewOrder) ? <p className="text-sm text-muted">{orderDisplaySubtitle(viewOrder)}</p> : null}
               </div>
               <div>
                 <p className="text-xs uppercase text-muted">Order date</p>

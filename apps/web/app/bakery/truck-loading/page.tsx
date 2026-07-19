@@ -37,6 +37,11 @@ function formatQty(value?: string | number | null) {
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
 }
 
+function formatExcelDate(value: string) {
+  const [year, month, day] = value.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
 function compactProductName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 6);
 }
@@ -150,6 +155,7 @@ export default function BakeryTruckLoadingPage() {
     if (!truckLoading) return;
     const exportProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
     const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
+    const selectedCategories = categoryFilter.length ? categoryFilter.join(", ") : "All categories";
     const exportProductTotals = Object.fromEntries(exportProducts.map((product) => [
       product.id,
       visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0)
@@ -165,14 +171,13 @@ export default function BakeryTruckLoadingPage() {
       {
         height: 18,
         cells: [
-          { value: "Date", style: "metaLabel" },
-          { value: truckLoading.date, style: "metaValue", colSpan: 2 },
-          { value: "Route", style: "metaLabel" },
-          { value: selectedRoutes, style: "metaValue", colSpan: 3 },
-          { value: "Products", style: "metaLabel" },
-          { value: exportProducts.length, style: "metaValue" },
-          { value: "Qty", style: "metaLabel" },
-          { value: exportTotalQuantity, style: "metaValue" }
+          { value: `Date: ${formatExcelDate(truckLoading.date)}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
+        ]
+      },
+      {
+        height: 18,
+        cells: [
+          { value: `Category: ${selectedCategories} | Route: ${selectedRoutes} | Products: ${exportProducts.length} | Qty: ${formatQty(exportTotalQuantity) || "0"}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
         ]
       },
       { height: 12, cells: [] },
