@@ -57,7 +57,7 @@ export function PaymentHistory({ payments = [], total, compact = false, iconOnly
           aria-label={iconOnly ? buttonLabel : undefined}
           className={
             iconOnly
-              ? "focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2 text-ink hover:border-mint"
+              ? `focus-ring grid ${compact ? "h-8 w-full" : "h-10 w-10"} place-items-center rounded-md border border-line bg-panel2 text-ink hover:border-mint`
               : "focus-ring inline-flex items-center justify-center rounded-md border border-line bg-panel2 px-3 py-1.5 text-xs font-semibold hover:border-mint"
           }
           onClick={() => setOpen(true)}

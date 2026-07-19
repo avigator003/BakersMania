@@ -6,7 +6,6 @@ import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
-import { PaginationControls } from "../../../components/pagination";
 import { PaymentHistory, paymentDue, paymentTotal, resolvedPaymentStatus } from "../../../components/payment-history";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
@@ -253,6 +252,12 @@ export default function BakeryOrdersPage() {
     label: route.name
   })), [routes]);
 
+  const productOptions = useMemo(() => products.map((product) => ({
+    value: product.id,
+    label: product.name,
+    description: [product.categoryRef?.name || product.category, formatAmount(product.unitPrice)].filter(Boolean).join(" · ")
+  })), [products]);
+
   const orderStatusOptions = useMemo(() => [
     { value: "accepted", label: "Accepted", description: `${orderStatusCounts.accepted} order${orderStatusCounts.accepted === 1 ? "" : "s"}` },
     { value: "pending", label: "Pending", description: `${orderStatusCounts.pending} order${orderStatusCounts.pending === 1 ? "" : "s"}` }
@@ -388,7 +393,7 @@ export default function BakeryOrdersPage() {
   }
 
   function addFormItem(setter: typeof setForm) {
-    setter((current) => ({ ...current, items: [...current.items, { id: `row-${Date.now()}`, productId: "", quantity: "" }] }));
+    setter((current) => ({ ...current, items: [{ id: `row-${Date.now()}`, productId: "", quantity: "" }, ...current.items] }));
   }
 
   function removeFormItem(setter: typeof setForm, rowId: string) {
@@ -699,27 +704,27 @@ export default function BakeryOrdersPage() {
 
   return (
     <AppShell title="Bakery CRM" subtitle="Orders, product quantities, and truck loading" surface="bakery">
-      <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-2">
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
-              <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-col gap-2 border-b border-line p-2 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-muted">
                   <span>Accepted: <span className="text-mint">{orderStatusCounts.accepted}</span></span>
                   <span>Pending: <span className="text-saffron">{orderStatusCounts.pending}</span></span>
                 </div>
                 <div className="grid gap-2 sm:flex sm:flex-wrap">
-                  <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => setRepeatOpen(true)} type="button"><Copy size={16} /> Repeat Orders</button>
-                  <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={exportRouteStatement} type="button"><Download size={16} /> Route Statement</button>
-                  <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" onClick={() => setOrderOpen(true)} type="button"><Plus size={16} /> Create Order</button>
-                  <button className="focus-ring grid h-10 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-10" onClick={loadData} title="Refresh orders" type="button"><RefreshCw size={16} /></button>
+                  <button className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" onClick={() => setRepeatOpen(true)} type="button"><Copy size={15} /> Repeat Orders</button>
+                  <button className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" onClick={exportRouteStatement} type="button"><Download size={15} /> Route Statement</button>
+                  <button className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md bg-mint px-3 text-sm font-semibold text-white" onClick={() => setOrderOpen(true)} type="button"><Plus size={15} /> Create Order</button>
+                  <button className="focus-ring grid h-9 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-9" onClick={loadData} title="Refresh orders" type="button"><RefreshCw size={15} /></button>
                 </div>
               </div>
-              <div className="grid gap-3 border-b border-line p-3 lg:grid-cols-[1.3fr_170px_170px_1fr_1fr_220px]">
-                <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
+              <div className="grid gap-2 border-b border-line p-2 lg:grid-cols-[1.3fr_150px_150px_1fr_1fr_190px]">
+                <label className="flex min-h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-1.5">
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, route, status" value={search} />
                 </label>
-                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setStartDate} value={startDate} />
-                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setEndDate} value={endDate} />
+                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-1.5 text-sm font-semibold outline-none focus:border-mint" onChange={setStartDate} value={startDate} />
+                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-1.5 text-sm font-semibold outline-none focus:border-mint" onChange={setEndDate} value={endDate} />
                 <SearchableSelect multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
                 <SearchableSelect multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
                 <SearchableSelect
@@ -731,22 +736,28 @@ export default function BakeryOrdersPage() {
                 />
               </div>
               {loading ? <LoadingSpinner label="Loading orders" /> : null}
-              <PaginationControls
-                page={page}
-                pageCount={ordersPageCount}
-                pageSize={pageSize}
-                setPage={setPage}
-                setPageSize={setPageSize}
-                summary={[
-                  { label: "Orders", value: orderTotals.orders },
-                  { label: "Quantity", value: formatQty(orderTotals.quantity) || "0" },
-                  { label: "Order Amount", value: formatAmount(orderTotals.amount) },
-                  { label: "Previous Due Amount", value: formatAmount(orderTotals.previousDue) },
-                  { label: "Paid Amount", value: formatAmount(orderTotals.paid) },
-                  { label: "Today's Due Amount", value: formatAmount(orderTotals.todaysDue) }
-                ]}
-                total={ordersTotal}
-              />
+              <div className="sticky top-14 z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line bg-panel/95 px-3 py-1.5 text-xs text-muted backdrop-blur">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>Showing <span className="font-semibold text-ink">{ordersTotal ? (page - 1) * pageSize + 1 : 0}-{Math.min(ordersTotal, page * pageSize)}</span> of <span className="font-semibold text-ink">{ordersTotal}</span></span>
+                  <span>Orders: <span className="font-semibold text-ink">{orderTotals.orders}</span></span>
+                  <span>Qty: <span className="font-semibold text-ink">{formatQty(orderTotals.quantity) || "0"}</span></span>
+                  <span>Order: <span className="font-semibold text-ink">{formatAmount(orderTotals.amount)}</span></span>
+                  <span>Prev Due: <span className="font-semibold text-ink">{formatAmount(orderTotals.previousDue)}</span></span>
+                  <span>Paid: <span className="font-semibold text-ink">{formatAmount(orderTotals.paid)}</span></span>
+                  <span>Today Due: <span className="font-semibold text-ink">{formatAmount(orderTotals.todaysDue)}</span></span>
+                  <label className="inline-flex items-center gap-1">
+                    Rows
+                    <select className="focus-ring rounded-md border border-line bg-panel2 px-2 py-0.5 text-ink" onChange={(event) => setPageSize(Number(event.target.value))} value={pageSize}>
+                      {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button className="focus-ring rounded-md border border-line bg-panel2 px-2 py-1 font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50" disabled={page <= 1} onClick={() => setPage(page - 1)} type="button">Prev</button>
+                  <span className="min-w-14 text-center">Page <span className="font-semibold text-ink">{page}</span>/{ordersPageCount}</span>
+                  <button className="focus-ring rounded-md border border-line bg-panel2 px-2 py-1 font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50" disabled={page >= ordersPageCount} onClick={() => setPage(page + 1)} type="button">Next</button>
+                </div>
+              </div>
               <div className="grid gap-3 p-3 sm:hidden">
                 {orders.map((order) => {
                   const paid = orderPaid(order);
@@ -818,20 +829,20 @@ export default function BakeryOrdersPage() {
                 {!loading && !orders.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No orders found.</p> : null}
               </div>
 
-              <div className="hidden max-h-[680px] w-full max-w-full overflow-auto sm:block">
-                <table className="min-w-[1260px] text-left text-sm">
+              <div className="hidden max-h-[calc(100dvh-255px)] w-full max-w-full overflow-auto sm:block">
+                <table className="min-w-[1180px] text-left text-xs">
                   <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                     <tr>
-                      <th className="px-4 py-3">Customer (Route)</th>
-                      <th className="px-4 py-3 text-right">Products No.</th>
-                      <th className="px-4 py-3 text-right">Previous Due Amount</th>
-                      <th className="px-4 py-3 text-right">Order Amount</th>
-                      <th className="px-4 py-3 text-right">Total Amount</th>
-                      <th className="px-4 py-3 text-right">Paid Amount</th>
-                      <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
-                      <th className="px-4 py-3">Order Date</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Payment Status</th>
+                      <th className="px-3 py-2">Customer (Route)</th>
+                      <th className="px-3 py-2 text-right">Products</th>
+                      <th className="px-3 py-2 text-right">Prev Due</th>
+                      <th className="px-3 py-2 text-right">Order</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 text-right">Paid</th>
+                      <th className="px-3 py-2 text-right">Today Due</th>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Payment</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -841,17 +852,17 @@ export default function BakeryOrdersPage() {
                       const fullAmount = totalAmount(previousDue, order.grandTotal);
                       return (
                       <tr className="align-top" key={order.id}>
-                        <td className="px-4 py-3">
-                          <div className="flex min-w-64 items-start gap-3">
+                        <td className="px-3 py-2">
+                          <div className="flex min-w-56 items-start gap-2">
                             <div className="flex gap-1.5 pt-0.5">
-                              <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2" onClick={() => setViewOrder(order)} title="View order details" type="button">
-                                <Eye size={15} />
+                              <button className="focus-ring grid h-7 w-7 place-items-center rounded-md border border-line bg-panel2" onClick={() => setViewOrder(order)} title="View order details" type="button">
+                                <Eye size={14} />
                               </button>
-                              <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={order.status !== "PENDING"} onClick={() => openEditOrder(order)} title="Edit order" type="button">
-                                <Pencil size={15} />
+                              <button className="focus-ring grid h-7 w-7 place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={order.status !== "PENDING"} onClick={() => openEditOrder(order)} title="Edit order" type="button">
+                                <Pencil size={14} />
                               </button>
-                              <button className="focus-ring grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderInvoice(order)} title="Export invoice" type="button">
-                                <FileDown size={15} />
+                              <button className="focus-ring grid h-7 w-7 place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderInvoice(order)} title="Export invoice" type="button">
+                                <FileDown size={14} />
                               </button>
                             </div>
                             <div>
@@ -860,16 +871,16 @@ export default function BakeryOrdersPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right">{order.items.length}</td>
-                        <td className="px-4 py-3 text-right font-semibold">{previousDue ? formatAmount(previousDue) : "-"}</td>
-                        <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
-                        <td className="px-4 py-3 text-right font-semibold">{formatAmount(fullAmount)}</td>
-                        <td className="px-4 py-3 text-right">{formatAmount(paid)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, order.grandTotal, paid))}</td>
-                        <td className="px-4 py-3">{formatDate(order.dueAt || order.createdAt)}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2 text-right">{order.items.length}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{previousDue ? formatAmount(previousDue) : "-"}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{formatAmount(fullAmount)}</td>
+                        <td className="px-3 py-2 text-right">{formatAmount(paid)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, order.grandTotal, paid))}</td>
+                        <td className="px-3 py-2">{formatDate(order.dueAt || order.createdAt)}</td>
+                        <td className="px-3 py-2">
                           <select
-                            className={`focus-ring rounded-md border px-2 py-1 text-xs font-semibold outline-none ${orderStatusClass(order.status)}`}
+                            className={`focus-ring rounded-md border px-2 py-0.5 text-xs font-semibold outline-none ${orderStatusClass(order.status)}`}
                             disabled={saving}
                             onChange={(event) => updateOrderStatus(order, { status: event.target.value })}
                             value={selectableOrderStatus(order.status)}
@@ -877,11 +888,11 @@ export default function BakeryOrdersPage() {
                             {orderStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                           </select>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="grid gap-2">
-                            <span className={`rounded-md border px-2 py-1 text-center text-xs font-semibold ${paymentStatusClass(paymentStatus(order))}`}>{paymentStatus(order)}</span>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button aria-label={order.payments?.length ? "Edit payment" : "Record payment"} className="focus-ring grid h-10 place-items-center rounded-md bg-mint text-white disabled:opacity-50" disabled={saving || (todayDueForOrder(order) <= 0 && !order.payments?.length)} onClick={() => openPaymentEditor(order)} title={order.payments?.length ? "Edit payment" : "Record payment"} type="button"><IndianRupee size={15} /></button>
+                        <td className="px-3 py-2">
+                          <div className="grid gap-1.5">
+                            <span className={`rounded-md border px-2 py-0.5 text-center text-xs font-semibold ${paymentStatusClass(paymentStatus(order))}`}>{paymentStatus(order)}</span>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button aria-label={order.payments?.length ? "Edit payment" : "Record payment"} className="focus-ring grid h-8 place-items-center rounded-md bg-mint text-white disabled:opacity-50" disabled={saving || (todayDueForOrder(order) <= 0 && !order.payments?.length)} onClick={() => openPaymentEditor(order)} title={order.payments?.length ? "Edit payment" : "Record payment"} type="button"><IndianRupee size={14} /></button>
                               <PaymentHistory compact iconOnly payments={order.payments} total={order.grandTotal} />
                             </div>
                           </div>
@@ -932,7 +943,14 @@ export default function BakeryOrdersPage() {
             </div>
             {form.items.map((item) => (
               <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[1fr_120px_40px]" key={item.id}>
-                <select className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => updateFormItem(setForm, item.id, { productId: event.target.value })} required value={item.productId}><option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatAmount(product.unitPrice)}</option>)}</select>
+                <SearchableSelect
+                  onChange={(value) => updateFormItem(setForm, item.id, { productId: value })}
+                  options={productOptions}
+                  placeholder="Select product"
+                  required
+                  searchPlaceholder="Search products"
+                  value={item.productId}
+                />
                 <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" min="0.001" onChange={(event) => updateFormItem(setForm, item.id, { quantity: event.target.value })} placeholder="Qty" required step="0.001" type="number" value={item.quantity} />
                 <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" disabled={form.items.length === 1} onClick={() => removeFormItem(setForm, item.id)} title="Remove product" type="button"><Trash2 size={16} /></button>
               </div>
@@ -1029,14 +1047,8 @@ export default function BakeryOrdersPage() {
         ) : null}
       </Modal>
 
-      <Modal open={Boolean(editOrder)} title="Edit order" description="Change customer, date, source, and product quantities." onClose={() => setEditOrder(null)}>
+      <Modal open={Boolean(editOrder)} title="Edit order" description="Change product quantities for this order." onClose={() => setEditOrder(null)}>
         <form className="grid gap-4" onSubmit={updateOrder}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SearchableSelect label="Customer" onChange={(value) => setEditForm((current) => ({ ...current, customerId: value }))} options={customerOptions} placeholder="Select customer" required searchPlaceholder="Search customers" value={editForm.customerId} />
-            <label className="grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setEditForm((current) => ({ ...current, dueAt: value }))} value={editForm.dueAt} /></label>
-            <label className="grid gap-1 text-sm font-semibold">Source<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, source: event.target.value }))} value={editForm.source}><option value="STAFF_CREATED">Staff created</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="WALK_IN">Walk-in</option></select></label>
-            <label className="grid gap-1 text-sm font-semibold">Fulfillment<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, fulfillmentType: event.target.value }))} value={editForm.fulfillmentType}><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select></label>
-          </div>
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Products</p>
@@ -1044,7 +1056,14 @@ export default function BakeryOrdersPage() {
             </div>
             {editForm.items.map((item) => (
               <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[1fr_120px_40px]" key={item.id}>
-                <select className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => updateFormItem(setEditForm, item.id, { productId: event.target.value })} required value={item.productId}><option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatAmount(product.unitPrice)}</option>)}</select>
+                <SearchableSelect
+                  onChange={(value) => updateFormItem(setEditForm, item.id, { productId: value })}
+                  options={productOptions}
+                  placeholder="Select product"
+                  required
+                  searchPlaceholder="Search products"
+                  value={item.productId}
+                />
                 <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" min="0.001" onChange={(event) => updateFormItem(setEditForm, item.id, { quantity: event.target.value })} placeholder="Qty" required step="0.001" type="number" value={item.quantity} />
                 <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" disabled={editForm.items.length === 1} onClick={() => removeFormItem(setEditForm, item.id)} title="Remove product" type="button"><Trash2 size={16} /></button>
               </div>
