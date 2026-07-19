@@ -85,16 +85,21 @@ export default function VehicleBakeryOrderPage() {
     [products]
   );
 
-  const productOptions = useMemo(
-    () => sortedProducts.map((product) => ({ value: product.id, label: product.name, description: productCategory(product) })),
-    [sortedProducts]
+  const productsWithTotals = useMemo(
+    () => sortedProducts.filter((product) => Number(totals[product.id] || 0) > 0),
+    [sortedProducts, totals]
   );
 
-  const visibleProducts = useMemo(() => sortedProducts.filter((product) => {
+  const productOptions = useMemo(
+    () => productsWithTotals.map((product) => ({ value: product.id, label: product.name, description: productCategory(product) })),
+    [productsWithTotals]
+  );
+
+  const visibleProducts = useMemo(() => productsWithTotals.filter((product) => {
     if (categoryFilter && product.categoryId !== categoryFilter && product.categoryRef?.id !== categoryFilter) return false;
     if (productFilter && product.id !== productFilter) return false;
     return true;
-  }), [categoryFilter, productFilter, sortedProducts]);
+  }), [categoryFilter, productFilter, productsWithTotals]);
 
   const orderItems = useMemo(() => sortedProducts
     .map((product) => ({ productId: product.id, quantity: Number(quantities[product.id] || 0) }))
@@ -392,7 +397,16 @@ export default function VehicleBakeryOrderPage() {
                 <tr key={item.productId}>
                   <td className="px-4 py-3 font-semibold">{item.name}</td>
                   <td className="px-4 py-3 text-muted">{item.category}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatQty(item.quantity)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <input
+                      className="ml-auto w-28 rounded-md border border-line bg-panel2 px-3 py-2 text-right font-semibold outline-none focus:border-mint"
+                      min="0"
+                      onChange={(event) => updateQuantity(item.productId, event.target.value)}
+                      step="0.001"
+                      type="number"
+                      value={quantities[item.productId] ?? String(item.quantity)}
+                    />
+                  </td>
                 </tr>
               ))}
               {!orderRows.length ? (
