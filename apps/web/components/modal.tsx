@@ -19,7 +19,7 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-950/45 px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:items-center sm:px-6 sm:py-6">
-      <section className="flex h-[80dvh] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-lg border border-line bg-panel shadow-subtle sm:max-h-[calc(100dvh-3rem)] sm:max-w-[min(92vw,1200px)]">
+      <section className="flex h-[95dvh] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-lg border border-line bg-panel shadow-subtle sm:max-h-[95dvh] sm:max-w-[min(92vw,1200px)]">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line p-3 sm:gap-4 sm:p-4">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold">{title}</h2>

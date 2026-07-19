@@ -309,6 +309,22 @@ export const ordersRepository = {
     });
   },
 
+  listVehicleBakeryOrdersBeforeDate(tenantId: string, vehicleId: string, date: string) {
+    const vehicleTag = `${vehicleBakeryOrderTag}:${vehicleId}`;
+    const start = new Date(`${date}T00:00:00.000Z`);
+    return prisma.order.findMany({
+      where: {
+        tenantId,
+        customer: { tags: { has: vehicleTag } },
+        OR: [
+          { dueAt: { lt: start } },
+          { dueAt: null, createdAt: { lt: start } }
+        ]
+      },
+      include: { payments: true }
+    });
+  },
+
   findCustomer(tenantId: string, customerId: string) {
     return prisma.customer.findFirst({ where: { tenantId, id: customerId }, include: { route: true } });
   },

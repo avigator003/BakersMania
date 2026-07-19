@@ -368,7 +368,8 @@ export function AppShell({
       ? [
         { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList },
         { href: `${routeBase}/vehicle/place-order`, label: "Place Order for Customer", icon: ShoppingCart },
-        { href: `${routeBase}/vehicle/bakery-order`, label: "Create Order to Bakery", icon: ShoppingBag },
+        { href: `${routeBase}/vehicle/bakery-order`, label: "Place Order to Bakery", icon: ShoppingBag },
+        { href: `${routeBase}/vehicle/bakery-orders`, label: "Bakery Orders", icon: ClipboardList },
         { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck },
         { href: `${routeBase}/vehicle/route-invoices`, label: "Route Invoices", icon: CreditCard },
         { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee },
@@ -417,6 +418,8 @@ export function AppShell({
       expenses: "Expenses",
       sellers: "Sellers",
       routes: "Routes",
+      "bakery-order": "Place Order to Bakery",
+      "bakery-orders": "Bakery Orders",
       passwords: "Passwords",
       password: "Password",
       profile: "Profile"

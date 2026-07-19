@@ -17,6 +17,8 @@ type OrderFilters = {
   pageSize?: number;
 };
 
+const vehicleBakeryOrderTag = "VEHICLE_BAKERY_ORDER";
+
 async function vehicleRouteIds(tenantId: string, auth: AccessTokenPayload | undefined) {
   if (auth?.actorType !== "vehicle" || !auth.vehicleId) return null;
   const vehicle = await ordersRepository.findVehicleRoutes(tenantId, auth.vehicleId);
@@ -201,6 +203,9 @@ export const ordersService = {
       throw new HttpError(403, "This order is not assigned to this vehicle");
     }
     await assertRouteNotLockedForVehicle(tenantId, auth, existing);
+    if (auth?.actorType === "vehicle" && existing.customer.tags.includes(vehicleBakeryOrderTag) && existing.status !== "PENDING") {
+      throw new HttpError(422, "Only pending bakery orders can be edited");
+    }
     if (auth?.actorType !== "vehicle" && existing.status !== "PENDING") {
       throw new HttpError(422, "Only pending orders can be edited");
     }
@@ -417,7 +422,25 @@ export const ordersService = {
     if (!vehicle) {
       throw new HttpError(403, "Vehicle workspace access required");
     }
-    return ordersRepository.listVehicleBakeryOrders(tenantId, auth.vehicleId, filters);
+    const [orders, previousOrders] = await Promise.all([
+      ordersRepository.listVehicleBakeryOrders(tenantId, auth.vehicleId, filters),
+      filters.date ? ordersRepository.listVehicleBakeryOrdersBeforeDate(tenantId, auth.vehicleId, filters.date) : Promise.resolve([])
+    ]);
+    const previousDueAmount = previousOrders.reduce((sum, order) => {
+      const paid = order.payments.reduce((paymentSum, payment) => paymentSum + Number(payment.amount || 0), 0);
+      return sum + Math.max(Number(order.grandTotal || 0) - paid, 0);
+    }, 0);
+    return orders.map((order) => {
+      const orderAmount = Number(order.grandTotal || 0);
+      const paidAmount = order.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      return {
+        ...order,
+        previousDueAmount,
+        orderAmount,
+        paidAmount,
+        todaysDueAmount: Math.max(previousDueAmount + orderAmount - paidAmount, 0)
+      };
+    });
   },
 
   async routeStatement(tenantId: string, auth: AccessTokenPayload | undefined, filters: { startDate: string; endDate: string; routeId?: string; routeIds?: string[] }) {

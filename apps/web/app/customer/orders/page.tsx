@@ -391,7 +391,7 @@ export default function CustomerOrdersPage() {
   }
 
   function addFormItem() {
-    setEditForm((current) => ({ ...current, items: [...current.items, { id: `row-${Date.now()}`, productId: "", quantity: "" }] }));
+    setEditForm((current) => ({ ...current, items: [{ id: `row-${Date.now()}`, productId: "", quantity: "" }, ...current.items] }));
   }
 
   function removeFormItem(rowId: string) {
@@ -593,11 +593,16 @@ export default function CustomerOrdersPage() {
                 <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold" onClick={addFormItem} type="button"><Plus size={15} /> Add Product</button>
               </div>
               {editForm.items.map((item) => (
-                <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[1fr_120px_40px]" key={item.id}>
-                  <select className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => updateFormItem(item.id, { productId: event.target.value })} required value={item.productId}>
-                    <option value="">Select product</option>
-                    {products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatAmount(product.unitPrice)}</option>)}
-                  </select>
+                <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_120px_40px]" key={item.id}>
+                  <SearchableSelect
+                    className="min-w-0"
+                    onChange={(value) => updateFormItem(item.id, { productId: value })}
+                    options={productOptions}
+                    placeholder="Select product"
+                    required
+                    searchPlaceholder="Search products"
+                    value={item.productId}
+                  />
                   <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" min="0.001" onChange={(event) => updateFormItem(item.id, { quantity: event.target.value })} placeholder="Qty" required step="0.001" type="number" value={item.quantity} />
                   <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" disabled={editForm.items.length === 1} onClick={() => removeFormItem(item.id)} title="Remove product" type="button"><Trash2 size={16} /></button>
                 </div>
