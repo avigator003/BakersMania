@@ -198,7 +198,7 @@ export default function VehiclePlaceOrderPage() {
             {cartRows.map((item) => (
               <div className="grid grid-cols-[minmax(0,1fr)_72px_34px] items-center gap-2 rounded-md border border-line bg-panel2 p-2" key={item.id}>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-sky-700">{item.name}</span>
+                  <span className="block truncate text-sm font-semibold text-mint">{item.name}</span>
                   <span className="text-xs text-muted">{formatAmount(item.unitPrice)}</span>
                 </span>
                 <input className="rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint" min="0" onChange={(event) => updateQuantity(item.id, Number(event.target.value))} step="0.001" type="number" value={item.quantity} />
@@ -237,7 +237,7 @@ export default function VehiclePlaceOrderPage() {
                     </span>
                   ) : null}
                 </div>
-                <h2 className="mt-1 text-sm font-semibold leading-5 text-sky-700">{product.name}</h2>
+                <h2 className="mt-1 text-sm font-semibold leading-5 text-mint">{product.name}</h2>
                 <div className="mt-auto flex items-center justify-between gap-2 pt-3">
                   <span className="min-w-0">
                     {product.isPreferred ? <span className="mb-1 inline-block rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-amber-700">Preferred</span> : null}
