@@ -230,7 +230,7 @@ export default function VehiclePlaceOrderPage() {
             {visibleProducts.map((product) => (
               <article className={`flex min-h-36 flex-col rounded-md border p-3 ${product.isPreferred ? "border-amber-300 bg-amber-50 shadow-subtle" : "border-line bg-panel2"}`} key={product.id}>
                 <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 truncate text-xs font-semibold uppercase text-mint">{productCategory(product)}</p>
+                  <p className="min-w-0 truncate text-xs font-semibold uppercase text-ink">{productCategory(product)}</p>
                   {product.isPreferred ? (
                     <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-amber-300 bg-amber-100 text-amber-700" title="Preferred product">
                       <Star fill="currentColor" size={14} />

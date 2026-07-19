@@ -249,7 +249,7 @@ export default function CustomerPage() {
             {shopProducts.map((product) => (
               <article className={`flex min-h-40 flex-col rounded-md border p-3 ${product.isPreferred ? "border-amber-300 bg-amber-50 shadow-subtle" : "border-line bg-panel2"}`} key={product.id}>
                 <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 truncate text-xs font-semibold uppercase text-mint">{productCategory(product)}</p>
+                  <p className="min-w-0 truncate text-xs font-semibold uppercase text-ink">{productCategory(product)}</p>
                   <button
                     className={`focus-ring inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${product.isPreferred ? "border-amber-300 bg-amber-100 text-amber-700" : "border-line bg-panel"}`}
                     onClick={() => togglePreference(product)}
