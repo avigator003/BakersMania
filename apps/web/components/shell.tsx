@@ -451,7 +451,7 @@ export function AppShell({
       }
     : surface === "vehicle" && vehicleRoute
       ? {
-          title: accountSummary?.name || vehicleRoute.driverName || vehicleRoute.routeName,
+          title: "Vehicle Account",
           body: [accountSummary?.phone || accountSummary?.email || null, vehicleRoute.routeName].filter(Boolean).join(" · ")
         }
     : (surface === "bakery" && accountSummary) || (surface === "customer" && accountSummary) || (surface === "vehicle" && accountSummary)

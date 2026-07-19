@@ -81,7 +81,7 @@ export default function VehiclePasswordsPage() {
 
   return (
     <AppShell title="Vehicle Workspace" subtitle="Customer password help" surface="vehicle">
-      <section className="grid max-w-2xl gap-4 rounded-lg border border-line bg-panel p-4 shadow-subtle">
+      <section className="grid min-h-[calc(100vh-9rem)] max-w-2xl content-start gap-4 rounded-lg border border-line bg-panel p-4 shadow-subtle">
         <div className="flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-md bg-mint/10 text-mint"><KeyRound size={20} /></span>
           <div>

@@ -36,7 +36,7 @@ export default function CustomerPasswordPage() {
 
   return (
     <AppShell title="Customer Portal" subtitle="Manage your login password" surface="customer">
-      <section className="max-w-xl rounded-lg border border-line bg-panel p-4 shadow-subtle">
+      <section className="flex min-h-[calc(100vh-9rem)] max-w-xl flex-col rounded-lg border border-line bg-panel p-4 shadow-subtle">
         <div className="mb-4 flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-md bg-mint/10 text-mint"><KeyRound size={20} /></span>
           <div>
