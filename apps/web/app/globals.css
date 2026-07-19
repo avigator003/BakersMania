@@ -98,6 +98,16 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 @layer components {
+  .app-shell-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-shell-content > :only-child {
+    flex: 1;
+    min-height: 100%;
+  }
+
   .table-action-cell {
     width: 28rem;
     min-width: 28rem;

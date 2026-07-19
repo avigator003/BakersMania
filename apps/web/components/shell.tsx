@@ -611,7 +611,7 @@ export function AppShell({
           </aside>
         </div>
       ) : null}
-      <main className="min-w-0 max-w-full overflow-x-hidden px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:ml-72 lg:pb-6">
+      <main className="flex min-h-[calc(100dvh-3.5rem)] min-w-0 max-w-full flex-col overflow-x-hidden bg-night px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:ml-72 lg:pb-6">
         <nav className="mb-3 flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted" aria-label="Breadcrumb">
           {breadcrumbs.map((item, index) => {
             const last = index === breadcrumbs.length - 1;
@@ -629,7 +629,9 @@ export function AppShell({
             );
           })}
         </nav>
-        {children}
+        <div className="app-shell-content min-h-0 flex-1">
+          {children}
+        </div>
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-panel pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-[0_-12px_30px_rgba(16,32,51,0.08)] lg:hidden">
         <div className="flex w-full max-w-full gap-1 overflow-x-auto px-2 pt-2 [-webkit-overflow-scrolling:touch]">
