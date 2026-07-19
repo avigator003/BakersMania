@@ -34,8 +34,14 @@ type TruckLoading = {
   }[];
   totals: Record<string, number>;
 };
+type OrderStatusFilter = "all" | "accepted" | "pending";
 const today = localDateInput();
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
+const orderStatusOptions = [
+  { value: "all", label: "All orders" },
+  { value: "accepted", label: "Accepted orders" },
+  { value: "pending", label: "Pending orders" }
+];
 
 function formatQty(value?: string | number | null) {
   const amount = Number(value || 0);
@@ -44,6 +50,10 @@ function formatQty(value?: string | number | null) {
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function compactProductName(name: string) {
+  return name.trim().replace(/\s+/g, " ").slice(0, 6);
 }
 
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
@@ -65,6 +75,7 @@ export default function VehicleTruckLoadingPage() {
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState<string[]>([]);
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const pathSegments = pathname.split("/").filter(Boolean);
   const pathTenantSlug = pathSegments.length > 1 && pathSegments[1] === "vehicle" ? pathSegments[0] : "";
@@ -76,6 +87,7 @@ export default function VehicleTruckLoadingPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ date, groupBy: "customer" });
+      if (orderStatusFilter !== "all") params.set("orderStatus", orderStatusFilter);
       const data = await authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`);
       setTruckLoading(data.truckLoading);
     } catch (error) {
@@ -94,7 +106,7 @@ export default function VehicleTruckLoadingPage() {
 
   useEffect(() => {
     loadData();
-  }, [date]);
+  }, [date, orderStatusFilter]);
 
   const productOptions = useMemo(() => (truckLoading?.products || []).map((product) => ({
     value: product.id,
@@ -168,42 +180,42 @@ export default function VehicleTruckLoadingPage() {
       sum + exportProducts.reduce((routeSum, product) => routeSum + Number(route.quantities[product.id] || 0), 0)
     ), 0);
     const columns: XlsxColumn[] = [
-      { width: 22 },
-      ...exportProducts.map(() => ({ width: 5.5 })),
-      { width: 14 },
-      { width: 18 },
-      { width: 14 },
-      { width: 18 }
+      { width: 10 },
+      ...exportProducts.map(() => ({ width: 4.2 })),
+      { width: 7 },
+      { width: 9 },
+      { width: 7 },
+      { width: 9 }
     ];
     const rows: XlsxRow[] = [
       {
         height: 18,
         cells: [
           { value: "Date", style: "metaLabel" },
-          { value: truckLoading.date, style: "metaValue", colSpan: 3 },
-          { value: "Route Name", style: "metaLabel", colSpan: 2 },
-          { value: routeNames, style: "metaValue", colSpan: 4 },
-          { value: "Products", style: "metaLabel", colSpan: 2 },
-          { value: exportProducts.length, style: "metaValue", colSpan: 2 },
+          { value: truckLoading.date, style: "metaValue", colSpan: 2 },
+          { value: "Route", style: "metaLabel" },
+          { value: routeNames, style: "metaValue", colSpan: 3 },
+          { value: "Products", style: "metaLabel" },
+          { value: exportProducts.length, style: "metaValue" },
           { value: "Qty", style: "metaLabel" },
-          { value: exportTotalQuantity, style: "metaValue", colSpan: 2 }
+          { value: exportTotalQuantity, style: "metaValue" }
         ]
       },
       { height: 12, cells: [] },
       {
-        height: 72,
+        height: 30,
         cells: [
           { value: "Customer Name", style: "header" },
-          ...exportProducts.map((product) => ({ value: `${product.name}\n${product.category}`, style: "header" as const })),
-          { value: "Order Amount", style: "header" },
-          { value: "Previous Due Amount", style: "header" },
-          { value: "Paid Amount", style: "header" },
-          { value: "Today's Due Amount", style: "header" }
+          ...exportProducts.map((product) => ({ value: compactProductName(product.name), style: "header" as const })),
+          { value: "Order", style: "header" },
+          { value: "Previous", style: "header" },
+          { value: "Paid", style: "header" },
+          { value: "Today Due", style: "header" }
         ]
       },
       ...visibleRoutes.map((route) => {
         return {
-          height: 30,
+          height: 24,
           cells: [
             { value: route.name, style: "name" as const },
             ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null })),
@@ -215,7 +227,7 @@ export default function VehicleTruckLoadingPage() {
         };
       }),
       {
-        height: 30,
+        height: 24,
         cells: [
           { value: "Product Total", style: "summary" },
           ...exportProducts.map((product) => ({ value: exportProductTotals[product.id] || null, style: "summary" as const })),
@@ -245,6 +257,14 @@ export default function VehicleTruckLoadingPage() {
               <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
               <span>Today&apos;s Due Amount: <span className="font-semibold text-ink">{formatAmount(amountTotals.todaysDue)}</span></span>
             </div>
+            <SearchableSelect
+              className="min-w-52"
+              onChange={(value) => setOrderStatusFilter((value || "all") as OrderStatusFilter)}
+              options={orderStatusOptions}
+              placeholder="All orders"
+              searchPlaceholder="Search status"
+              value={orderStatusFilter}
+            />
             <SearchableSelect className="min-w-56" multiple onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
             <SearchableSelect className="min-w-52" multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
@@ -264,7 +284,6 @@ export default function VehicleTruckLoadingPage() {
                 {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
-                    <span className="mt-1 block text-[11px] normal-case text-muted">{product.category}</span>
                   </th>
                 ))}
                 <th className="min-w-28 border-b border-r border-line bg-panel2 px-4 py-3">Total Qty</th>

@@ -81,8 +81,8 @@ function styleId(style: XlsxCell["style"]) {
 }
 
 function worksheetXml(rows: XlsxRow[], columns: XlsxColumn[]) {
-  const rowColumnCounts = rows.map((row) => row.cells.reduce((sum, cell) => sum + Math.max(1, cell.colSpan || 1), 0));
-  const maxColumns = Math.max(columns.length, ...rowColumnCounts, 1);
+  const maxColumns = Math.max(columns.length, 1);
+  const dimensionRef = `A1:${columnName(maxColumns - 1)}${Math.max(rows.length, 1)}`;
   const colsXml = Array.from({ length: maxColumns }, (_, index) => {
     const width = columns[index]?.width ?? 12;
     return `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`;
@@ -94,9 +94,10 @@ function worksheetXml(rows: XlsxRow[], columns: XlsxColumn[]) {
     const height = row.height ?? 48;
     let cellIndex = 0;
     const cellsXml = row.cells.map((cell) => {
+      if (cellIndex >= maxColumns) return "";
       const ref = `${columnName(cellIndex)}${rowNumber}`;
       const style = styleId(cell.style);
-      const colSpan = Math.max(1, cell.colSpan || 1);
+      const colSpan = Math.min(Math.max(1, cell.colSpan || 1), maxColumns - cellIndex);
       if (colSpan > 1) {
         merges.push(`${ref}:${columnName(cellIndex + colSpan - 1)}${rowNumber}`);
       }
@@ -118,6 +119,7 @@ function worksheetXml(rows: XlsxRow[], columns: XlsxColumn[]) {
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <dimension ref="${dimensionRef}"/>
   <sheetViews><sheetView workbookViewId="0"/></sheetViews>
   <sheetFormatPr defaultRowHeight="48"/>
   <cols>${colsXml}</cols>

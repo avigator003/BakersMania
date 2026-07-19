@@ -22,13 +22,23 @@ type TruckLoading = {
   routes: { id: string; name: string; updatedAt?: string; quantities: Record<string, number>; total: number }[];
   totals: Record<string, number>;
 };
+type OrderStatusFilter = "all" | "accepted" | "pending";
 
 const today = localDateInput();
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
+const orderStatusOptions = [
+  { value: "all", label: "All orders" },
+  { value: "accepted", label: "Accepted orders" },
+  { value: "pending", label: "Pending orders" }
+];
 
 function formatQty(value?: string | number | null) {
   const amount = Number(value || 0);
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
+}
+
+function compactProductName(name: string) {
+  return name.trim().replace(/\s+/g, " ").slice(0, 6);
 }
 
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
@@ -49,6 +59,7 @@ export default function BakeryTruckLoadingPage() {
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState<string[]>([]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatusFilter>("all");
   const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
   const [loading, setLoading] = useState(true);
   const pathSegments = pathname.split("/").filter(Boolean);
@@ -61,6 +72,7 @@ export default function BakeryTruckLoadingPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ date });
+      if (orderStatusFilter !== "all") params.set("orderStatus", orderStatusFilter);
       const truckData = await authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`);
       setTruckLoading(truckData.truckLoading);
     } catch (error) {
@@ -79,7 +91,7 @@ export default function BakeryTruckLoadingPage() {
 
   useEffect(() => {
     loadData();
-  }, [date]);
+  }, [date, orderStatusFilter]);
 
   const productOptions = useMemo(() => (truckLoading?.products || []).map((product) => ({
     value: product.id,
@@ -146,8 +158,8 @@ export default function BakeryTruckLoadingPage() {
       sum + exportProducts.reduce((routeSum, product) => routeSum + Number(route.quantities[product.id] || 0), 0)
     ), 0);
     const columns: XlsxColumn[] = [
-      { width: 22 },
-      ...exportProducts.map(() => ({ width: 5.5 }))
+      { width: 10 },
+      ...exportProducts.map(() => ({ width: 4.2 }))
     ];
     const rows: XlsxRow[] = [
       {
@@ -165,15 +177,15 @@ export default function BakeryTruckLoadingPage() {
       },
       { height: 12, cells: [] },
       {
-        height: 72,
+        height: 30,
         cells: [
           { value: "Route Name", style: "header" },
-          ...exportProducts.map((product) => ({ value: `${product.name}\n${product.category}`, style: "header" as const }))
+          ...exportProducts.map((product) => ({ value: compactProductName(product.name), style: "header" as const }))
         ]
       },
       ...visibleRoutes.map((route) => {
         return {
-          height: 30,
+          height: 24,
           cells: [
             { value: route.name, style: "name" as const },
             ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null }))
@@ -181,7 +193,7 @@ export default function BakeryTruckLoadingPage() {
         };
       }),
       {
-        height: 30,
+        height: 24,
         cells: [
           { value: "Product Total", style: "summary" },
           ...exportProducts.map((product) => ({ value: exportProductTotals[product.id] || null, style: "summary" as const }))
@@ -204,6 +216,14 @@ export default function BakeryTruckLoadingPage() {
             <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
           </div>
           <div className="flex flex-wrap gap-2">
+            <SearchableSelect
+              className="min-w-52"
+              onChange={(value) => setOrderStatusFilter((value || "all") as OrderStatusFilter)}
+              options={orderStatusOptions}
+              placeholder="All orders"
+              searchPlaceholder="Search status"
+              value={orderStatusFilter}
+            />
             <SearchableSelect className="min-w-56" multiple onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
             <SearchableSelect className="min-w-52" multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
@@ -223,7 +243,6 @@ export default function BakeryTruckLoadingPage() {
                 {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
-                    <span className="mt-1 block text-[11px] normal-case text-muted">{product.category}</span>
                   </th>
                 ))}
                 <th className="sticky right-0 z-40 min-w-24 border-b border-line bg-panel2 px-4 py-3 shadow-[-8px_0_12px_rgba(23,32,51,0.08)]">Total</th>

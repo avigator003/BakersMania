@@ -470,20 +470,26 @@ export const ordersService = {
     return ordersRepository.customerDaySummary(tenantId, auth.customerId, date);
   },
 
-  async truckLoading(tenantId: string, filters: { date: string; categoryId?: string; groupBy?: string }, auth?: AccessTokenPayload) {
+  async truckLoading(tenantId: string, filters: { date: string; categoryId?: string; groupBy?: string; orderStatus?: "accepted" | "pending" }, auth?: AccessTokenPayload) {
     const routeIds = await vehicleRouteIds(tenantId, auth);
     const groupByCustomer = auth?.actorType === "vehicle" || filters.groupBy === "customer";
     const bakeryVisibleOnly = auth?.actorType !== "vehicle";
-    const [orders, routeTotals, baseProducts, baseRows] = await Promise.all([
-      ordersRepository.truckLoading(tenantId, { ...filters, routeIds: routeIds || undefined, bakeryVisibleOnly }),
+    const filteredLoadingFilters = { ...filters, routeIds: routeIds || undefined, bakeryVisibleOnly };
+    const countLoadingFilters = { date: filters.date, categoryId: filters.categoryId, routeIds: routeIds || undefined, bakeryVisibleOnly };
+    const [orders, countOrders, routeTotals, baseProducts, baseRows] = await Promise.all([
+      ordersRepository.truckLoading(tenantId, filteredLoadingFilters),
+      filters.orderStatus
+        ? ordersRepository.truckLoading(tenantId, countLoadingFilters)
+        : Promise.resolve(null),
       groupByCustomer
-        ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly })
-        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly }),
+        ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly, orderStatus: filters.orderStatus })
+        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly, orderStatus: filters.orderStatus }),
       ordersRepository.truckLoadingProducts(tenantId, { categoryId: filters.categoryId }),
       groupByCustomer
         ? ordersRepository.truckLoadingCustomers(tenantId, { routeIds: routeIds || undefined })
         : ordersRepository.truckLoadingRoutes(tenantId, { routeIds: routeIds || undefined })
     ]);
+    const statusCountOrders = countOrders || orders;
     const productMap = new Map<string, { id: string; name: string; category: string; updatedAt: Date | string | null }>();
     const rowTotalsMap = groupByCustomer
       ? new Map(routeTotals.map((row) => ["customerId" in row ? row.customerId : row.routeId, row]))
@@ -574,8 +580,8 @@ export const ordersService = {
       }, {}),
       orderCount: orders.length,
       statusCounts: {
-        accepted: orders.filter((order) => order.vehicleStatus === "ACCEPTED").length,
-        pending: orders.filter((order) => order.vehicleStatus !== "ACCEPTED").length
+        accepted: statusCountOrders.filter((order) => order.vehicleStatus === "ACCEPTED").length,
+        pending: statusCountOrders.filter((order) => order.vehicleStatus !== "ACCEPTED").length
       }
     };
   }

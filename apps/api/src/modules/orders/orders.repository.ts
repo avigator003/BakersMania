@@ -15,6 +15,8 @@ type OrderListFilters = {
   pageSize?: number;
 };
 
+type TruckLoadingOrderStatus = "accepted" | "pending";
+
 function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
   return {
     OR: [
@@ -31,6 +33,18 @@ function bakeryVisibleOrderFilter(): Prisma.OrderWhereInput {
       { vehicleStatus: "ACCEPTED" }
     ]
   };
+}
+
+function truckLoadingStatusFilter(orderStatus?: TruckLoadingOrderStatus): Prisma.OrderWhereInput | null {
+  if (orderStatus === "accepted") return { vehicleStatus: "ACCEPTED" };
+  if (orderStatus === "pending") return { vehicleStatus: { not: "ACCEPTED" } };
+  return null;
+}
+
+function truckLoadingStatusSql(orderStatus?: TruckLoadingOrderStatus) {
+  if (orderStatus === "accepted") return Prisma.sql`AND o."vehicleStatus"::text = 'ACCEPTED'`;
+  if (orderStatus === "pending") return Prisma.sql`AND (o."vehicleStatus" IS NULL OR o."vehicleStatus"::text <> 'ACCEPTED')`;
+  return Prisma.empty;
 }
 
 function pagination(filters: OrderListFilters) {
@@ -321,7 +335,7 @@ export const ordersRepository = {
     });
   },
 
-  truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[]; bakeryVisibleOnly?: boolean }) {
+  truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -336,6 +350,10 @@ export const ordersRepository = {
     }
     if (filters.bakeryVisibleOnly) {
       andFilters.push(bakeryVisibleOrderFilter());
+    }
+    const statusFilter = truckLoadingStatusFilter(filters.orderStatus);
+    if (statusFilter) {
+      andFilters.push(statusFilter);
     }
     return prisma.order.findMany({
       where: {
@@ -356,7 +374,7 @@ export const ordersRepository = {
     });
   },
 
-  async truckLoadingRouteTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean }) {
+  async truckLoadingRouteTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -366,6 +384,7 @@ export const ordersRepository = {
     const visibilityFilter = filters.bakeryVisibleOnly
       ? Prisma.sql`AND (o."source"::text <> 'CUSTOMER_PORTAL' OR o."vehicleStatus"::text = 'ACCEPTED')`
       : Prisma.empty;
+    const statusFilter = truckLoadingStatusSql(filters.orderStatus);
     const rows = await prisma.$queryRaw<Array<{
       routeId: string;
       previousDue: unknown;
@@ -383,6 +402,7 @@ export const ordersRepository = {
         WHERE o."tenantId" = ${tenantId}
           AND COALESCE(o."routeId", c."routeId") IS NOT NULL
           ${visibilityFilter}
+          ${statusFilter}
           ${routeFilter}
       ),
       order_paid AS (
@@ -424,7 +444,7 @@ export const ordersRepository = {
     });
   },
 
-  async truckLoadingCustomerTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean }) {
+  async truckLoadingCustomerTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -434,6 +454,7 @@ export const ordersRepository = {
     const visibilityFilter = filters.bakeryVisibleOnly
       ? Prisma.sql`AND (o."source"::text <> 'CUSTOMER_PORTAL' OR o."vehicleStatus"::text = 'ACCEPTED')`
       : Prisma.empty;
+    const statusFilter = truckLoadingStatusSql(filters.orderStatus);
     const rows = await prisma.$queryRaw<Array<{
       customerId: string;
       previousDue: unknown;
@@ -450,6 +471,7 @@ export const ordersRepository = {
         JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
           ${visibilityFilter}
+          ${statusFilter}
           ${routeFilter}
       ),
       order_paid AS (

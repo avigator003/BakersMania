@@ -105,7 +105,8 @@ export const ordersController = {
       truckLoading: await ordersService.truckLoading(req.tenant!.id, {
         date: req.query.date ? String(req.query.date) : today,
         categoryId: req.query.categoryId ? String(req.query.categoryId) : undefined,
-        groupBy: req.query.groupBy ? String(req.query.groupBy) : undefined
+        groupBy: req.query.groupBy ? String(req.query.groupBy) : undefined,
+        orderStatus: req.query.orderStatus === "accepted" || req.query.orderStatus === "pending" ? req.query.orderStatus : undefined
       }, req.auth)
     });
   }
