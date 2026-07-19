@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { HttpError } from "../../utils/http.js";
 import { signAccessToken } from "../../utils/tokens.js";
 import { authRepository } from "./auth.repository.js";
-import type { CustomerSignupInput, LoginInput } from "./auth.schemas.js";
+import type { CustomerSignupInput, LoginInput, PasswordUpdateInput } from "./auth.schemas.js";
 
 function normalizePhone(value: string) {
   return value.replace(/[^\d+]/g, "");
@@ -154,6 +154,15 @@ export const authService = {
           }
         : null
     };
+  },
+
+  async updateMyPassword(auth: NonNullable<Express.Request["auth"]>, input: PasswordUpdateInput) {
+    if (auth.actorType === "platform_admin") {
+      throw new HttpError(403, "Workspace account access required");
+    }
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    await authRepository.updateUserPassword(auth.sub, passwordHash);
+    return { updated: true };
   },
 
   async signupCustomer(input: CustomerSignupInput) {

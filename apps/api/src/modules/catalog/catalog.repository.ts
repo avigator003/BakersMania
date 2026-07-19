@@ -1,6 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
-import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
+import type { AssignCustomerPricesInput, CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
 
 export type ProductListFilters = PaginationInput & {
   includeInactive?: boolean;
@@ -54,7 +54,7 @@ export const catalogRepository = {
   },
 
   findCustomer(tenantId: string, customerId: string) {
-    return prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true } });
+    return prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true, routeId: true } });
   },
 
   findCustomerForPreferenceAccess(tenantId: string, customerId: string) {
@@ -73,6 +73,10 @@ export const catalogRepository = {
 
   findRoute(tenantId: string, routeId: string) {
     return prisma.route.findFirst({ where: { id: routeId, tenantId }, select: { id: true } });
+  },
+
+  listActiveRouteIds(tenantId: string) {
+    return prisma.route.findMany({ where: { tenantId, active: true }, select: { id: true } });
   },
 
   listRoutePrices(tenantId: string, routeId: string) {
@@ -249,6 +253,92 @@ export const catalogRepository = {
       }
       return customerPrice;
     }, { timeout: 15000 });
+  },
+
+  async assignCustomerPricesFromRouteBase(tenantId: string, routeIds: string[], input: AssignCustomerPricesInput) {
+    const customers = await prisma.customer.findMany({
+      where: { tenantId, routeId: { in: routeIds } },
+      select: { id: true, routeId: true }
+    });
+    const products = await prisma.product.findMany({
+      where: { tenantId, active: true },
+      select: { id: true, unitPrice: true }
+    });
+    const routePrices = await prisma.routeProductPrice.findMany({
+      where: { tenantId, routeId: { in: routeIds } },
+      select: { routeId: true, productId: true, price: true }
+    });
+
+    if (!customers.length || !products.length) {
+      return { customers: customers.length, products: products.length, created: 0, updated: 0, skipped: 0 };
+    }
+
+    const productIds = products.map((product) => product.id);
+    const customerIds = customers.map((customer) => customer.id);
+    const existingPrices = await prisma.customerProductPrice.findMany({
+      where: { tenantId, customerId: { in: customerIds }, productId: { in: productIds } },
+      select: { customerId: true, productId: true, price: true }
+    });
+    const existingMap = new Map(existingPrices.map((price) => [`${price.customerId}:${price.productId}`, price]));
+    const routePriceMap = new Map(routePrices.map((price) => [`${price.routeId}:${price.productId}`, Number(price.price || 0)]));
+    const basePriceMap = new Map(products.map((product) => [product.id, Number(product.unitPrice || 0)]));
+    const assignments = customers.flatMap((customer) => products.map((product) => {
+      const price = routePriceMap.get(`${customer.routeId}:${product.id}`) ?? basePriceMap.get(product.id) ?? 0;
+      const existing = existingMap.get(`${customer.id}:${product.id}`);
+      return { customerId: customer.id, productId: product.id, price, existing };
+    }));
+    const writableAssignments = assignments.filter((assignment) => input.overwriteExisting || !assignment.existing);
+
+    const result = await prisma.$transaction(async (tx) => {
+      let created = 0;
+      let updated = 0;
+      for (const assignment of writableAssignments) {
+        const existing = assignment.existing;
+        await tx.customerProductPrice.upsert({
+          where: {
+            tenantId_productId_customerId: {
+              tenantId,
+              productId: assignment.productId,
+              customerId: assignment.customerId
+            }
+          },
+          update: { price: assignment.price, notes: "Assigned from vehicle route base price" },
+          create: {
+            tenantId,
+            productId: assignment.productId,
+            customerId: assignment.customerId,
+            price: assignment.price,
+            notes: "Assigned from vehicle route base price"
+          }
+        });
+
+        if (!existing) {
+          created += 1;
+        } else if (Number(existing.price) !== assignment.price) {
+          updated += 1;
+        }
+        if (!existing || Number(existing.price) !== assignment.price) {
+          await tx.customerProductPriceHistory.create({
+            data: {
+              tenantId,
+              productId: assignment.productId,
+              customerId: assignment.customerId,
+              oldPrice: existing?.price,
+              newPrice: assignment.price
+            }
+          });
+        }
+      }
+      return { created, updated };
+    }, { timeout: 30000 });
+
+    return {
+      customers: customers.length,
+      products: products.length,
+      created: result.created,
+      updated: result.updated,
+      skipped: assignments.length - writableAssignments.length
+    };
   },
 
   upsertRoutePrice(tenantId: string, input: RoutePriceInput) {

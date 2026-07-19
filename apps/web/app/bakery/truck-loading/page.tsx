@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Download, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
@@ -13,6 +14,10 @@ import { downloadXlsx, type XlsxColumn, type XlsxRow } from "../../../lib/xlsx-e
 type TruckLoading = {
   date: string;
   orderCount: number;
+  statusCounts?: {
+    accepted: number;
+    pending: number;
+  };
   products: { id: string; name: string; category: string; updatedAt?: string }[];
   routes: { id: string; name: string; updatedAt?: string; quantities: Record<string, number>; total: number }[];
   totals: Record<string, number>;
@@ -42,13 +47,16 @@ function productSort(a: TruckLoading["products"][number], b: TruckLoading["produ
 
 export default function BakeryTruckLoadingPage() {
   const toast = useToast();
+  const pathname = usePathname();
   const [date, setDate] = useState(today);
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState<string[]>([]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
   const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
   const [loading, setLoading] = useState(true);
-  const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const pathTenantSlug = pathSegments.length > 1 && pathSegments[1] === "bakery" ? pathSegments[0] : "";
+  const tenantSlug = pathTenantSlug || (typeof window === "undefined" ? "" : getStoredTenantSlug() || "");
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
   async function loadData() {
@@ -183,6 +191,8 @@ export default function BakeryTruckLoadingPage() {
             <span>Routes: <span className="font-semibold text-ink">{visibleRoutes.length}</span></span>
             <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
             <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
+            <span>Accepted: <span className="font-semibold text-mint">{truckLoading?.statusCounts?.accepted || 0}</span></span>
+            <span>Pending: <span className="font-semibold text-saffron">{truckLoading?.statusCounts?.pending || 0}</span></span>
             <span>Qty: <span className="font-semibold text-ink">{formatQty(totalQuantity) || "0"}</span></span>
           </div>
           <div className="flex flex-wrap gap-2">

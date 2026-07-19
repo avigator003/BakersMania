@@ -27,6 +27,10 @@ export const customerPriceSchema = z.object({
   notes: z.string().optional()
 });
 
+export const assignCustomerPricesSchema = z.object({
+  overwriteExisting: z.boolean().default(false)
+});
+
 export const routePriceSchema = z.object({
   productId: z.string().min(1),
   routeId: z.string().min(1),
@@ -43,5 +47,6 @@ export type CategoryUpdateInput = z.infer<typeof categoryUpdateSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type CustomerPriceInput = z.infer<typeof customerPriceSchema>;
+export type AssignCustomerPricesInput = z.infer<typeof assignCustomerPricesSchema>;
 export type RoutePriceInput = z.infer<typeof routePriceSchema>;
 export type ProductPreferenceInput = z.infer<typeof productPreferenceSchema>;

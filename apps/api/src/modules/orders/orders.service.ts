@@ -571,7 +571,11 @@ export const ordersService = {
         acc[product.id] = routes.reduce((sum, route) => sum + (route.quantities[product.id] || 0), 0);
         return acc;
       }, {}),
-      orderCount: orders.length
+      orderCount: orders.length,
+      statusCounts: {
+        accepted: orders.filter((order) => order.vehicleStatus === "ACCEPTED").length,
+        pending: orders.filter((order) => order.vehicleStatus !== "ACCEPTED").length
+      }
     };
   }
 };

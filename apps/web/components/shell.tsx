@@ -47,7 +47,7 @@ const bakeryNav = [
   { href: "/bakery/expenses", label: "Expenses", icon: CreditCard },
   { href: "/bakery/routes", label: "Routes", icon: Truck },
   { href: "/bakery/route-invoices", label: "Route Invoices", icon: CreditCard },
-  { href: "/bakery/passwords", label: "Passwords", icon: KeyRound },
+  { href: "/bakery/passwords", label: "Password", icon: KeyRound },
 ];
 
 const sessionVerificationTtlMs = 60_000;
@@ -370,7 +370,7 @@ export function AppShell({
         { href: `${routeBase}/vehicle/place-order`, label: "Place Order", icon: ShoppingCart },
         { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck },
         { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee },
-        { href: `${routeBase}/vehicle/passwords`, label: "Passwords", icon: KeyRound }
+        { href: `${routeBase}/vehicle/passwords`, label: "Password", icon: KeyRound }
       ]
     : surface === "admin"
       ? [

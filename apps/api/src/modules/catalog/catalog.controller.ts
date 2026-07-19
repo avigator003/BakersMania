@@ -61,8 +61,12 @@ export const catalogController = {
   },
 
   async upsertCustomerPrice(req: Request, res: Response) {
-    const customerPrice = await catalogService.upsertCustomerPrice(req.tenant!.id, req.body);
+    const customerPrice = await catalogService.upsertCustomerPrice(req.tenant!.id, req.auth, req.body);
     res.status(201).json({ customerPrice });
+  },
+
+  async assignCustomerPricesFromRouteBase(req: Request, res: Response) {
+    res.json({ result: await catalogService.assignCustomerPricesFromRouteBase(req.tenant!.id, req.auth, req.body) });
   },
 
   async upsertRoutePrice(req: Request, res: Response) {

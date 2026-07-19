@@ -12,5 +12,9 @@ export const authController = {
 
   async me(req: Request, res: Response) {
     res.json(await authService.getSession(req.auth!));
+  },
+
+  async updateMyPassword(req: Request, res: Response) {
+    res.json({ result: await authService.updateMyPassword(req.auth!, req.body) });
   }
 };

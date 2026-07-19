@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { catalogRepository } from "./catalog.repository.js";
 import type { PriceHistoryFilters, ProductListFilters } from "./catalog.repository.js";
-import type { CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductPreferenceInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
+import type { AssignCustomerPricesInput, CategoryInput, CategoryUpdateInput, CustomerPriceInput, ProductInput, ProductPreferenceInput, ProductUpdateInput, RoutePriceInput } from "./catalog.schemas.js";
 import { HttpError } from "../../utils/http.js";
 import type { AccessTokenPayload } from "../../utils/tokens.js";
 
@@ -124,7 +124,10 @@ export const catalogService = {
     }
   },
 
-  async upsertCustomerPrice(tenantId: string, input: CustomerPriceInput) {
+  async upsertCustomerPrice(tenantId: string, auth: AccessTokenPayload | undefined, input: CustomerPriceInput) {
+    if (auth?.actorType !== "bakery_user" && auth?.actorType !== "vehicle") {
+      throw new HttpError(403, "Bakery or vehicle access required");
+    }
     const [product, customer] = await Promise.all([
       catalogRepository.findProduct(tenantId, input.productId),
       catalogRepository.findCustomer(tenantId, input.customerId)
@@ -135,7 +138,27 @@ export const catalogService = {
     if (!customer) {
       throw new HttpError(400, "Selected customer does not belong to this bakery");
     }
+    if (auth.actorType === "vehicle") {
+      const vehicle = await catalogRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
+      const allowedRouteIds = new Set(vehicle?.routes.map((route) => route.id) || []);
+      if (!customer.routeId || !allowedRouteIds.has(customer.routeId)) {
+        throw new HttpError(403, "Customer is not assigned to this vehicle");
+      }
+    }
     return catalogRepository.upsertCustomerPrice(tenantId, input);
+  },
+
+  async assignCustomerPricesFromRouteBase(tenantId: string, auth: AccessTokenPayload | undefined, input: AssignCustomerPricesInput) {
+    if (auth?.actorType !== "bakery_user" && auth?.actorType !== "vehicle") {
+      throw new HttpError(403, "Bakery or vehicle access required");
+    }
+    const routeIds = auth.actorType === "vehicle"
+      ? (await catalogRepository.findVehicleRoutes(tenantId, auth.vehicleId!))?.routes.map((route) => route.id) || []
+      : (await catalogRepository.listActiveRouteIds(tenantId)).map((route) => route.id);
+    if (!routeIds.length) {
+      throw new HttpError(422, "No active routes found for price assignment");
+    }
+    return catalogRepository.assignCustomerPricesFromRouteBase(tenantId, routeIds, input);
   },
 
   async upsertRoutePrice(tenantId: string, input: RoutePriceInput) {

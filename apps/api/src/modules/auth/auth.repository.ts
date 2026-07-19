@@ -27,6 +27,14 @@ export const authRepository = {
     });
   },
 
+  updateUserPassword(userId: string, passwordHash: string) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+      select: { id: true }
+    });
+  },
+
   findCustomerForUserTenant(userId: string, tenantId: string) {
     return prisma.customer.findFirst({
       where: { userId, tenantId }

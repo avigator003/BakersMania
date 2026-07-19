@@ -98,6 +98,15 @@ const normalizeStatus = (status) => {
   return "CONFIRMED";
 };
 
+const normalizeLegacyOrderStatus = (status) => {
+  const value = stringValue(status).toLowerCase();
+  if (value.includes("cancel")) return "CANCELED";
+  if (value.includes("pending")) return "PENDING";
+  if (value.includes("dispatch")) return "DISPATCHED";
+  if (value.includes("ready")) return "READY";
+  return "CONFIRMED";
+};
+
 const normalizePaymentStatus = (status, paidAmount, grandTotal) => {
   const value = stringValue(status).toLowerCase();
   if (value.includes("partial")) return "PARTIAL";
@@ -108,6 +117,10 @@ const normalizePaymentStatus = (status, paidAmount, grandTotal) => {
 };
 
 const monthFromDate = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+
+const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && stringValue(value) !== "");
+
+const normalizeLookupText = (value) => stringValue(value).toLowerCase().replace(/\s+/g, " ").trim();
 
 const chunk = (items, size) => {
   const chunks = [];
@@ -537,9 +550,57 @@ const main = async () => {
   const paymentRows = [];
   let skippedOrders = 0;
   let skippedOrderItems = 0;
+  let fallbackCustomerOrders = 0;
+  const unresolvedOrderCustomerFields = new Map();
   const customerPriceLookup = new Map(customerPriceRows.map((row) => [`${row.customerId}:${row.productId}`, numberValue(row.price)]));
+  const customerByName = new Map();
+  const customerByPhone = new Map();
+  for (const row of customerRows) {
+    const routeKey = row.routeId || "";
+    const nameKey = normalizeLookupText(row.name);
+    const phoneKey = normalizePhone(row.phone);
+    if (nameKey) customerByName.set(`${routeKey}:${nameKey}`, row.id);
+    if (phoneKey) customerByPhone.set(`${routeKey}:${phoneKey}`, row.id);
+  }
+  const orderCustomerId = (item) => {
+    const directRefs = [
+      ["customer", item.customer],
+      ["customerId", item.customerId],
+      ["customer_id", item.customer_id],
+      ["party", item.party],
+      ["partyId", item.partyId],
+      ["user", item.user]
+    ];
+    for (const [field, value] of directRefs) {
+      const customerId = customerIdByMongoId.get(oid(value));
+      if (customerId) {
+        if (field === "user") fallbackCustomerOrders += 1;
+        return customerId;
+      }
+    }
+
+    const routeId = routeIdByName.get(normalizeLookupText(firstValue(item.route_name, item.routeName, item.route))) || null;
+    const phone = normalizePhone(firstValue(item.mobile_number, item.mobileNumber, item.phone, item.customerPhone, item.contactNo));
+    if (phone) {
+      const byRoutePhone = customerByPhone.get(`${routeId || ""}:${phone}`) || customerByPhone.get(`:${phone}`);
+      if (byRoutePhone) return byRoutePhone;
+    }
+
+    const name = normalizeLookupText(firstValue(item.customer_name, item.customerName, item.user_name, item.userName, item.name));
+    if (name) {
+      const byRouteName = customerByName.get(`${routeId || ""}:${name}`) || customerByName.get(`:${name}`);
+      if (byRouteName) return byRouteName;
+    }
+
+    for (const key of Object.keys(item)) {
+      if (/customer|party|user|mobile|phone|route/i.test(key)) {
+        unresolvedOrderCustomerFields.set(key, (unresolvedOrderCustomerFields.get(key) || 0) + 1);
+      }
+    }
+    return null;
+  };
   for (const item of source.orders || []) {
-    const customerId = customerIdByMongoId.get(oid(item.user));
+    const customerId = orderCustomerId(item);
     if (!customerId) {
       skippedOrders += 1;
       continue;
@@ -548,14 +609,15 @@ const main = async () => {
     const routeId = customerRows.find((customer) => customer.id === customerId)?.routeId || null;
     const paidAmount = numberValue(item.paidAmount);
     const grandTotal = numberValue(item.totalAmount, numberValue(item.totalPrice));
-    const orderDate = dateValue(item.orderDate || item.created_at, now);
+    const orderDate = dateValue(firstValue(item.orderDate, item.order_date, item.order_Date_time, item.date, item.created_at), now);
+    const legacyStatus = stringValue(item.status);
     orderRows.push({
       id: orderId,
       tenantId: tenant.id,
       customerId,
       routeId,
       source: "STAFF_CREATED",
-      status: normalizeStatus(item.status),
+      status: normalizeLegacyOrderStatus(item.status),
       paymentStatus: normalizePaymentStatus(item.paymentStatus, paidAmount, grandTotal),
       fulfillmentType: "DELIVERY",
       dueAt: orderDate,
@@ -563,14 +625,17 @@ const main = async () => {
       taxTotal: 0,
       discountTotal: 0,
       grandTotal,
-      notes: item.previousOrderDueAmount !== undefined ? `Legacy previous due: ${numberValue(item.previousOrderDueAmount)}` : null,
+      notes: [
+        item.previousOrderDueAmount !== undefined ? `Legacy previous due: ${numberValue(item.previousOrderDueAmount)}` : "",
+        legacyStatus ? `Legacy status: ${legacyStatus}` : ""
+      ].filter(Boolean).join("; ") || null,
       createdAt: dateValue(item.created_at, orderDate),
       updatedAt: dateValue(item.updated_at, orderDate)
     });
 
     let itemIndex = 0;
     for (const orderProduct of item.products || []) {
-      const productId = productIdByMongoId.get(oid(orderProduct.product));
+      const productId = productIdByMongoId.get(oid(firstValue(orderProduct.product, orderProduct.productId, orderProduct.product_id, orderProduct.item)));
       if (!productId) {
         skippedOrderItems += 1;
         continue;
@@ -870,6 +935,10 @@ const main = async () => {
     tenant: { name: tenant.name, slug: tenant.slug },
     imported: counts,
     skipped: { ordersWithoutCustomer: skippedOrders, orderItemsWithoutProduct: skippedOrderItems },
+    orderMigrationDiagnostics: {
+      ordersUsingLegacyUserFallback: fallbackCustomerOrders,
+      unresolvedCustomerFieldHints: Object.fromEntries([...unresolvedOrderCustomerFields.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20))
+    },
     credentials: {
       platformAdmin: { email: "admin@bakersmania.local", password: adminPassword },
       bakeryOwner: { email: ownerEmail, password: ownerPassword },

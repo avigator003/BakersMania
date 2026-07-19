@@ -71,6 +71,7 @@ export default function VehiclePricesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [assigningAll, setAssigningAll] = useState(false);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -126,7 +127,7 @@ export default function VehiclePricesPage() {
       const vehicleBase = new Map(routePriceData.routePrices.map((price) => [price.productId, Number(price.price || 0)]));
       setExistingPriceMap(Object.fromEntries(existing.entries()));
       setVehicleBasePriceMap(Object.fromEntries(vehicleBase.entries()));
-      setPriceMap(Object.fromEntries(products.map((product) => [product.id, String(existing.get(product.id) ?? Number(product.unitPrice || 0))])));
+      setPriceMap(Object.fromEntries(products.map((product) => [product.id, String(existing.get(product.id) ?? vehicleBase.get(product.id) ?? Number(product.unitPrice || 0))])));
     } catch (error) {
       toast.error("Could not load customer prices", error instanceof Error ? error.message : "Please try again.");
       setPriceModal(null);
@@ -139,7 +140,7 @@ export default function VehiclePricesPage() {
     if (!apiBase || !priceModal) return;
     const changedPrices = products.filter((product) => {
       const nextPrice = Number(priceMap[product.id] || 0);
-      const currentPrice = existingPriceMap[product.id] ?? Number(product.unitPrice || 0);
+      const currentPrice = existingPriceMap[product.id] ?? vehicleBasePriceMap[product.id] ?? Number(product.unitPrice || 0);
       return Number.isFinite(nextPrice) && nextPrice >= 0 && nextPrice !== currentPrice;
     });
 
@@ -171,6 +172,22 @@ export default function VehiclePricesPage() {
     }
   }
 
+  async function assignAllUserProductPrices() {
+    if (!apiBase) return;
+    setAssigningAll(true);
+    try {
+      const data = await authFetch<{ result: { customers: number; products: number; created: number; updated: number; skipped: number } }>(`${apiBase}/catalog/customer-prices/assign-route-base`, {
+        method: "POST",
+        body: JSON.stringify({ overwriteExisting: false })
+      });
+      toast.success("Product prices assigned", `${data.result.created} price${data.result.created === 1 ? "" : "s"} assigned for ${data.result.customers} customer${data.result.customers === 1 ? "" : "s"}.`);
+    } catch (error) {
+      toast.error("Assignment failed", error instanceof Error ? error.message : "Could not assign user product prices.");
+    } finally {
+      setAssigningAll(false);
+    }
+  }
+
   return (
     <AppShell title="Vehicle Workspace" subtitle="Customer product price settings" surface="vehicle">
       <div className="grid gap-6">
@@ -180,7 +197,13 @@ export default function VehiclePricesPage() {
               <h1 className="text-xl font-semibold">Product Prices</h1>
               <p className="mt-1 text-sm text-muted">Set customer-specific product prices for customers on this vehicle route.</p>
             </div>
-            <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
+            <div className="flex flex-wrap gap-2">
+              <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={assigningAll || loading || !customers.length || !products.length} onClick={assignAllUserProductPrices} type="button">
+                <IndianRupee size={16} />
+                {assigningAll ? "Assigning..." : "Assign All User Product Prices"}
+              </button>
+              <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
+            </div>
           </div>
           {loading ? <LoadingSpinner label="Loading customers and products" /> : null}
           <div className="grid gap-3 p-3 sm:hidden">
