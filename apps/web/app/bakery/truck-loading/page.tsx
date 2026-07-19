@@ -166,13 +166,13 @@ export default function BakeryTruckLoadingPage() {
         height: 18,
         cells: [
           { value: "Date", style: "metaLabel" },
-          { value: truckLoading.date, style: "metaValue", colSpan: 3 },
-          { value: "Route Name", style: "metaLabel", colSpan: 2 },
-          { value: selectedRoutes, style: "metaValue", colSpan: 4 },
-          { value: "Products", style: "metaLabel", colSpan: 2 },
-          { value: exportProducts.length, style: "metaValue", colSpan: 2 },
+          { value: truckLoading.date, style: "metaValue", colSpan: 2 },
+          { value: "Route", style: "metaLabel" },
+          { value: selectedRoutes, style: "metaValue", colSpan: 3 },
+          { value: "Products", style: "metaLabel" },
+          { value: exportProducts.length, style: "metaValue" },
           { value: "Qty", style: "metaLabel" },
-          { value: exportTotalQuantity, style: "metaValue", colSpan: 2 }
+          { value: exportTotalQuantity, style: "metaValue" }
         ]
       },
       { height: 12, cells: [] },
