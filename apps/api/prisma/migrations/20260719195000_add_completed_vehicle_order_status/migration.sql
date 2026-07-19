@@ -1,0 +1,1 @@
+ALTER TYPE "VehicleOrderStatus" ADD VALUE 'COMPLETED';

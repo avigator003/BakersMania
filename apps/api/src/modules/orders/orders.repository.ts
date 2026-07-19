@@ -36,14 +36,14 @@ function bakeryVisibleOrderFilter(): Prisma.OrderWhereInput {
 }
 
 function truckLoadingStatusFilter(orderStatus?: TruckLoadingOrderStatus): Prisma.OrderWhereInput | null {
-  if (orderStatus === "accepted") return { vehicleStatus: "ACCEPTED" };
-  if (orderStatus === "pending") return { vehicleStatus: { not: "ACCEPTED" } };
+  if (orderStatus === "accepted") return { vehicleStatus: { in: ["ACCEPTED", "COMPLETED"] } };
+  if (orderStatus === "pending") return { vehicleStatus: { notIn: ["ACCEPTED", "COMPLETED"] } };
   return null;
 }
 
 function truckLoadingStatusSql(orderStatus?: TruckLoadingOrderStatus) {
-  if (orderStatus === "accepted") return Prisma.sql`AND o."vehicleStatus"::text = 'ACCEPTED'`;
-  if (orderStatus === "pending") return Prisma.sql`AND (o."vehicleStatus" IS NULL OR o."vehicleStatus"::text <> 'ACCEPTED')`;
+  if (orderStatus === "accepted") return Prisma.sql`AND o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED')`;
+  if (orderStatus === "pending") return Prisma.sql`AND (o."vehicleStatus" IS NULL OR o."vehicleStatus"::text NOT IN ('ACCEPTED', 'COMPLETED'))`;
   return Prisma.empty;
 }
 
@@ -134,7 +134,7 @@ function statusCountWhere(where: Prisma.OrderWhereInput, status: OrderApprovalSt
   return {
     AND: [
       where,
-      status === "accepted" ? { vehicleStatus: "ACCEPTED" } : { vehicleStatus: { not: "ACCEPTED" } }
+      status === "accepted" ? { vehicleStatus: { in: ["ACCEPTED", "COMPLETED"] } } : { vehicleStatus: { notIn: ["ACCEPTED", "COMPLETED"] } }
     ]
   };
 }

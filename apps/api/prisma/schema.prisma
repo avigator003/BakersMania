@@ -71,6 +71,7 @@ enum OrderStatus {
 enum VehicleOrderStatus {
   PENDING
   ACCEPTED
+  COMPLETED
 }
 
 enum PaymentStatus {

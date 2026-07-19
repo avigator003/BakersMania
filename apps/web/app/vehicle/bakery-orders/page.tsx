@@ -199,11 +199,10 @@ export default function VehicleBakeryOrdersPage() {
         {loading ? <LoadingSpinner label="Loading bakery orders" /> : null}
 
         <div className="hidden max-h-[680px] overflow-auto sm:block">
-          <table className="w-full min-w-[1120px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Products</th>
                 <th className="px-4 py-3 text-right">Quantity</th>
                 <th className="px-4 py-3 text-right">Previous Due Amount</th>
                 <th className="px-4 py-3 text-right">Order Amount</th>
@@ -219,7 +218,6 @@ export default function VehicleBakeryOrdersPage() {
                 return (
                   <tr key={order.id}>
                     <td className="px-4 py-3 font-semibold">{orderDate(order)}</td>
-                    <td className="px-4 py-3 text-muted">{order.items.map((item) => `${item.name} (${formatQty(item.quantity)})`).join(", ")}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatQty(quantity)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatCurrency(order.previousDueAmount)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatCurrency(order.orderAmount ?? order.grandTotal)}</td>
@@ -243,7 +241,7 @@ export default function VehicleBakeryOrdersPage() {
               })}
               {!loading && !orders.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-sm text-muted" colSpan={9}>No bakery orders placed for this date.</td>
+                  <td className="px-4 py-8 text-center text-sm text-muted" colSpan={8}>No bakery orders placed for this date.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -268,7 +266,6 @@ export default function VehicleBakeryOrdersPage() {
                   <span className="rounded-md bg-panel px-2 py-1 text-muted">Today due <strong className="block text-berry">{formatCurrency(order.todaysDueAmount)}</strong></span>
                   <span className="rounded-md bg-panel px-2 py-1 text-muted">Order <strong className="block text-ink">{formatCurrency(order.orderAmount ?? order.grandTotal)}</strong></span>
                 </div>
-                <p className="mt-3 text-sm text-muted">{order.items.map((item) => `${item.name} (${formatQty(item.quantity)})`).join(", ")}</p>
                 {order.status === "PENDING" ? (
                   <button className="focus-ring mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 text-sm font-semibold" onClick={() => openEdit(order)} type="button">
                     <Pencil size={15} />

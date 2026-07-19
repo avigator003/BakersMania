@@ -94,11 +94,23 @@ function todaysDueAmount(previousDue: number, orderAmount: string | number, paid
 }
 
 function vehicleAccepted(order: Order) {
-  return order.vehicleStatus === "ACCEPTED";
+  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED";
 }
 
 function vehicleStatusValue(order: Order) {
-  return vehicleAccepted(order) ? "ACCEPTED" : "PENDING";
+  if (order.vehicleStatus === "COMPLETED") return "COMPLETED";
+  return order.vehicleStatus === "ACCEPTED" ? "ACCEPTED" : "PENDING";
+}
+
+function vehicleStatusClass(order: Order) {
+  if (order.vehicleStatus === "COMPLETED") return "border-mint/30 bg-mint/10 text-mint";
+  if (order.vehicleStatus === "ACCEPTED") return "border-sky-300/50 bg-sky-50 text-sky-700";
+  return "border-amber-400/40 bg-amber-100 text-amber-700";
+}
+
+function vehicleStatusLabel(order: Order) {
+  if (order.vehicleStatus === "COMPLETED") return "Completed";
+  return vehicleAccepted(order) ? "Accepted" : "Pending";
 }
 
 function customerKey(order: Order) {
@@ -489,7 +501,7 @@ export default function VehicleRoutesPage() {
     content += pdfLine(orderNumber, 48, y, 18); y -= 22;
     content += pdfLine(order.customer.name, 48, y, 10);
     content += pdfLine(`Order date: ${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(order.dueAt || order.createdAt))}`, 360, y, 9); y -= 16;
-    content += pdfLine(`Vehicle status: ${vehicleAccepted(order) ? "Accepted" : "Pending"}`, 360, y, 9);
+    content += pdfLine(`Vehicle status: ${vehicleStatusLabel(order)}`, 360, y, 9);
     content += pdfLine(`Bakery status: ${order.status}`, 360, y - 14, 9);
     content += pdfLine(`Payment status: ${order.paymentStatus}`, 360, y - 28, 9); y -= 50;
     content += pdfLine("Products", 48, y, 13); y -= 18;
@@ -590,13 +602,14 @@ export default function VehicleRoutesPage() {
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => exportOrderPdf(order)} type="button"><Download size={14} /> Invoice PDF</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(order)} type="button"><Pencil size={14} /> Edit</button>
                   <select
-                    className={`focus-ring col-span-2 rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
+                    className={`focus-ring col-span-2 rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleStatusClass(order)}`}
                     disabled={saving}
                     onChange={(event) => updateOrder(order, { vehicleStatus: event.target.value })}
                     value={vehicleStatusValue(order)}
                   >
                     <option value="PENDING">Pending</option>
                     <option value="ACCEPTED">Accepted</option>
+                    <option value="COMPLETED">Completed</option>
                   </select>
                   <button className="focus-ring col-span-2 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={saving || (todayDue(order) <= 0 && !order.payments?.length)} onClick={() => startPayment(order)} type="button">{order.payments?.length ? "Edit payment" : "Record payment"}</button>
                 </div>
@@ -640,13 +653,14 @@ export default function VehicleRoutesPage() {
                           <button aria-label="Invoice PDF" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderPdf(order)} title="Invoice PDF" type="button"><Download size={14} /></button>
                           <button aria-label="Edit order" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={saving} onClick={() => openEditOrder(order)} title="Edit order" type="button"><Pencil size={14} /></button>
                           <select
-                            className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
+                            className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleStatusClass(order)}`}
                             disabled={saving}
                             onChange={(event) => updateOrder(order, { vehicleStatus: event.target.value })}
                             value={vehicleStatusValue(order)}
                           >
                             <option value="PENDING">Pending</option>
                             <option value="ACCEPTED">Accepted</option>
+                            <option value="COMPLETED">Completed</option>
                           </select>
                           <button aria-label={order.payments?.length ? "Edit payment" : "Record payment"} className="focus-ring grid place-items-center rounded-md bg-mint text-white disabled:opacity-50" disabled={saving || (todayDue(order) <= 0 && !order.payments?.length)} onClick={() => startPayment(order)} title={order.payments?.length ? "Edit payment" : "Record payment"} type="button"><IndianRupee size={15} /></button>
                         </div>

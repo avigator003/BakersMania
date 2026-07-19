@@ -391,16 +391,7 @@ export const ordersService = {
     const pipelineStage = nextStageAfterActor(pipelineStages, "VEHICLE");
     const existing = await ordersRepository.findCustomerOrderOnDate(tenantId, customer.id, input.dueAt);
     if (existing) {
-      return ordersRepository.updateOrder({
-        tenantId,
-        orderId: existing.id,
-        customerId: customer.id,
-        routeId: customer.routeId,
-        orderInput: payload.orderInput,
-        totals: payload.totals,
-        items: payload.items,
-        paymentStatus: "UNPAID"
-      });
+      throw new HttpError(409, "Only one bakery order is allowed for the selected date. Edit the pending bakery order instead.");
     }
 
     return ordersRepository.createOrder({
@@ -667,8 +658,8 @@ export const ordersService = {
       }, {}),
       orderCount: orders.length,
       statusCounts: {
-        accepted: statusCountOrders.filter((order) => order.vehicleStatus === "ACCEPTED").length,
-        pending: statusCountOrders.filter((order) => order.vehicleStatus !== "ACCEPTED").length
+        accepted: statusCountOrders.filter((order) => order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED").length,
+        pending: statusCountOrders.filter((order) => order.vehicleStatus !== "ACCEPTED" && order.vehicleStatus !== "COMPLETED").length
       }
     };
   }

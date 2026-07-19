@@ -222,7 +222,7 @@ export default function VehicleBakeryOrderPage() {
               <tbody className="divide-y divide-line">
                 {visibleProducts.map((product) => (
                   <tr key={product.id}>
-                    <td className="px-4 py-3 font-semibold">{product.name}</td>
+                    <td className="px-4 py-3 font-semibold text-sky-700">{product.name}</td>
                     <td className="px-4 py-3 text-muted">{productCategory(product)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatQty(totals[product.id])}</td>
                     <td className="px-4 py-3 text-right">
@@ -251,7 +251,7 @@ export default function VehicleBakeryOrderPage() {
               <article className="rounded-lg border border-line bg-panel2 p-3" key={product.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="truncate text-sm font-semibold">{product.name}</h2>
+                    <h2 className="truncate text-sm font-semibold text-sky-700">{product.name}</h2>
                     <p className="mt-1 truncate text-xs text-muted">{productCategory(product)}</p>
                   </div>
                   <span className="shrink-0 text-sm font-semibold">{formatQty(totals[product.id])}</span>
@@ -322,7 +322,7 @@ export default function VehicleBakeryOrderPage() {
             <tbody className="divide-y divide-line">
               {orderRows.map((item) => (
                 <tr key={item.productId}>
-                  <td className="px-4 py-3 font-semibold">{item.name}</td>
+                  <td className="px-4 py-3 font-semibold text-sky-700">{item.name}</td>
                   <td className="px-4 py-3 text-muted">{item.category}</td>
                   <td className="px-4 py-3 text-right">
                     <input

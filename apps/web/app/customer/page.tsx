@@ -217,7 +217,7 @@ export default function CustomerPage() {
             {cartRows.map((item) => (
               <div className="grid grid-cols-[minmax(0,1fr)_72px_34px] items-center gap-2 rounded-md border border-line bg-panel2 p-2" key={item.id}>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{item.name}</span>
+                  <span className="block truncate text-sm font-semibold text-sky-700">{item.name}</span>
                   <span className="text-xs text-muted">{formatAmount(item.unitPrice)}</span>
                 </span>
                 <input className="rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint" min="0" onChange={(event) => updateQuantity(item.id, Number(event.target.value))} step="0.001" type="number" value={item.quantity} />
@@ -259,7 +259,7 @@ export default function CustomerPage() {
                     <Star fill={product.isPreferred ? "currentColor" : "none"} size={15} />
                   </button>
                 </div>
-                <h2 className="mt-1 text-sm font-semibold leading-5">{product.name}</h2>
+                <h2 className="mt-1 text-sm font-semibold leading-5 text-sky-700">{product.name}</h2>
                 <div className="mt-2 flex items-center justify-between gap-2">
                   {product.isPreferred ? <p className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-amber-700">Preferred</p> : <span />}
                   <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
