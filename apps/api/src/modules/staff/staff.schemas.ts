@@ -5,6 +5,7 @@ export const labourSchema = z.object({
   phone: z.string().optional(),
   role: z.enum(["OWNER", "MANAGER", "ACCOUNTANT", "LABOURER", "DELIVERY_STAFF", "CASHIER"]).default("LABOURER"),
   skill: z.string().optional(),
+  dateOfBirth: z.coerce.date().optional(),
   dailyWage: z.coerce.number().nonnegative().optional(),
   monthlySalary: z.coerce.number().nonnegative().optional(),
   joinedAt: z.coerce.date().optional(),

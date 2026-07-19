@@ -1,0 +1,1 @@
+ALTER TABLE "Labour" ADD COLUMN "dateOfBirth" TIMESTAMP(3);

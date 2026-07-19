@@ -18,6 +18,7 @@ type Labour = {
   phone?: string | null;
   role: string;
   skill?: string | null;
+  dateOfBirth?: string | null;
   dailyWage?: string | null;
   monthlySalary?: string | null;
   active: boolean;
@@ -78,6 +79,7 @@ const initialLabourForm = {
   name: "",
   phone: "",
   skill: "",
+  dateOfBirth: "",
   dailyWage: "",
   monthlySalary: "",
   joinedAt: localDateInput(),
@@ -87,6 +89,19 @@ const initialLabourForm = {
 function formatAmount(value?: string | number | null) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+}
+
+function labourAge(dateOfBirth?: string | null) {
+  if (!dateOfBirth) return "-";
+  const birthDate = new Date(dateOfBirth);
+  if (Number.isNaN(birthDate.getTime())) return "-";
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const hadBirthdayThisYear =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+  if (!hadBirthdayThisYear) age -= 1;
+  return age >= 0 ? String(age) : "-";
 }
 
 export default function LabourManagementPage() {
@@ -147,6 +162,7 @@ export default function LabourManagementPage() {
       name: labour.name || "",
       phone: labour.phone || "",
       skill: labour.skill || "",
+      dateOfBirth: labour.dateOfBirth ? labour.dateOfBirth.slice(0, 10) : "",
       dailyWage: labour.dailyWage ? String(labour.dailyWage) : "",
       monthlySalary: labour.monthlySalary ? String(labour.monthlySalary) : "",
       joinedAt: labour.joinedAt ? labour.joinedAt.slice(0, 10) : localDateInput(),
@@ -171,6 +187,7 @@ export default function LabourManagementPage() {
         role: "LABOURER",
         dailyWage: labourForm.dailyWage ? Number(labourForm.dailyWage) : undefined,
         monthlySalary: labourForm.monthlySalary ? Number(labourForm.monthlySalary) : undefined,
+        dateOfBirth: labourForm.dateOfBirth || undefined,
         joinedAt: labourForm.joinedAt || undefined
       };
       if (editLabour) {
@@ -363,6 +380,10 @@ export default function LabourManagementPage() {
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <span>
+                      <span className="block text-xs text-muted">Age</span>
+                      <span className="font-semibold">{labourAge(labour.dateOfBirth)}</span>
+                    </span>
+                    <span>
                       <span className="block text-xs text-muted">Daily wage</span>
                       <span className="font-semibold">{formatAmount(labour.dailyWage)}</span>
                     </span>
@@ -388,6 +409,7 @@ export default function LabourManagementPage() {
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Labour</th>
+                  <th className="px-4 py-3">Age</th>
                   <th className="px-4 py-3">Daily wage</th>
                   <th className="px-4 py-3">Monthly salary</th>
                   <th className="px-4 py-3">Status</th>
@@ -402,6 +424,7 @@ export default function LabourManagementPage() {
                         <span className="block font-semibold">{labour.name}</span>
                         <span className="text-xs text-muted">{labour.phone || "No phone"}</span>
                       </td>
+                      <td className="px-4 py-3 font-semibold">{labourAge(labour.dateOfBirth)}</td>
                       <td className="px-4 py-3">{formatAmount(labour.dailyWage)}</td>
                       <td className="px-4 py-3">{formatAmount(labour.monthlySalary)}</td>
                       <td className="px-4 py-3">
@@ -430,7 +453,7 @@ export default function LabourManagementPage() {
                 })}
                 {!loading && !(data?.labours || []).length ? (
                   <tr>
-                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={5}>
+                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={6}>
                       No labour matched your search.
                     </td>
                   </tr>
@@ -446,6 +469,7 @@ export default function LabourManagementPage() {
               ["name", "Name"],
               ["phone", "Phone"],
               ["skill", "Skill"],
+              ["dateOfBirth", "Date of birth"],
               ["dailyWage", "Daily wage"],
               ["monthlySalary", "Monthly salary"],
               ["joinedAt", "Joined date"],
@@ -453,7 +477,7 @@ export default function LabourManagementPage() {
             ].map(([key, label]) => (
               <label key={key} className="grid gap-1">
                 <span className="text-sm font-medium">{label}</span>
-                {key === "joinedAt" ? (
+                {key === "joinedAt" || key === "dateOfBirth" ? (
                   <DateInput
                     className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
                     onChange={(value) => setLabourForm((current) => ({ ...current, [key]: value }))}
