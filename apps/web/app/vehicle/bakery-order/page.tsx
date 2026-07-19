@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Send } from "lucide-react";
+import { Plus, RefreshCw, Send } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -46,6 +46,8 @@ export default function VehicleBakeryOrderPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [extraProductId, setExtraProductId] = useState("");
+  const [extraQuantity, setExtraQuantity] = useState("1");
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -82,6 +84,13 @@ export default function VehicleBakeryOrderPage() {
       category: product ? productCategory(product) : "General"
     };
   }), [orderItems, products]);
+
+  const extraProductOptions = useMemo(() => {
+    const orderedIds = new Set(orderItems.map((item) => item.productId));
+    return sortedProducts
+      .filter((product) => !orderedIds.has(product.id))
+      .map((product) => ({ value: product.id, label: product.name, description: productCategory(product) }));
+  }, [orderItems, sortedProducts]);
 
   const totalQuantity = useMemo(
     () => orderItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -120,8 +129,22 @@ export default function VehicleBakeryOrderPage() {
 
   function openReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!orderItems.length) return;
     setReviewOpen(true);
+  }
+
+  function addExtraProduct() {
+    const quantity = Number(extraQuantity || 0);
+    if (!extraProductId) {
+      toast.warning("Select product", "Choose a product to add.");
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      toast.warning("Enter quantity", "Quantity must be greater than 0.");
+      return;
+    }
+    updateQuantity(extraProductId, String(quantity));
+    setExtraProductId("");
+    setExtraQuantity("1");
   }
 
   async function createBakeryOrder() {
@@ -159,7 +182,7 @@ export default function VehicleBakeryOrderPage() {
               <RefreshCw size={16} />
               Refresh
             </button>
-            <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || !orderItems.length} type="submit">
+            <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || loading} type="submit">
               <Send size={16} />
               {saving ? "Saving..." : "Create Order"}
             </button>
@@ -236,6 +259,37 @@ export default function VehicleBakeryOrderPage() {
 
       </form>
       <Modal open={reviewOpen} title="Create Order" description={`${orderRows.length} product${orderRows.length === 1 ? "" : "s"} · Qty ${formatQty(totalQuantity)} · ${date}`} onClose={() => setReviewOpen(false)}>
+        <div className="mb-4 grid gap-3 rounded-lg border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-end">
+          <SearchableSelect
+            disabled={!extraProductOptions.length}
+            label="Add product"
+            onChange={setExtraProductId}
+            options={extraProductOptions}
+            placeholder={extraProductOptions.length ? "Select product" : "All products added"}
+            searchPlaceholder="Search products"
+            value={extraProductId}
+          />
+          <label className="grid gap-1 text-sm font-semibold">
+            Quantity
+            <input
+              className="rounded-md border border-line bg-panel px-3 py-2 text-right font-semibold outline-none focus:border-mint"
+              min="0"
+              onChange={(event) => setExtraQuantity(event.target.value)}
+              step="0.001"
+              type="number"
+              value={extraQuantity}
+            />
+          </label>
+          <button
+            className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel px-4 text-sm font-semibold disabled:opacity-50"
+            disabled={!extraProductOptions.length}
+            onClick={addExtraProduct}
+            type="button"
+          >
+            <Plus size={16} />
+            Add
+          </button>
+        </div>
         <div className="max-h-[60vh] overflow-auto rounded-lg border border-line">
           <table className="w-full min-w-[520px] text-left text-sm">
             <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
