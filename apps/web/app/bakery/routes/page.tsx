@@ -450,7 +450,7 @@ export default function BakeryRoutesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
+                        <div className="table-action-grid table-action-grid--compact">
                           <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => setViewRoute(route)} title="View route" type="button"><Eye size={15} /></button>
                           <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openEditRoute(route)} title="Edit route" type="button"><Pencil size={15} /></button>
                         </div>
@@ -547,7 +547,7 @@ export default function BakeryRoutesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
+                        <div className="table-action-grid table-action-grid--compact">
                           <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => setViewVehicle(vehicle)} title="View vehicle" type="button"><Eye size={15} /></button>
                           <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openEditVehicle(vehicle)} title="Edit vehicle" type="button"><Pencil size={15} /></button>
                         </div>

@@ -581,7 +581,7 @@ export default function BakeryInventoryPage() {
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex justify-end gap-2">
+                            <div className="table-action-grid table-action-grid--compact">
                               <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openAdjustMaterial(material, "BUY")} title="Buy material" type="button">
                                 <PackagePlus size={15} />
                               </button>

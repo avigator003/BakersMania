@@ -3,6 +3,7 @@ export type XlsxCellValue = string | number | null | undefined;
 export type XlsxCell = {
   value: XlsxCellValue;
   style?: "default" | "header" | "metaLabel" | "metaValue" | "name" | "summary" | "amount";
+  colSpan?: number;
 };
 
 export type XlsxRow = {
@@ -80,18 +81,26 @@ function styleId(style: XlsxCell["style"]) {
 }
 
 function worksheetXml(rows: XlsxRow[], columns: XlsxColumn[]) {
-  const maxColumns = Math.max(columns.length, ...rows.map((row) => row.cells.length), 1);
+  const rowColumnCounts = rows.map((row) => row.cells.reduce((sum, cell) => sum + Math.max(1, cell.colSpan || 1), 0));
+  const maxColumns = Math.max(columns.length, ...rowColumnCounts, 1);
   const colsXml = Array.from({ length: maxColumns }, (_, index) => {
     const width = columns[index]?.width ?? 12;
     return `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`;
   }).join("");
 
+  const merges: string[] = [];
   const rowsXml = rows.map((row, rowIndex) => {
     const rowNumber = rowIndex + 1;
     const height = row.height ?? 48;
-    const cellsXml = row.cells.map((cell, cellIndex) => {
+    let cellIndex = 0;
+    const cellsXml = row.cells.map((cell) => {
       const ref = `${columnName(cellIndex)}${rowNumber}`;
       const style = styleId(cell.style);
+      const colSpan = Math.max(1, cell.colSpan || 1);
+      if (colSpan > 1) {
+        merges.push(`${ref}:${columnName(cellIndex + colSpan - 1)}${rowNumber}`);
+      }
+      cellIndex += colSpan;
       if (cell.value === null || cell.value === undefined || cell.value === "") {
         return `<c r="${ref}" s="${style}"/>`;
       }
@@ -103,12 +112,17 @@ function worksheetXml(rows: XlsxRow[], columns: XlsxColumn[]) {
     return `<row r="${rowNumber}" ht="${height}" customHeight="1">${cellsXml}</row>`;
   }).join("");
 
+  const mergeXml = merges.length
+    ? `<mergeCells count="${merges.length}">${merges.map((ref) => `<mergeCell ref="${ref}"/>`).join("")}</mergeCells>`
+    : "";
+
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheetViews><sheetView workbookViewId="0"/></sheetViews>
   <sheetFormatPr defaultRowHeight="48"/>
   <cols>${colsXml}</cols>
   <sheetData>${rowsXml}</sheetData>
+  ${mergeXml}
 </worksheet>`;
 }
 

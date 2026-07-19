@@ -527,32 +527,35 @@ export default function CustomerOrdersPage() {
                             </span>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2 lg:justify-start lg:pr-10">
-                          <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                        <div className="grid grid-cols-[repeat(4,2.5rem)] gap-2 lg:justify-start lg:pr-10">
+                          <PaymentHistory compact iconOnly payments={order.payments} total={order.grandTotal} />
                           <button
-                            className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold"
+                            aria-label="Details"
+                            className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel"
                             onClick={() => setDetailOrder(order)}
                             title="Show invoice details"
                             type="button"
                           >
-                            <Eye size={14} /> Details
+                            <Eye size={14} />
                           </button>
                           <button
-                            className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold"
+                            aria-label="Invoice PDF"
+                            className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel"
                             onClick={() => exportOrder(order)}
                             title="Download invoice"
                             type="button"
                           >
-                            <Download size={14} /> Invoice PDF
+                            <Download size={14} />
                           </button>
                           <button
-                            className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                            aria-label="Edit order"
+                            className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel disabled:opacity-50"
                             disabled={saving || order.status !== "PENDING" || driverAccepted(order)}
                             onClick={() => openEditOrder(order)}
                             title={driverAccepted(order) ? "Cannot edit after driver accepts" : order.status === "PENDING" ? "Edit order" : `Cannot edit ${order.status.toLowerCase()} order`}
                             type="button"
                           >
-                            <Pencil size={14} /> Edit
+                            <Pencil size={14} />
                           </button>
                         </div>
                       </div>

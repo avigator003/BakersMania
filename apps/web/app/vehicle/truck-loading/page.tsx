@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Download, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
-import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { authFetch, clearSession, getStoredTenantSlug } from "../../../lib/api";
 import { downloadXlsx, type XlsxColumn, type XlsxRow } from "../../../lib/xlsx-export";
 
 type TruckLoading = {
@@ -46,10 +46,6 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
-function shortProductName(name: string) {
-  return name.length > 6 ? name.slice(0, 6) : name;
-}
-
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
@@ -63,6 +59,7 @@ function productSort(a: TruckLoading["products"][number], b: TruckLoading["produ
 export default function VehicleTruckLoadingPage() {
   const toast = useToast();
   const pathname = usePathname();
+  const router = useRouter();
   const [date, setDate] = useState(today);
   const [truckLoading, setTruckLoading] = useState<TruckLoading | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
@@ -82,7 +79,14 @@ export default function VehicleTruckLoadingPage() {
       const data = await authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?${params.toString()}`);
       setTruckLoading(data.truckLoading);
     } catch (error) {
-      toast.error("Could not load truck loading", error instanceof Error ? error.message : "Please sign in again.");
+      const message = error instanceof Error ? error.message : "Please sign in again.";
+      if (message === "Tenant access denied") {
+        clearSession();
+        toast.error("Please sign in again", "Your login belongs to another bakery.");
+        router.replace(`/login/vehicle?next=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      toast.error("Could not load truck loading", message);
     } finally {
       setLoading(false);
     }
@@ -154,35 +158,44 @@ export default function VehicleTruckLoadingPage() {
 
   function exportTruckLoading() {
     if (!truckLoading) return;
+    const exportProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
     const routeNames = Array.from(new Set(visibleRoutes.map((route) => route.routeName).filter(Boolean))).join(", ") || "Assigned Routes";
-    const productQuantitySummary = visibleProducts.length * totalQuantity;
+    const exportProductTotals = Object.fromEntries(exportProducts.map((product) => [
+      product.id,
+      visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0)
+    ]));
+    const exportTotalQuantity = visibleRoutes.reduce((sum, route) => (
+      sum + exportProducts.reduce((routeSum, product) => routeSum + Number(route.quantities[product.id] || 0), 0)
+    ), 0);
     const columns: XlsxColumn[] = [
       { width: 22 },
-      ...visibleProducts.map(() => ({ width: 8.43 })),
-      { width: 10 },
+      ...exportProducts.map(() => ({ width: 5.5 })),
+      { width: 8 },
       { width: 14 },
-      { width: 16 },
+      { width: 18 },
       { width: 14 },
-      { width: 16 }
+      { width: 18 }
     ];
     const rows: XlsxRow[] = [
       {
         height: 18,
         cells: [
           { value: "Date", style: "metaLabel" },
-          { value: truckLoading.date, style: "metaValue" },
-          { value: "Route Name", style: "metaLabel" },
-          { value: routeNames, style: "metaValue" },
-          { value: "No of Products * Quantity", style: "metaLabel" },
-          { value: productQuantitySummary, style: "metaValue" }
+          { value: truckLoading.date, style: "metaValue", colSpan: 3 },
+          { value: "Route Name", style: "metaLabel", colSpan: 2 },
+          { value: routeNames, style: "metaValue", colSpan: 4 },
+          { value: "Products", style: "metaLabel", colSpan: 2 },
+          { value: exportProducts.length, style: "metaValue", colSpan: 2 },
+          { value: "Qty", style: "metaLabel" },
+          { value: exportTotalQuantity, style: "metaValue", colSpan: 2 }
         ]
       },
       { height: 12, cells: [] },
       {
-        height: 48,
+        height: 72,
         cells: [
           { value: "Customer Name", style: "header" },
-          ...visibleProducts.map((product) => ({ value: shortProductName(product.name), style: "header" as const })),
+          ...exportProducts.map((product) => ({ value: `${product.name}\n${product.category}`, style: "header" as const })),
           { value: "Total Qty", style: "header" },
           { value: "Order Amount", style: "header" },
           { value: "Previous Due Amount", style: "header" },
@@ -191,13 +204,12 @@ export default function VehicleTruckLoadingPage() {
         ]
       },
       ...visibleRoutes.map((route) => {
-        const total = routeTotal(route);
         return {
-          height: 48,
+          height: 30,
           cells: [
             { value: route.name, style: "name" as const },
-            ...visibleProducts.map((product) => ({ value: route.quantities[product.id] || null })),
-            { value: total || null },
+            ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null })),
+            { value: exportProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0) || null },
             { value: route.orderAmount || null, style: "amount" as const },
             { value: route.previousDue || null, style: "amount" as const },
             { value: route.paidAmount || null, style: "amount" as const },
@@ -206,11 +218,11 @@ export default function VehicleTruckLoadingPage() {
         };
       }),
       {
-        height: 48,
+        height: 30,
         cells: [
           { value: "Product Total", style: "summary" },
-          ...visibleProducts.map((product) => ({ value: productTotals[product.id] || null, style: "summary" as const })),
-          { value: totalQuantity || null, style: "summary" },
+          ...exportProducts.map((product) => ({ value: exportProductTotals[product.id] || null, style: "summary" as const })),
+          { value: exportTotalQuantity || null, style: "summary" },
           { value: amountTotals.orderAmount || null, style: "summary" },
           { value: amountTotals.previousDue || null, style: "summary" },
           { value: amountTotals.paidAmount || null, style: "summary" },

@@ -97,6 +97,47 @@ input[type="number"]::-webkit-inner-spin-button {
   outline-color: #34d399;
 }
 
+@layer components {
+  .table-action-cell {
+    width: 28rem;
+    min-width: 28rem;
+  }
+
+  .table-action-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    justify-content: end;
+    justify-items: stretch;
+    margin-left: auto;
+    max-width: 28rem;
+  }
+
+  .table-action-grid > *,
+  .table-action-grid button,
+  .table-action-grid select {
+    width: 100%;
+  }
+
+  .table-action-grid button,
+  .table-action-grid select {
+    min-height: 2.5rem;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .table-action-grid--compact {
+    grid-template-columns: repeat(2, max-content);
+    max-width: none;
+  }
+
+  .table-action-grid--compact > *,
+  .table-action-grid--compact button,
+  .table-action-grid--compact select {
+    width: auto;
+  }
+}
+
 @media (max-width: 1280px) {
   th,
   td {

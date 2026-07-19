@@ -324,7 +324,7 @@ export default function BakeryProductsPage() {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="table-action-grid table-action-grid--compact">
                         <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2 hover:border-mint" onClick={() => openProductDetails(product)} title="View product prices">
                           <Eye size={16} />
                         </button>

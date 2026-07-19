@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Download, Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Eye, IndianRupee, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -605,7 +605,7 @@ export default function VehicleRoutesPage() {
                   <th className="px-4 py-3 text-right">Paid Amount</th>
                   <th className="px-4 py-3 text-right">Today's Due Amount</th>
                   <th className="px-4 py-3">Bakery Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="table-action-cell px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -622,12 +622,12 @@ export default function VehicleRoutesPage() {
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-md border border-line bg-panel2 px-2 py-1 text-xs font-semibold">{order.status}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
-                          <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Order details</button>
-                          <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => exportOrderPdf(order)} type="button"><Download size={14} /> Invoice PDF</button>
-                          <button className="focus-ring inline-flex items-center gap-1 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(order)} type="button"><Pencil size={14} /> Edit</button>
+                      <td className="table-action-cell px-4 py-3">
+                        <div className="table-action-grid">
+                          <PaymentHistory compact iconOnly payments={order.payments} total={order.grandTotal} />
+                          <button aria-label="Order details" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2" onClick={() => setDetailOrder(order)} title="Order details" type="button"><Eye size={14} /></button>
+                          <button aria-label="Invoice PDF" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderPdf(order)} title="Invoice PDF" type="button"><Download size={14} /></button>
+                          <button aria-label="Edit order" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={saving} onClick={() => openEditOrder(order)} title="Edit order" type="button"><Pencil size={14} /></button>
                           <select
                             className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
                             disabled={saving}
@@ -637,7 +637,7 @@ export default function VehicleRoutesPage() {
                             <option value="PENDING">Pending</option>
                             <option value="ACCEPTED">Accepted</option>
                           </select>
-                          <button className="focus-ring rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" disabled={saving || (todayDue(order) <= 0 && !order.payments?.length)} onClick={() => startPayment(order)} type="button">{order.payments?.length ? "Edit payment" : "Record payment"}</button>
+                          <button aria-label={order.payments?.length ? "Edit payment" : "Record payment"} className="focus-ring grid place-items-center rounded-md bg-mint text-white disabled:opacity-50" disabled={saving || (todayDue(order) <= 0 && !order.payments?.length)} onClick={() => startPayment(order)} title={order.payments?.length ? "Edit payment" : "Record payment"} type="button"><IndianRupee size={15} /></button>
                         </div>
                       </td>
                     </tr>

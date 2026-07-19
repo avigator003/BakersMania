@@ -335,7 +335,7 @@ export default function AdminLeadsPage() {
                     </td>
                     <td className="px-4 py-3 text-muted">{formatDate(lead.nextCallAt)}</td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                      <div className="table-action-grid table-action-grid--compact">
                         <button className="focus-ring grid h-9 w-9 place-items-center rounded-md border border-line bg-panel2" onClick={() => openEdit(lead)} title="Edit lead">
                           <Edit3 size={16} />
                         </button>

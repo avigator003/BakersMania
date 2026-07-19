@@ -504,7 +504,7 @@ export default function AdminTenantsPage() {
                   <th className="px-4 py-3 font-semibold">Postgres DB</th>
                   <th className="px-4 py-3 font-semibold">Pipeline</th>
                   <th className="px-4 py-3 font-semibold">Phone</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
+                  <th className="table-action-cell px-4 py-3 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -532,8 +532,8 @@ export default function AdminTenantsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted">{tenant.phone || "-"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
+                    <td className="table-action-cell px-4 py-3">
+                      <div className="table-action-grid">
                         <button
                           className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 text-xs font-semibold"
                           onClick={() => {

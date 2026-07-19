@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { History } from "lucide-react";
 import { Modal } from "./modal";
 
 type PaymentHistoryPayment = {
@@ -15,6 +16,7 @@ type PaymentHistoryProps = {
   payments?: PaymentHistoryPayment[];
   total: string | number;
   compact?: boolean;
+  iconOnly?: boolean;
 };
 
 function formatAmount(value?: string | number | null) {
@@ -42,20 +44,27 @@ export function resolvedPaymentStatus(total: string | number, payments?: Payment
   return fallback;
 }
 
-export function PaymentHistory({ payments = [], total, compact = false }: PaymentHistoryProps) {
+export function PaymentHistory({ payments = [], total, compact = false, iconOnly = false }: PaymentHistoryProps) {
   const [open, setOpen] = useState(false);
   const paid = paymentTotal(payments);
   const due = paymentDue(total, payments);
+  const buttonLabel = `Show payments (${payments.length})`;
 
   return (
     <>
       <div className={`flex flex-wrap items-center gap-2 ${compact ? "text-xs" : "text-sm"}`}>
         <button
-          className="focus-ring inline-flex items-center justify-center rounded-md border border-line bg-panel2 px-3 py-1.5 text-xs font-semibold hover:border-mint"
+          aria-label={iconOnly ? buttonLabel : undefined}
+          className={
+            iconOnly
+              ? "focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2 text-ink hover:border-mint"
+              : "focus-ring inline-flex items-center justify-center rounded-md border border-line bg-panel2 px-3 py-1.5 text-xs font-semibold hover:border-mint"
+          }
           onClick={() => setOpen(true)}
+          title={iconOnly ? buttonLabel : undefined}
           type="button"
         >
-          Show payments ({payments.length})
+          {iconOnly ? <History size={14} /> : buttonLabel}
         </button>
       </div>
 

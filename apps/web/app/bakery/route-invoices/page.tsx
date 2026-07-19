@@ -344,7 +344,7 @@ export default function RouteInvoicesPage() {
                 <th className="px-4 py-3 text-right">Total Amount</th>
                 <th className="px-4 py-3 text-right">Paid Amount</th>
                 <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className="table-action-cell px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -363,8 +363,8 @@ export default function RouteInvoicesPage() {
                   <td className="px-4 py-3 text-right font-semibold">{formatAmount(fullAmount)}</td>
                   <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDue)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
+                  <td className="table-action-cell px-4 py-3">
+                    <div className="table-action-grid">
                       <button className="focus-ring inline-flex items-center gap-1 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={!todaysDue || saving} onClick={() => openPayment(row)} type="button"><Eye size={14} /> Record Payment</button>
                       <button className={`focus-ring inline-flex items-center gap-1 rounded-md px-3 py-2 text-xs font-semibold disabled:opacity-50 ${row.locked ? "border border-line bg-panel2" : "bg-berry text-white"}`} disabled={saving} onClick={() => toggleRouteLock(row)} type="button">
                         {row.locked ? <Unlock size={14} /> : <Lock size={14} />}

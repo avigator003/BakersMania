@@ -211,7 +211,7 @@ export default function BakeryProductPricesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="table-action-grid table-action-grid--compact">
                         <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-xs font-semibold" onClick={() => openPrices(route, "view")} type="button"><Eye size={14} /> View</button>
                         <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white" onClick={() => openPrices(route, "edit")} type="button"><IndianRupee size={14} /> Assign Product Price</button>
                       </div>

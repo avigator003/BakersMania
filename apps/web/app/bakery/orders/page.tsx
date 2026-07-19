@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Download, Eye, FileDown, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Copy, Download, Eye, FileDown, IndianRupee, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -850,8 +850,10 @@ export default function BakeryOrdersPage() {
                         <td className="px-4 py-3">
                           <div className="grid gap-2">
                             <span className={`rounded-md border px-2 py-1 text-center text-xs font-semibold ${paymentStatusClass(paymentStatus(order))}`}>{paymentStatus(order)}</span>
-                            <button className="focus-ring rounded-md bg-mint px-2 py-1 text-xs font-semibold text-white disabled:opacity-50" disabled={saving || (todayDueForOrder(order) <= 0 && !order.payments?.length)} onClick={() => openPaymentEditor(order)} type="button">{order.payments?.length ? "Edit payment" : "Record payment"}</button>
-                            <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                            <div className="grid grid-cols-2 gap-2">
+                              <button aria-label={order.payments?.length ? "Edit payment" : "Record payment"} className="focus-ring grid h-10 place-items-center rounded-md bg-mint text-white disabled:opacity-50" disabled={saving || (todayDueForOrder(order) <= 0 && !order.payments?.length)} onClick={() => openPaymentEditor(order)} title={order.payments?.length ? "Edit payment" : "Record payment"} type="button"><IndianRupee size={15} /></button>
+                              <PaymentHistory compact iconOnly payments={order.payments} total={order.grandTotal} />
+                            </div>
                           </div>
                         </td>
                       </tr>

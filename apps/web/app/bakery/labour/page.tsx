@@ -418,7 +418,7 @@ export default function LabourManagementPage() {
                         </select>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
+                        <div className="table-action-grid table-action-grid--compact">
                           <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" onClick={() => openEditLabour(labour)} type="button">
                             <Pencil size={15} />
                             Edit
