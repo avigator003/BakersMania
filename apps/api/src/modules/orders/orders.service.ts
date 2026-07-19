@@ -53,6 +53,35 @@ function customerDefaultDueAt() {
   return new Date(Date.UTC(dueAt.getUTCFullYear(), dueAt.getUTCMonth(), dueAt.getUTCDate()));
 }
 
+function isLegacyRouteAccount(customer: { tags?: string[] | null; notes?: string | null }) {
+  return Boolean(customer.tags?.includes("Driver (Sales Man)") || customer.notes?.includes("Legacy vehicle number:"));
+}
+
+function routeTotalCustomer(order: {
+  customer: { tags?: string[] | null; notes?: string | null };
+  customerId: string;
+  route?: { id: string; name: string } | null;
+}) {
+  if (!isLegacyRouteAccount(order.customer) || !order.route) return null;
+  return {
+    id: `route-total:${order.route.id}`,
+    name: `${order.route.name} total`,
+    route: { name: order.route.name }
+  };
+}
+
+function presentVehicleOrder<T extends { customer: Record<string, unknown>; customerId: string; route?: { id: string; name: string } | null }>(order: T): T {
+  const customer = routeTotalCustomer(order);
+  if (!customer) return order;
+  return {
+    ...order,
+    customer: {
+      ...order.customer,
+      ...customer
+    }
+  };
+}
+
 async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput) {
   const customer = await ordersRepository.findCustomer(tenantId, customerId);
   if (!customer) {
@@ -155,7 +184,12 @@ export const ordersService = {
     }
 
     if (auth?.actorType === "vehicle") {
-      return vehicleRouteIds(tenantId, auth).then((routeIds) => ordersRepository.listForVehicle(tenantId, routeIds || [], filters));
+      const routeIds = await vehicleRouteIds(tenantId, auth);
+      const result = await ordersRepository.listForVehicle(tenantId, routeIds || [], filters);
+      return {
+        ...result,
+        items: result.items.map(presentVehicleOrder)
+      };
     }
 
     return ordersRepository.listForStaff(tenantId, filters);
@@ -499,6 +533,7 @@ export const ordersService = {
     });
 
     baseRows.forEach((baseRow) => {
+      if (groupByCustomer && "tags" in baseRow && isLegacyRouteAccount(baseRow)) return;
       const totals = rowTotalsMap.get(baseRow.id);
       routeMap.set(baseRow.id, {
         id: baseRow.id,
@@ -518,12 +553,13 @@ export const ordersService = {
 
     orders.forEach((order) => {
       const route = order.route || order.customer.route;
-      const rowId = groupByCustomer ? order.customerId : route?.id || "no-route";
-      const rowName = groupByCustomer ? order.customer.name : route?.name || "No route";
+      const legacyRouteCustomer = groupByCustomer ? routeTotalCustomer({ ...order, route: route || null }) : null;
+      const rowId = groupByCustomer ? legacyRouteCustomer?.id || order.customerId : route?.id || "no-route";
+      const rowName = groupByCustomer ? legacyRouteCustomer?.name || order.customer.name : route?.name || "No route";
       const rowRouteName = groupByCustomer ? route?.name || null : null;
       const rowUpdatedAt = groupByCustomer ? order.customer.updatedAt : route?.updatedAt || order.updatedAt;
       if (!routeMap.has(rowId)) {
-        const totals = rowTotalsMap.get(rowId);
+        const totals = rowTotalsMap.get(rowId) || rowTotalsMap.get(order.customerId);
         routeMap.set(rowId, {
           id: rowId,
           name: rowName,
