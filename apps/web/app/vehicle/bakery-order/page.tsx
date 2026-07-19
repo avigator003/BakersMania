@@ -23,6 +23,21 @@ type TruckLoading = {
   date: string;
   totals: Record<string, number>;
 };
+type BakeryOrder = {
+  id: string;
+  dueAt?: string | null;
+  createdAt: string;
+  grandTotal: string | number;
+  status: string;
+  vehicleStatus: string;
+  items: Array<{
+    id: string;
+    productId: string;
+    name: string;
+    quantity: string | number;
+    product?: { category?: string | null; categoryRef?: { name: string } | null } | null;
+  }>;
+};
 
 const tomorrow = localDateInput(addLocalDays(new Date(), 1));
 
@@ -30,14 +45,23 @@ function formatQty(value?: string | number | null) {
   return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 }
 
+function formatCurrency(value?: string | number | null) {
+  return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0, style: "currency", currency: "INR" });
+}
+
 function productCategory(product: Product) {
   return product.categoryRef?.name || product.category || "General";
+}
+
+function orderDate(order: BakeryOrder) {
+  return (order.dueAt || order.createdAt).slice(0, 10);
 }
 
 export default function VehicleBakeryOrderPage() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [bakeryOrders, setBakeryOrders] = useState<BakeryOrder[]>([]);
   const [totals, setTotals] = useState<Record<string, number>>({});
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [date, setDate] = useState(tomorrow);
@@ -101,15 +125,17 @@ export default function VehicleBakeryOrderPage() {
     if (!apiBase) return;
     setLoading(true);
     try {
-      const [productData, categoryData, loadingData] = await Promise.all([
+      const [productData, categoryData, loadingData, bakeryOrderData] = await Promise.all([
         authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
-        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?date=${encodeURIComponent(date)}`)
+        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?date=${encodeURIComponent(date)}`),
+        authFetch<{ orders: BakeryOrder[] }>(`${apiBase}/orders/vehicle-bakery-orders?date=${encodeURIComponent(date)}`)
       ]);
       const activeProducts = productData.products.filter((product) => product.active !== false);
       const nextTotals = loadingData.truckLoading.totals || {};
       setProducts(activeProducts);
       setCategories(categoryData.categories);
+      setBakeryOrders(bakeryOrderData.orders);
       setTotals(nextTotals);
       setQuantities(Object.fromEntries(activeProducts.map((product) => [product.id, String(nextTotals[product.id] || 0)])));
     } catch (error) {
@@ -160,6 +186,7 @@ export default function VehicleBakeryOrderPage() {
       });
       toast.success("Bakery order saved", "The bakery can now see this order for the selected date.");
       setReviewOpen(false);
+      await loadData();
     } catch (error) {
       toast.error("Could not save bakery order", error instanceof Error ? error.message : "Please try again.");
     } finally {
@@ -257,6 +284,67 @@ export default function VehicleBakeryOrderPage() {
           </div>
         </section>
 
+        <section className="rounded-lg border border-line bg-panel shadow-subtle">
+          <div className="flex flex-col gap-2 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Orders Placed to Bakery</h2>
+              <p className="text-sm text-muted">{date}</p>
+            </div>
+            <span className="text-sm text-muted">Orders: <strong className="text-ink">{bakeryOrders.length}</strong></span>
+          </div>
+          <div className="hidden max-h-[360px] overflow-auto sm:block">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
+                <tr>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Products</th>
+                  <th className="px-4 py-3 text-right">Quantity</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {bakeryOrders.map((order) => {
+                  const quantity = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+                  return (
+                    <tr key={order.id}>
+                      <td className="px-4 py-3 font-semibold">{orderDate(order)}</td>
+                      <td className="px-4 py-3 text-muted">{order.items.map((item) => `${item.name} (${formatQty(item.quantity)})`).join(", ")}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatQty(quantity)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatCurrency(order.grandTotal)}</td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-md border border-line bg-panel2 px-2 py-1 text-xs font-semibold">{order.vehicleStatus}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!loading && !bakeryOrders.length ? (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={5}>No bakery orders placed for this date.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          <div className="grid gap-3 p-3 sm:hidden">
+            {bakeryOrders.map((order) => {
+              const quantity = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+              return (
+                <article className="rounded-lg border border-line bg-panel2 p-3" key={order.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">{orderDate(order)}</h3>
+                      <p className="mt-1 text-xs text-muted">Qty {formatQty(quantity)} · {formatCurrency(order.grandTotal)}</p>
+                    </div>
+                    <span className="rounded-md border border-line bg-panel px-2 py-1 text-xs font-semibold">{order.vehicleStatus}</span>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">{order.items.map((item) => `${item.name} (${formatQty(item.quantity)})`).join(", ")}</p>
+                </article>
+              );
+            })}
+            {!loading && !bakeryOrders.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No bakery orders placed for this date.</p> : null}
+          </div>
+        </section>
       </form>
       <Modal open={reviewOpen} title="Create Order" description={`${orderRows.length} product${orderRows.length === 1 ? "" : "s"} · Qty ${formatQty(totalQuantity)} · ${date}`} onClose={() => setReviewOpen(false)}>
         <div className="mb-4 grid gap-3 rounded-lg border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-end">
