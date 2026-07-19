@@ -368,7 +368,9 @@ export function AppShell({
       ? [
         { href: `${routeBase}/vehicle/routes`, label: "Customers", icon: ClipboardList },
         { href: `${routeBase}/vehicle/place-order`, label: "Place Order", icon: ShoppingCart },
+        { href: `${routeBase}/vehicle/bakery-order`, label: "Create Order to Bakery", icon: ShoppingBag },
         { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck },
+        { href: `${routeBase}/vehicle/route-invoices`, label: "Route Invoices", icon: CreditCard },
         { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee },
         { href: `${routeBase}/vehicle/passwords`, label: "Password", icon: KeyRound }
       ]

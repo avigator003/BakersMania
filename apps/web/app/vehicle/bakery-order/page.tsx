@@ -5,6 +5,7 @@ import { RefreshCw, Send } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
+import { Modal } from "../../../components/modal";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
@@ -44,6 +45,7 @@ export default function VehicleBakeryOrderPage() {
   const [productFilter, setProductFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
@@ -71,6 +73,15 @@ export default function VehicleBakeryOrderPage() {
   const orderItems = useMemo(() => sortedProducts
     .map((product) => ({ productId: product.id, quantity: Number(quantities[product.id] || 0) }))
     .filter((item) => item.quantity > 0), [quantities, sortedProducts]);
+
+  const orderRows = useMemo(() => orderItems.map((item) => {
+    const product = products.find((candidate) => candidate.id === item.productId);
+    return {
+      ...item,
+      name: product?.name || "Product",
+      category: product ? productCategory(product) : "General"
+    };
+  }), [orderItems, products]);
 
   const totalQuantity = useMemo(
     () => orderItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -107,8 +118,13 @@ export default function VehicleBakeryOrderPage() {
     setQuantities((current) => ({ ...current, [productId]: value }));
   }
 
-  async function createBakeryOrder(event: FormEvent<HTMLFormElement>) {
+  function openReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!orderItems.length) return;
+    setReviewOpen(true);
+  }
+
+  async function createBakeryOrder() {
     if (!apiBase || !orderItems.length) return;
     setSaving(true);
     try {
@@ -120,6 +136,7 @@ export default function VehicleBakeryOrderPage() {
         })
       });
       toast.success("Bakery order saved", "The bakery can now see this order for the selected date.");
+      setReviewOpen(false);
     } catch (error) {
       toast.error("Could not save bakery order", error instanceof Error ? error.message : "Please try again.");
     } finally {
@@ -129,7 +146,7 @@ export default function VehicleBakeryOrderPage() {
 
   return (
     <AppShell title="Vehicle Workspace" subtitle="Create order to bakery" surface="vehicle">
-      <form className="grid gap-4" onSubmit={createBakeryOrder}>
+      <form className="grid gap-4" onSubmit={openReview}>
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
           <div className="grid gap-3 border-b border-line p-4 xl:grid-cols-[220px_minmax(190px,260px)_minmax(220px,1fr)_auto_auto] xl:items-end">
             <label className="grid gap-1 text-sm font-semibold">
@@ -218,6 +235,40 @@ export default function VehicleBakeryOrderPage() {
         </section>
 
       </form>
+      <Modal open={reviewOpen} title="Create Order" description={`${orderRows.length} product${orderRows.length === 1 ? "" : "s"} · Qty ${formatQty(totalQuantity)} · ${date}`} onClose={() => setReviewOpen(false)}>
+        <div className="max-h-[60vh] overflow-auto rounded-lg border border-line">
+          <table className="w-full min-w-[520px] text-left text-sm">
+            <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
+              <tr>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3 text-right">Quantity</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {orderRows.map((item) => (
+                <tr key={item.productId}>
+                  <td className="px-4 py-3 font-semibold">{item.name}</td>
+                  <td className="px-4 py-3 text-muted">{item.category}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatQty(item.quantity)}</td>
+                </tr>
+              ))}
+              {!orderRows.length ? (
+                <tr>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={3}>No products selected.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setReviewOpen(false)} type="button">Cancel</button>
+          <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-mint px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={saving || !orderRows.length} onClick={createBakeryOrder} type="button">
+            <Send size={16} />
+            {saving ? "Saving..." : "Confirm Order"}
+          </button>
+        </div>
+      </Modal>
     </AppShell>
   );
 }
