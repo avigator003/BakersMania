@@ -147,8 +147,7 @@ export default function BakeryTruckLoadingPage() {
     ), 0);
     const columns: XlsxColumn[] = [
       { width: 22 },
-      ...exportProducts.map(() => ({ width: 5.5 })),
-      { width: 8 }
+      ...exportProducts.map(() => ({ width: 5.5 }))
     ];
     const rows: XlsxRow[] = [
       {
@@ -169,8 +168,7 @@ export default function BakeryTruckLoadingPage() {
         height: 72,
         cells: [
           { value: "Route Name", style: "header" },
-          ...exportProducts.map((product) => ({ value: `${product.name}\n${product.category}`, style: "header" as const })),
-          { value: "Total", style: "header" }
+          ...exportProducts.map((product) => ({ value: `${product.name}\n${product.category}`, style: "header" as const }))
         ]
       },
       ...visibleRoutes.map((route) => {
@@ -178,8 +176,7 @@ export default function BakeryTruckLoadingPage() {
           height: 30,
           cells: [
             { value: route.name, style: "name" as const },
-            ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null })),
-            { value: exportProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0) || null }
+            ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null }))
           ]
         };
       }),
@@ -187,8 +184,7 @@ export default function BakeryTruckLoadingPage() {
         height: 30,
         cells: [
           { value: "Product Total", style: "summary" },
-          ...exportProducts.map((product) => ({ value: exportProductTotals[product.id] || null, style: "summary" as const })),
-          { value: exportTotalQuantity || null, style: "summary" }
+          ...exportProducts.map((product) => ({ value: exportProductTotals[product.id] || null, style: "summary" as const }))
         ]
       }
     ];

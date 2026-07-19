@@ -38,7 +38,11 @@ const main = async () => {
         (select count(*)::int from "Labour" where "tenantId" = ${tenantId}) labours,
         (select count(*)::int from "Expense" where "tenantId" = ${tenantId}) expenses,
         (select count(*)::int from "Order" where "tenantId" = ${tenantId} and "routeId" is null) orders_missing_route,
-        (select count(*)::int from "Order" o where o."tenantId" = ${tenantId} and not exists (select 1 from "OrderItem" oi where oi."orderId" = o.id)) orders_without_items
+        (select count(*)::int from "Order" o where o."tenantId" = ${tenantId} and not exists (select 1 from "OrderItem" oi where oi."orderId" = o.id)) orders_without_items,
+        (select count(*)::int from "Order" where "tenantId" = ${tenantId} and notes like '%Legacy%') orders_legacy_notes,
+        (select count(*)::int from "Customer" where "tenantId" = ${tenantId} and notes like '%Legacy%') customers_legacy_notes,
+        (select count(*)::int from "ProductCategory" where "tenantId" = ${tenantId} and name = 'Legacy') legacy_product_categories,
+        (select count(*)::int from "Product" where "tenantId" = ${tenantId} and category = 'Legacy') legacy_category_products
     `,
     prisma.$queryRaw`
       select c.id, c.name, c.phone, r.name route, count(o.id)::int orders

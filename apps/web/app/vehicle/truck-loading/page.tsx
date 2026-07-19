@@ -170,7 +170,6 @@ export default function VehicleTruckLoadingPage() {
     const columns: XlsxColumn[] = [
       { width: 22 },
       ...exportProducts.map(() => ({ width: 5.5 })),
-      { width: 8 },
       { width: 14 },
       { width: 18 },
       { width: 14 },
@@ -196,7 +195,6 @@ export default function VehicleTruckLoadingPage() {
         cells: [
           { value: "Customer Name", style: "header" },
           ...exportProducts.map((product) => ({ value: `${product.name}\n${product.category}`, style: "header" as const })),
-          { value: "Total Qty", style: "header" },
           { value: "Order Amount", style: "header" },
           { value: "Previous Due Amount", style: "header" },
           { value: "Paid Amount", style: "header" },
@@ -209,7 +207,6 @@ export default function VehicleTruckLoadingPage() {
           cells: [
             { value: route.name, style: "name" as const },
             ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null })),
-            { value: exportProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0) || null },
             { value: route.orderAmount || null, style: "amount" as const },
             { value: route.previousDue || null, style: "amount" as const },
             { value: route.paidAmount || null, style: "amount" as const },
@@ -222,7 +219,6 @@ export default function VehicleTruckLoadingPage() {
         cells: [
           { value: "Product Total", style: "summary" },
           ...exportProducts.map((product) => ({ value: exportProductTotals[product.id] || null, style: "summary" as const })),
-          { value: exportTotalQuantity || null, style: "summary" },
           { value: amountTotals.orderAmount || null, style: "summary" },
           { value: amountTotals.previousDue || null, style: "summary" },
           { value: amountTotals.paidAmount || null, style: "summary" },
