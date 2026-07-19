@@ -467,6 +467,19 @@ export function AppShell({
     setMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    function selectSingleZero(event: FocusEvent) {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || target.type !== "number" || target.value !== "0" || target.readOnly || target.disabled) return;
+      window.requestAnimationFrame(() => target.select());
+    }
+
+    document.addEventListener("focusin", selectSingleZero);
+    return () => {
+      document.removeEventListener("focusin", selectSingleZero);
+    };
+  }, []);
+
   if (authState !== "allowed") {
     return (
       <div className="grid min-h-screen place-items-center bg-night px-4 text-ink">
