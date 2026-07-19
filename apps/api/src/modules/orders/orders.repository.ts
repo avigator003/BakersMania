@@ -289,6 +289,26 @@ export const ordersRepository = {
     );
   },
 
+  listVehicleBakeryOrders(tenantId: string, vehicleId: string, filters: { date?: string } = {}) {
+    const vehicleTag = `${vehicleBakeryOrderTag}:${vehicleId}`;
+    const where = buildOrderWhere(tenantId, {
+      startDate: filters.date,
+      endDate: filters.date,
+      pageSize: 100
+    }, [{ customer: { tags: { has: vehicleTag } } }]);
+    return prisma.order.findMany({
+      where,
+      include: {
+        customer: { include: { route: true } },
+        route: true,
+        items: { include: { product: { include: { categoryRef: true } } } },
+        invoice: true,
+        payments: true
+      },
+      orderBy: [{ dueAt: "desc" }, { createdAt: "desc" }]
+    });
+  },
+
   findCustomer(tenantId: string, customerId: string) {
     return prisma.customer.findFirst({ where: { tenantId, id: customerId }, include: { route: true } });
   },

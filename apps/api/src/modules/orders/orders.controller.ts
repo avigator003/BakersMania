@@ -67,6 +67,14 @@ export const ordersController = {
     res.status(201).json({ order });
   },
 
+  async listVehicleBakeryOrders(req: Request, res: Response) {
+    res.json({
+      orders: await ordersService.listVehicleBakeryOrders(req.tenant!.id, req.auth, {
+        date: req.query.date ? String(req.query.date) : undefined
+      })
+    });
+  },
+
   async routeStatement(req: Request, res: Response) {
     const today = new Date().toISOString().slice(0, 10);
     res.json({

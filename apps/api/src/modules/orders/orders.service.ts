@@ -409,6 +409,17 @@ export const ordersService = {
     });
   },
 
+  async listVehicleBakeryOrders(tenantId: string, auth: AccessTokenPayload | undefined, filters: { date?: string } = {}) {
+    if (auth?.actorType !== "vehicle" || !auth.vehicleId) {
+      throw new HttpError(403, "Vehicle workspace access required");
+    }
+    const vehicle = await ordersRepository.findVehicleRoutes(tenantId, auth.vehicleId);
+    if (!vehicle) {
+      throw new HttpError(403, "Vehicle workspace access required");
+    }
+    return ordersRepository.listVehicleBakeryOrders(tenantId, auth.vehicleId, filters);
+  },
+
   async routeStatement(tenantId: string, auth: AccessTokenPayload | undefined, filters: { startDate: string; endDate: string; routeId?: string; routeIds?: string[] }) {
     const assignedRouteIds = await vehicleRouteIds(tenantId, auth);
     const orders = await ordersRepository.listForRange(tenantId, {
