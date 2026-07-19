@@ -46,6 +46,10 @@ function compactProductName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 6);
 }
 
+function compactRowName(name: string) {
+  return name.trim().replace(/\s+/g, " ").slice(0, 10);
+}
+
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
@@ -154,7 +158,6 @@ export default function BakeryTruckLoadingPage() {
   function exportTruckLoading() {
     if (!truckLoading) return;
     const exportProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
-    const selectedRoutes = routeFilter.length ? visibleRoutes.map((route) => route.name).join(", ") : "All Routes";
     const selectedCategories = categoryFilter.length ? categoryFilter.join(", ") : "All categories";
     const exportProductTotals = Object.fromEntries(exportProducts.map((product) => [
       product.id,
@@ -171,13 +174,7 @@ export default function BakeryTruckLoadingPage() {
       {
         height: 18,
         cells: [
-          { value: `Date: ${formatExcelDate(truckLoading.date)}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
-        ]
-      },
-      {
-        height: 18,
-        cells: [
-          { value: `Category: ${selectedCategories} | Route: ${selectedRoutes} | Products: ${exportProducts.length} | Qty: ${formatQty(exportTotalQuantity) || "0"}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
+          { value: `Date: ${formatExcelDate(truckLoading.date)} | Category: ${selectedCategories} | Quantity: ${formatQty(exportTotalQuantity) || "0"}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
         ]
       },
       { height: 12, cells: [] },
@@ -192,7 +189,7 @@ export default function BakeryTruckLoadingPage() {
         return {
           height: 24,
           cells: [
-            { value: route.name, style: "name" as const },
+            { value: compactRowName(route.name), style: "name" as const },
             ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null }))
           ]
         };
