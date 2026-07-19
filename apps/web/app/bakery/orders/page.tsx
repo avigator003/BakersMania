@@ -11,6 +11,7 @@ import { PaymentHistory, paymentDue, paymentTotal, resolvedPaymentStatus } from 
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
 
 type Route = { id: string; name: string };
 type Customer = { id: string; name: string; phone?: string | null; route?: Route | null };
@@ -314,7 +315,7 @@ export default function BakeryOrdersPage() {
         authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${orderParams.toString()}`),
         authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${previousParams.toString()}`),
         authFetch<{ customers: Customer[] }>(`${apiBase}/customers?pageSize=100`),
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=100`),
+        fetchAllProducts<Product>(apiBase),
         authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
       let effectiveCarryForwardSummary: CarryForwardSummary | null = latestDaySummary(previousData.orders);
@@ -358,7 +359,7 @@ export default function BakeryOrdersPage() {
       setPage(effectivePage);
       setPageSize(effectivePageSize);
       setCustomers(customerData.customers);
-      setProducts(productData.products);
+      setProducts(productData);
       setRoutes(routeData.routes);
     } catch (error) {
       toast.error("Could not load orders", error instanceof Error ? error.message : "Please check API and login.");

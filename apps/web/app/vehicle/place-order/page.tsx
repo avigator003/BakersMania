@@ -8,6 +8,7 @@ import { LoadingSpinner } from "../../../components/loading-spinner";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
 
 type Customer = { id: string; name: string; phone?: string | null; route?: { name: string } | null };
 type Product = {
@@ -101,10 +102,8 @@ export default function VehiclePlaceOrderPage() {
 
   async function fetchProducts(preferenceCustomerId?: string) {
     if (!apiBase) return [];
-    const params = new URLSearchParams({ pageSize: "500" });
-    if (preferenceCustomerId) params.set("customerIdForPreferences", preferenceCustomerId);
-    const productData = await authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?${params.toString()}`);
-    return productData.products.filter((product) => product.active !== false);
+    const productData = await fetchAllProducts<Product>(apiBase, { customerIdForPreferences: preferenceCustomerId });
+    return productData.filter((product) => product.active !== false);
   }
 
   async function loadData() {

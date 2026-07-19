@@ -11,10 +11,12 @@ import { PaymentHistory, paymentDue, paymentTotal } from "../../../components/pa
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
 
 type Product = {
   id: string;
   name: string;
+  categoryId?: string | null;
   category?: string | null;
   categoryRef?: { name: string } | null;
   unitPrice: string | number;
@@ -111,6 +113,10 @@ function itemAmount(item: Order["items"][number]) {
 
 function itemCategory(item: Order["items"][number]) {
   return item.product?.categoryRef?.name || item.product?.category || "-";
+}
+
+function productCategory(product: Product) {
+  return product.categoryRef?.name || product.category || "General";
 }
 
 function dueByCustomer(orders: Order[]) {
@@ -245,12 +251,12 @@ export default function VehicleRoutesPage() {
       params.set("_", String(Date.now()));
       previousParams.set("_", String(Date.now()));
       const [productData, data, previousData] = await Promise.all([
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500&_=${Date.now()}`),
+        fetchAllProducts<Product>(apiBase, { _: Date.now() }),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${params.toString()}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?${previousParams.toString()}`)
       ]);
       const effectiveCarryForwardSummary = latestDaySummary(previousData.orders);
-      setProducts(productData.products.filter((product) => product.active !== false));
+      setProducts(productData.filter((product) => product.active !== false));
       setOrders(data.orders);
       setPreviousOrders(previousData.orders);
       setCarryForwardSummary(effectiveCarryForwardSummary);
@@ -303,6 +309,11 @@ export default function VehicleRoutesPage() {
   }), [carryForwardSummary, previousDueByCustomer, visibleOrders]);
   const todayDueTotal = Math.max(totals.orderAmount + totals.previousDue - totals.paid, 0);
 
+  const productOptions = useMemo(
+    () => products.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    [products]
+  );
+
   function openEditOrder(order: Order) {
     setEditOrder(order);
     setEditForm({
@@ -320,7 +331,7 @@ export default function VehicleRoutesPage() {
   }
 
   function addFormItem() {
-    setEditForm((current) => ({ ...current, items: [...current.items, { id: `row-${Date.now()}`, productId: "", quantity: "" }] }));
+    setEditForm((current) => ({ ...current, items: [{ id: `row-${Date.now()}`, productId: "", quantity: "" }, ...current.items] }));
   }
 
   function removeFormItem(rowId: string) {
@@ -662,16 +673,33 @@ export default function VehicleRoutesPage() {
                 <p className="text-sm font-semibold">Products</p>
                 <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold" onClick={addFormItem} type="button"><Plus size={15} /> Add Product</button>
               </div>
-              {editForm.items.map((item) => (
-                <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[1fr_120px_40px]" key={item.id}>
-                  <select className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" onChange={(event) => updateFormItem(item.id, { productId: event.target.value })} required value={item.productId}>
-                    <option value="">Select product</option>
-                    {products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatAmount(product.unitPrice)}</option>)}
-                  </select>
-                  <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" min="0.001" onChange={(event) => updateFormItem(item.id, { quantity: event.target.value })} placeholder="Qty" required step="0.001" type="number" value={item.quantity} />
-                  <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" disabled={editForm.items.length === 1} onClick={() => removeFormItem(item.id)} title="Remove product" type="button"><Trash2 size={16} /></button>
-                </div>
-              ))}
+              {editForm.items.map((item) => {
+                const orderItem = editOrder.items.find((candidate) => candidate.id === item.id || candidate.productId === item.productId);
+                const selectedProduct = products.find((product) => product.id === item.productId);
+                const selectedOptions = item.productId
+                  ? [{
+                      value: item.productId,
+                      label: selectedProduct?.name || orderItem?.name || "Selected product",
+                      description: selectedProduct ? `${productCategory(selectedProduct)} · ${formatAmount(selectedProduct.unitPrice)}` : item.productId
+                    }]
+                  : [];
+                return (
+                  <div className="grid gap-2 rounded-md border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_120px_40px]" key={item.id}>
+                    <SearchableSelect
+                      className="min-w-0"
+                      onChange={(value) => updateFormItem(item.id, { productId: value })}
+                      options={productOptions}
+                      placeholder="Select product"
+                      required
+                      searchPlaceholder="Search products"
+                      selectedOptions={selectedOptions}
+                      value={item.productId}
+                    />
+                    <input className="rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-mint" min="0.001" onChange={(event) => updateFormItem(item.id, { quantity: event.target.value })} placeholder="Qty" required step="0.001" type="number" value={item.quantity} />
+                    <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel" disabled={editForm.items.length === 1} onClick={() => removeFormItem(item.id)} title="Remove product" type="button"><Trash2 size={16} /></button>
+                  </div>
+                );
+              })}
             </div>
             <label className="grid gap-1 text-sm font-semibold">Notes<textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} value={editForm.notes} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -9,6 +9,7 @@ import { Modal } from "../../../components/modal";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
 
 type Customer = {
   id: string;
@@ -105,11 +106,11 @@ export default function VehiclePricesPage() {
     try {
       const [customerData, productData, categoryData] = await Promise.all([
         authFetch<{ customers: Customer[] }>(`${apiBase}/customers?pageSize=500`),
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        fetchAllProducts<Product>(apiBase),
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`)
       ]);
       setCustomers(customerData.customers);
-      setProducts(productData.products);
+      setProducts(productData);
       setCategories(categoryData.categories);
     } catch (error) {
       toast.error("Could not load pricing data", error instanceof Error ? error.message : "Please sign in again.");

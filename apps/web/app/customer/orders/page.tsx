@@ -10,6 +10,7 @@ import { PaymentHistory } from "../../../components/payment-history";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
 
 type Product = {
   id: string;
@@ -219,7 +220,7 @@ export default function CustomerOrdersPage() {
     try {
       const cacheKey = String(Date.now());
       const [productData, categoryData, orderData, summaryData] = await Promise.all([
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500&_=${cacheKey}`),
+        fetchAllProducts<Product>(apiBase, { _: cacheKey }),
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories?_=${cacheKey}`),
         authFetch<{ orders: Order[] }>(`${apiBase}/orders?startDate=${date}&endDate=${date}&pageSize=100&_=${cacheKey}`),
         authFetch<{ summary: DaySummary }>(`${apiBase}/orders/customer-day-summary?date=${date}&_=${cacheKey}`)
@@ -242,7 +243,7 @@ export default function CustomerOrdersPage() {
           };
         }
       }
-      setProducts(productData.products.filter((product) => product.active !== false));
+      setProducts(productData.filter((product) => product.active !== false));
       setCategories(categoryData.categories);
       setOrders(orderData.orders);
       setCarryForwardSummary(effectiveCarryForwardSummary);

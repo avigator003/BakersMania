@@ -9,6 +9,7 @@ import { Modal } from "../../../components/modal";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
 
 type Product = {
   id: string;
@@ -102,10 +103,10 @@ export default function VehicleBakeryOrdersPage() {
     try {
       const [orderData, productData] = await Promise.all([
         authFetch<{ orders: BakeryOrder[] }>(`${apiBase}/orders/vehicle-bakery-orders?date=${encodeURIComponent(date)}`),
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`)
+        fetchAllProducts<Product>(apiBase)
       ]);
       setOrders(orderData.orders);
-      setProducts(productData.products.filter((product) => product.active !== false));
+      setProducts(productData.filter((product) => product.active !== false));
     } catch (error) {
       toast.error("Could not load bakery orders", error instanceof Error ? error.message : "Please try again.");
     } finally {
@@ -289,13 +290,13 @@ export default function VehicleBakeryOrdersPage() {
             {saving ? "Saving..." : "Update Order"}
           </button>
         </div>
-        <div className="mb-4 grid gap-3 rounded-lg border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-end">
+        <div className="mb-4 grid gap-3 rounded-lg border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_160px_120px] sm:items-end">
           <SearchableSelect disabled={!extraProductOptions.length} label="Add product" onChange={setExtraProductId} options={extraProductOptions} placeholder={extraProductOptions.length ? "Select product" : "All products added"} searchPlaceholder="Search products" value={extraProductId} />
           <label className="grid gap-1 text-sm font-semibold">
             Quantity
-            <input className="rounded-md border border-line bg-panel px-3 py-2 text-right font-semibold outline-none focus:border-mint" min="0" onChange={(event) => setExtraQuantity(event.target.value)} step="0.001" type="number" value={extraQuantity} />
+            <input className="h-10 w-full rounded-md border border-line bg-panel px-3 py-2 text-right font-semibold outline-none focus:border-mint" min="0" onChange={(event) => setExtraQuantity(event.target.value)} step="0.001" type="number" value={extraQuantity} />
           </label>
-          <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel px-4 text-sm font-semibold disabled:opacity-50" disabled={!extraProductOptions.length} onClick={addExtraProduct} type="button">
+          <button className="focus-ring inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel px-4 text-sm font-semibold disabled:opacity-50" disabled={!extraProductOptions.length} onClick={addExtraProduct} type="button">
             <Plus size={16} />
             Add
           </button>

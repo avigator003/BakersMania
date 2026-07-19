@@ -9,6 +9,7 @@ import { LoadingSpinner } from "../../components/loading-spinner";
 import { SearchableSelect } from "../../components/searchable-select";
 import { useToast } from "../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../lib/api";
+import { fetchAllProducts } from "../../lib/catalog";
 
 type Product = {
   id: string;
@@ -85,10 +86,10 @@ export default function CustomerPage() {
     setLoading(true);
     try {
       const [productData, categoryData] = await Promise.all([
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        fetchAllProducts<Product>(apiBase),
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`)
       ]);
-      setProducts(productData.products.filter((product) => product.active !== false));
+      setProducts(productData.filter((product) => product.active !== false));
       setCategories(categoryData.categories);
     } catch (error) {
       toast.error("Could not load shop", error instanceof Error ? error.message : "Please sign in again.");

@@ -9,6 +9,7 @@ import { Modal } from "../../../components/modal";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
 
 type Product = {
   id: string;
@@ -107,11 +108,11 @@ export default function VehicleBakeryOrderPage() {
     setLoading(true);
     try {
       const [productData, categoryData, loadingData] = await Promise.all([
-        authFetch<{ products: Product[] }>(`${apiBase}/catalog/products?pageSize=500`),
+        fetchAllProducts<Product>(apiBase),
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
         authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?date=${encodeURIComponent(date)}`)
       ]);
-      const activeProducts = productData.products.filter((product) => product.active !== false);
+      const activeProducts = productData.filter((product) => product.active !== false);
       const nextTotals = loadingData.truckLoading.totals || {};
       setProducts(activeProducts);
       setCategories(categoryData.categories);
@@ -278,7 +279,7 @@ export default function VehicleBakeryOrderPage() {
             {saving ? "Saving..." : "Confirm Order"}
           </button>
         </div>
-        <div className="mb-4 grid gap-3 rounded-lg border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-end">
+        <div className="mb-4 grid gap-3 rounded-lg border border-line bg-panel2 p-3 sm:grid-cols-[minmax(0,1fr)_160px_120px] sm:items-end">
           <SearchableSelect
             disabled={!extraProductOptions.length}
             label="Add product"
@@ -291,7 +292,7 @@ export default function VehicleBakeryOrderPage() {
           <label className="grid gap-1 text-sm font-semibold">
             Quantity
             <input
-              className="rounded-md border border-line bg-panel px-3 py-2 text-right font-semibold outline-none focus:border-mint"
+              className="h-10 w-full rounded-md border border-line bg-panel px-3 py-2 text-right font-semibold outline-none focus:border-mint"
               min="0"
               onChange={(event) => setExtraQuantity(event.target.value)}
               step="0.001"
@@ -300,7 +301,7 @@ export default function VehicleBakeryOrderPage() {
             />
           </label>
           <button
-            className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel px-4 text-sm font-semibold disabled:opacity-50"
+            className="focus-ring inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel px-4 text-sm font-semibold disabled:opacity-50"
             disabled={!extraProductOptions.length}
             onClick={addExtraProduct}
             type="button"
