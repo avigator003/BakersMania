@@ -221,7 +221,7 @@ export default function VehiclePricesPage() {
           <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold">Product Prices</h1>
-              <p className="mt-1 text-sm text-muted">Set customer-specific product prices for customers on this vehicle route.</p>
+              <p className="mt-1 text-sm text-muted">Set customer-specific product prices for customers on this vehicle&apos;s routes.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={assigningAll || loading || !customers.length || !products.length} onClick={openAssignAllProductPrices} type="button">
@@ -304,7 +304,7 @@ export default function VehiclePricesPage() {
       <Modal
         open={bulkOpen}
         title="Assign All User Product Prices"
-        description={`${customers.length} customer${customers.length === 1 ? "" : "s"} will receive these product prices.`}
+        description={`${customers.length} vehicle customer${customers.length === 1 ? "" : "s"} will receive these product prices.`}
         onClose={() => { if (!assigningAll) setBulkOpen(false); }}
       >
         <div className="grid gap-4">
@@ -319,10 +319,10 @@ export default function VehiclePricesPage() {
             />
             <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 font-semibold text-white disabled:opacity-50" disabled={assigningAll || !products.length || !customers.length} onClick={assignAllUserProductPrices} type="button">
               <IndianRupee size={16} />
-              {assigningAll ? "Applying..." : "Apply To All Users"}
+              {assigningAll ? "Applying..." : "Apply To Vehicle Customers"}
             </button>
           </div>
-          {assigningAll ? <LoadingSpinner label="Applying product prices to all users" /> : null}
+          {assigningAll ? <LoadingSpinner label="Applying product prices to vehicle customers" /> : null}
           <div className="max-h-[62vh] overflow-auto rounded-lg border border-line sm:hidden">
             <div className="grid gap-3 p-3">
               {bulkFilteredProducts.map((product) => (

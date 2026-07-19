@@ -2,7 +2,7 @@ import type { AccessTokenPayload } from "../../utils/tokens.js";
 import { HttpError } from "../../utils/http.js";
 import { enabledPipelineStages, nextStageAfterActor, type OrderPipelineActor } from "./order-pipeline.js";
 import { ordersRepository } from "./orders.repository.js";
-import type { CreateOrderInput, CustomerPaymentInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput } from "./orders.schemas.js";
+import type { CreateOrderInput, CustomerPaymentInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput, VehicleBakeryOrderInput } from "./orders.schemas.js";
 
 type OrderFilters = {
   startDate?: string;
@@ -12,6 +12,7 @@ type OrderFilters = {
   customerIds?: string[];
   routeIds?: string[];
   search?: string;
+  orderStatus?: "accepted" | "pending";
   page?: number;
   pageSize?: number;
 };
@@ -358,6 +359,56 @@ export const ordersService = {
     return { sourceDate: input.sourceDate, targetDate: input.targetDate, copied: created.length, orders: created };
   },
 
+  async createVehicleBakeryOrder(tenantId: string, auth: AccessTokenPayload | undefined, input: VehicleBakeryOrderInput) {
+    if (auth?.actorType !== "vehicle" || !auth.vehicleId) {
+      throw new HttpError(403, "Vehicle workspace access required");
+    }
+    const vehicle = await ordersRepository.findVehicleRoutes(tenantId, auth.vehicleId);
+    if (!vehicle) {
+      throw new HttpError(403, "Vehicle workspace access required");
+    }
+    const route = vehicle.routes[0];
+    if (!route) {
+      throw new HttpError(422, "This vehicle does not have an active route");
+    }
+    await assertRouteNotLockedForVehicle(tenantId, auth, { routeId: route.id, dueAt: input.dueAt, createdAt: new Date() });
+    const customer = await ordersRepository.upsertVehicleBakeryCustomer(tenantId, vehicle, route.id);
+    const orderInput: CreateOrderInput = {
+      customerId: customer.id,
+      source: "STAFF_CREATED",
+      fulfillmentType: "DELIVERY",
+      dueAt: input.dueAt,
+      notes: input.notes || `Vehicle bakery order for ${input.dueAt.toISOString().slice(0, 10)}`,
+      items: input.items
+    };
+    const payload = await buildOrderPayload(tenantId, customer.id, orderInput);
+    const pipelineStages = await pipelineStagesForTenant(tenantId);
+    const pipelineStage = nextStageAfterActor(pipelineStages, "VEHICLE");
+    const existing = await ordersRepository.findCustomerOrderOnDate(tenantId, customer.id, input.dueAt);
+    if (existing) {
+      return ordersRepository.updateOrder({
+        tenantId,
+        orderId: existing.id,
+        customerId: customer.id,
+        routeId: customer.routeId,
+        orderInput: payload.orderInput,
+        totals: payload.totals,
+        items: payload.items,
+        paymentStatus: "UNPAID"
+      });
+    }
+
+    return ordersRepository.createOrder({
+      tenantId,
+      customerId: customer.id,
+      routeId: customer.routeId,
+      orderInput: payload.orderInput,
+      totals: payload.totals,
+      items: payload.items,
+      pipelineStage
+    });
+  },
+
   async routeStatement(tenantId: string, auth: AccessTokenPayload | undefined, filters: { startDate: string; endDate: string; routeId?: string; routeIds?: string[] }) {
     const assignedRouteIds = await vehicleRouteIds(tenantId, auth);
     const orders = await ordersRepository.listForRange(tenantId, {
@@ -397,11 +448,12 @@ export const ordersService = {
     };
   },
 
-  routeInvoiceSummary(tenantId: string, auth: AccessTokenPayload | undefined, date: string) {
-    if (auth?.actorType !== "bakery_user") {
-      throw new HttpError(403, "Bakery access required");
+  async routeInvoiceSummary(tenantId: string, auth: AccessTokenPayload | undefined, date: string) {
+    if (auth?.actorType !== "bakery_user" && auth?.actorType !== "vehicle") {
+      throw new HttpError(403, "Bakery or vehicle access required");
     }
-    return ordersRepository.routeInvoiceSummary(tenantId, date);
+    const routeIds = auth?.actorType === "vehicle" ? await vehicleRouteIds(tenantId, auth) : null;
+    return ordersRepository.routeInvoiceSummary(tenantId, date, routeIds || undefined);
   },
 
   async recordRouteInvoicePayment(tenantId: string, auth: AccessTokenPayload | undefined, routeId: string, input: RouteInvoicePaymentInput) {
@@ -474,16 +526,17 @@ export const ordersService = {
     const routeIds = await vehicleRouteIds(tenantId, auth);
     const groupByCustomer = auth?.actorType === "vehicle" || filters.groupBy === "customer";
     const bakeryVisibleOnly = auth?.actorType !== "vehicle";
-    const filteredLoadingFilters = { ...filters, routeIds: routeIds || undefined, bakeryVisibleOnly };
-    const countLoadingFilters = { date: filters.date, categoryId: filters.categoryId, routeIds: routeIds || undefined, bakeryVisibleOnly };
+    const excludeVehicleBakeryOrders = auth?.actorType === "vehicle";
+    const filteredLoadingFilters = { ...filters, routeIds: routeIds || undefined, bakeryVisibleOnly, excludeVehicleBakeryOrders };
+    const countLoadingFilters = { date: filters.date, categoryId: filters.categoryId, routeIds: routeIds || undefined, bakeryVisibleOnly, excludeVehicleBakeryOrders };
     const [orders, countOrders, routeTotals, baseProducts, baseRows] = await Promise.all([
       ordersRepository.truckLoading(tenantId, filteredLoadingFilters),
       filters.orderStatus
         ? ordersRepository.truckLoading(tenantId, countLoadingFilters)
         : Promise.resolve(null),
       groupByCustomer
-        ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly, orderStatus: filters.orderStatus })
-        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly, orderStatus: filters.orderStatus }),
+        ? ordersRepository.truckLoadingCustomerTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly, orderStatus: filters.orderStatus, excludeVehicleBakeryOrders })
+        : ordersRepository.truckLoadingRouteTotals(tenantId, { date: filters.date, routeIds: routeIds || undefined, bakeryVisibleOnly, orderStatus: filters.orderStatus, excludeVehicleBakeryOrders }),
       ordersRepository.truckLoadingProducts(tenantId, { categoryId: filters.categoryId }),
       groupByCustomer
         ? ordersRepository.truckLoadingCustomers(tenantId, { routeIds: routeIds || undefined })

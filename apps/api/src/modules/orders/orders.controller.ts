@@ -12,6 +12,11 @@ function numberParam(value: unknown) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function orderStatusParam(value: unknown) {
+  if (value === "accepted" || value === "pending") return value;
+  return undefined;
+}
+
 export const ordersController = {
   async list(req: Request, res: Response) {
     const result = await ordersService.listOrders(req.tenant!.id, req.auth, {
@@ -22,11 +27,13 @@ export const ordersController = {
       customerIds: listParam(req.query.customerIds),
       routeIds: listParam(req.query.routeIds),
       search: req.query.search ? String(req.query.search) : undefined,
+      orderStatus: orderStatusParam(req.query.orderStatus),
       page: numberParam(req.query.page),
       pageSize: numberParam(req.query.pageSize)
     });
     res.json({
       orders: result.items,
+      statusCounts: result.statusCounts,
       pagination: {
         total: result.total,
         page: result.page,
@@ -53,6 +60,11 @@ export const ordersController = {
 
   async repeat(req: Request, res: Response) {
     res.status(201).json({ result: await ordersService.repeatOrders(req.tenant!.id, req.auth, req.body) });
+  },
+
+  async createVehicleBakeryOrder(req: Request, res: Response) {
+    const order = await ordersService.createVehicleBakeryOrder(req.tenant!.id, req.auth, req.body);
+    res.status(201).json({ order });
   },
 
   async routeStatement(req: Request, res: Response) {

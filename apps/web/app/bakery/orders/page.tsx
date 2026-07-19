@@ -23,6 +23,7 @@ type Order = {
   id: string;
   source: string;
   status: string;
+  vehicleStatus?: string | null;
   paymentStatus: string;
   fulfillmentType: string;
   dueAt?: string | null;
@@ -52,6 +53,10 @@ type RouteStatement = {
 };
 type PaginatedOrdersResponse = {
   orders: Order[];
+  statusCounts?: {
+    accepted: number;
+    pending: number;
+  };
   pagination?: {
     total: number;
     page: number;
@@ -60,6 +65,7 @@ type PaginatedOrdersResponse = {
   };
 };
 type CarryForwardSummary = { orders: number; quantity: number; previousDue: number };
+type OrderStatusFilter = "all" | "accepted" | "pending";
 
 const today = localDateInput();
 const tomorrow = localDateInput(addLocalDays(new Date(), 1));
@@ -218,6 +224,8 @@ export default function BakeryOrdersPage() {
   const [endDate, setEndDate] = useState(today);
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatusFilter>("all");
+  const [orderStatusCounts, setOrderStatusCounts] = useState({ accepted: 0, pending: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [ordersTotal, setOrdersTotal] = useState(0);
@@ -243,6 +251,11 @@ export default function BakeryOrdersPage() {
     value: route.id,
     label: route.name
   })), [routes]);
+
+  const orderStatusOptions = useMemo(() => [
+    { value: "accepted", label: "Accepted", description: `${orderStatusCounts.accepted} order${orderStatusCounts.accepted === 1 ? "" : "s"}` },
+    { value: "pending", label: "Pending", description: `${orderStatusCounts.pending} order${orderStatusCounts.pending === 1 ? "" : "s"}` }
+  ], [orderStatusCounts]);
 
   const previousDueByCustomer = useMemo(() => dueByCustomer(previousOrders), [previousOrders]);
 
@@ -287,6 +300,7 @@ export default function BakeryOrdersPage() {
       if (customerFilter.length) orderParams.set("customerIds", customerFilter.join(","));
       if (routeFilter.length) orderParams.set("routeIds", routeFilter.join(","));
       if (search.trim()) orderParams.set("search", search.trim());
+      if (orderStatusFilter !== "all") orderParams.set("orderStatus", orderStatusFilter);
       orderParams.set("page", String(page));
       orderParams.set("pageSize", String(pageSize));
       const previousEndDate = localDateInput(addLocalDays(new Date(`${startDate || today}T00:00:00`), -1));
@@ -333,6 +347,10 @@ export default function BakeryOrdersPage() {
         }
       }
       setOrders(orderData.orders);
+      setOrderStatusCounts(orderData.statusCounts || {
+        accepted: orderData.orders.filter((order) => order.vehicleStatus === "ACCEPTED").length,
+        pending: orderData.orders.filter((order) => order.vehicleStatus !== "ACCEPTED").length
+      });
       setPreviousOrders(previousData.orders);
       setCarryForwardSummary(effectiveCarryForwardSummary);
       setOrdersTotal(effectiveTotal);
@@ -351,11 +369,11 @@ export default function BakeryOrdersPage() {
 
   useEffect(() => {
     loadData();
-  }, [startDate, endDate, customerFilter, routeFilter, search, page, pageSize]);
+  }, [startDate, endDate, customerFilter, routeFilter, orderStatusFilter, search, page, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [startDate, endDate, customerFilter, routeFilter, search]);
+  }, [startDate, endDate, customerFilter, routeFilter, orderStatusFilter, search]);
 
   function updateFormItem(
     setter: typeof setForm,
@@ -682,7 +700,11 @@ export default function BakeryOrdersPage() {
     <AppShell title="Bakery CRM" subtitle="Orders, product quantities, and truck loading" surface="bakery">
       <div className="grid min-w-0 gap-4">
             <section className="rounded-lg border border-line bg-panel shadow-subtle">
-              <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-end">
+              <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-muted">
+                  <span>Accepted: <span className="text-mint">{orderStatusCounts.accepted}</span></span>
+                  <span>Pending: <span className="text-saffron">{orderStatusCounts.pending}</span></span>
+                </div>
                 <div className="grid gap-2 sm:flex sm:flex-wrap">
                   <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => setRepeatOpen(true)} type="button"><Copy size={16} /> Repeat Orders</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={exportRouteStatement} type="button"><Download size={16} /> Route Statement</button>
@@ -690,7 +712,7 @@ export default function BakeryOrdersPage() {
                   <button className="focus-ring grid h-10 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-10" onClick={loadData} title="Refresh orders" type="button"><RefreshCw size={16} /></button>
                 </div>
               </div>
-              <div className="grid gap-3 border-b border-line p-3 lg:grid-cols-[1.3fr_170px_170px_1fr_1fr]">
+              <div className="grid gap-3 border-b border-line p-3 lg:grid-cols-[1.3fr_170px_170px_1fr_1fr_220px]">
                 <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2">
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, route, status" value={search} />
@@ -699,6 +721,13 @@ export default function BakeryOrdersPage() {
                 <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setEndDate} value={endDate} />
                 <SearchableSelect multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
                 <SearchableSelect multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
+                <SearchableSelect
+                  onChange={(value) => setOrderStatusFilter((value || "all") as OrderStatusFilter)}
+                  options={orderStatusOptions}
+                  placeholder="All order statuses"
+                  searchPlaceholder="Search status"
+                  value={orderStatusFilter === "all" ? "" : orderStatusFilter}
+                />
               </div>
               {loading ? <LoadingSpinner label="Loading orders" /> : null}
               <PaginationControls

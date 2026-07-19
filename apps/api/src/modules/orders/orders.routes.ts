@@ -4,7 +4,7 @@ import { resolveTenant } from "../../middleware/tenant.js";
 import { validateBody } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/http.js";
 import { ordersController } from "./orders.controller.js";
-import { createOrderSchema, customerPaymentSchema, repeatOrdersSchema, routeInvoiceLockSchema, routeInvoicePaymentSchema, updateOrderSchema, updateOrderStatusSchema } from "./orders.schemas.js";
+import { createOrderSchema, customerPaymentSchema, repeatOrdersSchema, routeInvoiceLockSchema, routeInvoicePaymentSchema, updateOrderSchema, updateOrderStatusSchema, vehicleBakeryOrderSchema } from "./orders.schemas.js";
 
 export const ordersRouter = Router({ mergeParams: true });
 
@@ -17,6 +17,7 @@ ordersRouter.get("/route-invoices", requireAuth, asyncHandler(ordersController.r
 ordersRouter.get("/customer-day-summary", requireAuth, asyncHandler(ordersController.customerDaySummary));
 ordersRouter.post("/", requireAuth, validateBody(createOrderSchema), asyncHandler(ordersController.create));
 ordersRouter.post("/repeat", requireAuth, validateBody(repeatOrdersSchema), asyncHandler(ordersController.repeat));
+ordersRouter.post("/vehicle-bakery-order", requireAuth, validateBody(vehicleBakeryOrderSchema), asyncHandler(ordersController.createVehicleBakeryOrder));
 ordersRouter.post("/customers/:customerId/payments", requireAuth, validateBody(customerPaymentSchema), asyncHandler(ordersController.recordCustomerPayment));
 ordersRouter.post("/route-invoices/:routeId/payments", requireAuth, validateBody(routeInvoicePaymentSchema), asyncHandler(ordersController.recordRouteInvoicePayment));
 ordersRouter.post("/route-invoices/:routeId/lock", requireAuth, validateBody(routeInvoiceLockSchema), asyncHandler(ordersController.setRouteInvoiceLock));

@@ -26,6 +26,7 @@ export const customersRepository = {
     const where = {
       tenantId,
       ...(routeIds ? { routeId: { in: routeIds } } : {}),
+      NOT: { tags: { has: "VEHICLE_BAKERY_ORDER" } },
       ...(search
         ? {
             OR: [

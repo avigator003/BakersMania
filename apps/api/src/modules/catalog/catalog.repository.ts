@@ -260,8 +260,13 @@ export const catalogRepository = {
       where: { tenantId, routeId: { in: routeIds } },
       select: { id: true, routeId: true }
     });
+    const overrideProductIds = input.prices?.map((price) => price.productId).filter(Boolean);
     const products = await prisma.product.findMany({
-      where: { tenantId, active: true },
+      where: {
+        tenantId,
+        active: true,
+        ...(overrideProductIds?.length ? { id: { in: overrideProductIds } } : {})
+      },
       select: { id: true, unitPrice: true }
     });
     const routePrices = await prisma.routeProductPrice.findMany({
@@ -290,54 +295,62 @@ export const catalogRepository = {
     }));
     const writableAssignments = assignments.filter((assignment) => input.overwriteExisting || !assignment.existing);
 
-    const result = await prisma.$transaction(async (tx) => {
-      let created = 0;
-      let updated = 0;
-      for (const assignment of writableAssignments) {
-        const existing = assignment.existing;
-        await tx.customerProductPrice.upsert({
-          where: {
-            tenantId_productId_customerId: {
-              tenantId,
-              productId: assignment.productId,
-              customerId: assignment.customerId
-            }
-          },
-          update: { price: assignment.price, notes: "Assigned from vehicle route base price" },
-          create: {
-            tenantId,
-            productId: assignment.productId,
-            customerId: assignment.customerId,
-            price: assignment.price,
-            notes: "Assigned from vehicle route base price"
-          }
-        });
-
-        if (!existing) {
-          created += 1;
-        } else if (Number(existing.price) !== assignment.price) {
-          updated += 1;
-        }
-        if (!existing || Number(existing.price) !== assignment.price) {
-          await tx.customerProductPriceHistory.create({
-            data: {
+    let created = 0;
+    let updated = 0;
+    const batchSize = 150;
+    for (let index = 0; index < writableAssignments.length; index += batchSize) {
+      const batch = writableAssignments.slice(index, index + batchSize);
+      const result = await prisma.$transaction(async (tx) => {
+        let batchCreated = 0;
+        let batchUpdated = 0;
+        for (const assignment of batch) {
+          const existing = assignment.existing;
+          await tx.customerProductPrice.upsert({
+            where: {
+              tenantId_productId_customerId: {
+                tenantId,
+                productId: assignment.productId,
+                customerId: assignment.customerId
+              }
+            },
+            update: { price: assignment.price, notes: "Assigned from vehicle route base price" },
+            create: {
               tenantId,
               productId: assignment.productId,
               customerId: assignment.customerId,
-              oldPrice: existing?.price,
-              newPrice: assignment.price
+              price: assignment.price,
+              notes: "Assigned from vehicle route base price"
             }
           });
+
+          if (!existing) {
+            batchCreated += 1;
+          } else if (Number(existing.price) !== assignment.price) {
+            batchUpdated += 1;
+          }
+          if (!existing || Number(existing.price) !== assignment.price) {
+            await tx.customerProductPriceHistory.create({
+              data: {
+                tenantId,
+                productId: assignment.productId,
+                customerId: assignment.customerId,
+                oldPrice: existing?.price,
+                newPrice: assignment.price
+              }
+            });
+          }
         }
-      }
-      return { created, updated };
-    }, { timeout: 30000 });
+        return { created: batchCreated, updated: batchUpdated };
+      }, { timeout: 15000 });
+      created += result.created;
+      updated += result.updated;
+    }
 
     return {
       customers: customers.length,
       products: products.length,
-      created: result.created,
-      updated: result.updated,
+      created,
+      updated,
       skipped: assignments.length - writableAssignments.length
     };
   },

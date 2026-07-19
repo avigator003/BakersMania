@@ -11,11 +11,14 @@ type OrderListFilters = {
   customerIds?: string[];
   routeIds?: string[];
   search?: string;
+  orderStatus?: OrderApprovalStatus;
   page?: number;
   pageSize?: number;
 };
 
-type TruckLoadingOrderStatus = "accepted" | "pending";
+type OrderApprovalStatus = "accepted" | "pending";
+type TruckLoadingOrderStatus = OrderApprovalStatus;
+const vehicleBakeryOrderTag = "VEHICLE_BAKERY_ORDER";
 
 function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
   return {
@@ -28,10 +31,7 @@ function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
 
 function bakeryVisibleOrderFilter(): Prisma.OrderWhereInput {
   return {
-    OR: [
-      { source: { not: "CUSTOMER_PORTAL" } },
-      { vehicleStatus: "ACCEPTED" }
-    ]
+    source: { not: "CUSTOMER_PORTAL" }
   };
 }
 
@@ -121,15 +121,27 @@ function buildOrderWhere(tenantId: string, filters: OrderListFilters = {}, baseF
   const textFilter = searchFilter(filters.search);
   if (textFilter) andFilters.push(textFilter);
 
+  const orderStatusFilter = truckLoadingStatusFilter(filters.orderStatus);
+  if (orderStatusFilter) andFilters.push(orderStatusFilter);
+
   if (andFilters.length) {
     where.AND = andFilters;
   }
   return where;
 }
 
-async function paginatedOrders(where: Prisma.OrderWhereInput, filters: OrderListFilters, orderBy: Prisma.OrderOrderByWithRelationInput | Prisma.OrderOrderByWithRelationInput[]) {
+function statusCountWhere(where: Prisma.OrderWhereInput, status: OrderApprovalStatus): Prisma.OrderWhereInput {
+  return {
+    AND: [
+      where,
+      status === "accepted" ? { vehicleStatus: "ACCEPTED" } : { vehicleStatus: { not: "ACCEPTED" } }
+    ]
+  };
+}
+
+async function paginatedOrders(where: Prisma.OrderWhereInput, filters: OrderListFilters, orderBy: Prisma.OrderOrderByWithRelationInput | Prisma.OrderOrderByWithRelationInput[], countWhere: Prisma.OrderWhereInput = where) {
   const { page, pageSize, skip } = pagination(filters);
-  const [items, total] = await prisma.$transaction([
+  const [items, total, accepted, pending] = await prisma.$transaction([
     prisma.order.findMany({
       where,
       include: { customer: { include: { route: true } }, route: true, items: { include: { product: { include: { categoryRef: true } } } }, invoice: true, payments: true },
@@ -137,7 +149,9 @@ async function paginatedOrders(where: Prisma.OrderWhereInput, filters: OrderList
       skip,
       take: pageSize
     }),
-    prisma.order.count({ where })
+    prisma.order.count({ where }),
+    prisma.order.count({ where: statusCountWhere(countWhere, "accepted") }),
+    prisma.order.count({ where: statusCountWhere(countWhere, "pending") })
   ]);
 
   return {
@@ -145,7 +159,8 @@ async function paginatedOrders(where: Prisma.OrderWhereInput, filters: OrderList
     total,
     page,
     pageSize,
-    pageCount: Math.max(1, Math.ceil(total / pageSize))
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    statusCounts: { accepted, pending }
   };
 }
 
@@ -201,17 +216,23 @@ export const ordersRepository = {
   },
 
   listForStaff(tenantId: string, filters: OrderListFilters = {}) {
+    const baseFilters = [bakeryVisibleOrderFilter()];
     return paginatedOrders(
-      buildOrderWhere(tenantId, filters, [
-        bakeryVisibleOrderFilter()
-      ]),
+      buildOrderWhere(tenantId, filters, baseFilters),
       filters,
-      { createdAt: "desc" }
+      { createdAt: "desc" },
+      buildOrderWhere(tenantId, { ...filters, orderStatus: undefined }, baseFilters)
     );
   },
 
   listForCustomer(tenantId: string, customerId: string, filters: OrderListFilters = {}) {
-    return paginatedOrders(buildOrderWhere(tenantId, filters, [{ customerId }]), filters, { createdAt: "desc" });
+    const baseFilters = [{ customerId }];
+    return paginatedOrders(
+      buildOrderWhere(tenantId, filters, baseFilters),
+      filters,
+      { createdAt: "desc" },
+      buildOrderWhere(tenantId, { ...filters, orderStatus: undefined }, baseFilters)
+    );
   },
 
   findVehicleRoutes(tenantId: string, vehicleId: string) {
@@ -221,13 +242,50 @@ export const ordersRepository = {
     });
   },
 
+  async upsertVehicleBakeryCustomer(
+    tenantId: string,
+    vehicle: { id: string; name: string; driverPhone?: string | null },
+    routeId: string
+  ) {
+    const vehicleTag = `${vehicleBakeryOrderTag}:${vehicle.id}`;
+    const existing = await prisma.customer.findFirst({
+      where: { tenantId, tags: { has: vehicleTag } }
+    });
+    const data = {
+      tenantId,
+      routeId,
+      name: `${vehicle.name} Bakery Order`,
+      phone: vehicle.driverPhone || null,
+      creditLimit: 0,
+      tags: [vehicleBakeryOrderTag, vehicleTag],
+      notes: "Internal vehicle-to-bakery aggregate order customer"
+    };
+    if (existing) {
+      return prisma.customer.update({
+        where: { id: existing.id },
+        data: {
+          routeId: data.routeId,
+          name: data.name,
+          phone: data.phone,
+          tags: data.tags,
+          notes: data.notes
+        },
+        include: { route: true }
+      });
+    }
+    return prisma.customer.create({
+      data,
+      include: { route: true }
+    });
+  },
+
   listForVehicle(tenantId: string, routeIds: string[], filters: OrderListFilters = {}) {
+    const baseFilters = [routeScope(routeIds), { customer: { NOT: { tags: { has: vehicleBakeryOrderTag } } } }];
     return paginatedOrders(
-      buildOrderWhere(tenantId, filters, [
-        routeScope(routeIds)
-      ]),
+      buildOrderWhere(tenantId, filters, baseFilters),
       filters,
-      { createdAt: "desc" }
+      { createdAt: "desc" },
+      buildOrderWhere(tenantId, { ...filters, orderStatus: undefined }, baseFilters)
     );
   },
 
@@ -335,7 +393,7 @@ export const ordersRepository = {
     });
   },
 
-  truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus }) {
+  truckLoading(tenantId: string, filters: { date: string; categoryId?: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus; excludeVehicleBakeryOrders?: boolean }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -350,6 +408,9 @@ export const ordersRepository = {
     }
     if (filters.bakeryVisibleOnly) {
       andFilters.push(bakeryVisibleOrderFilter());
+    }
+    if (filters.excludeVehicleBakeryOrders) {
+      andFilters.push({ customer: { NOT: { tags: { has: vehicleBakeryOrderTag } } } });
     }
     const statusFilter = truckLoadingStatusFilter(filters.orderStatus);
     if (statusFilter) {
@@ -374,7 +435,7 @@ export const ordersRepository = {
     });
   },
 
-  async truckLoadingRouteTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus }) {
+  async truckLoadingRouteTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus; excludeVehicleBakeryOrders?: boolean }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -382,7 +443,10 @@ export const ordersRepository = {
       ? Prisma.sql`AND COALESCE(o."routeId", c."routeId") IN (${Prisma.join(filters.routeIds)})`
       : Prisma.empty;
     const visibilityFilter = filters.bakeryVisibleOnly
-      ? Prisma.sql`AND (o."source"::text <> 'CUSTOMER_PORTAL' OR o."vehicleStatus"::text = 'ACCEPTED')`
+      ? Prisma.sql`AND o."source"::text <> 'CUSTOMER_PORTAL'`
+      : Prisma.empty;
+    const vehicleBakeryOrderFilter = filters.excludeVehicleBakeryOrders
+      ? Prisma.sql`AND NOT (c.tags @> ARRAY[${vehicleBakeryOrderTag}]::text[])`
       : Prisma.empty;
     const statusFilter = truckLoadingStatusSql(filters.orderStatus);
     const rows = await prisma.$queryRaw<Array<{
@@ -404,6 +468,7 @@ export const ordersRepository = {
           ${visibilityFilter}
           ${statusFilter}
           ${routeFilter}
+          ${vehicleBakeryOrderFilter}
       ),
       order_paid AS (
         SELECT
@@ -444,7 +509,7 @@ export const ordersRepository = {
     });
   },
 
-  async truckLoadingCustomerTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus }) {
+  async truckLoadingCustomerTotals(tenantId: string, filters: { date: string; routeIds?: string[]; bakeryVisibleOnly?: boolean; orderStatus?: TruckLoadingOrderStatus; excludeVehicleBakeryOrders?: boolean }) {
     const start = new Date(`${filters.date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -452,7 +517,10 @@ export const ordersRepository = {
       ? Prisma.sql`AND c."routeId" IN (${Prisma.join(filters.routeIds)})`
       : Prisma.empty;
     const visibilityFilter = filters.bakeryVisibleOnly
-      ? Prisma.sql`AND (o."source"::text <> 'CUSTOMER_PORTAL' OR o."vehicleStatus"::text = 'ACCEPTED')`
+      ? Prisma.sql`AND o."source"::text <> 'CUSTOMER_PORTAL'`
+      : Prisma.empty;
+    const vehicleBakeryOrderFilter = filters.excludeVehicleBakeryOrders
+      ? Prisma.sql`AND NOT (c.tags @> ARRAY[${vehicleBakeryOrderTag}]::text[])`
       : Prisma.empty;
     const statusFilter = truckLoadingStatusSql(filters.orderStatus);
     const rows = await prisma.$queryRaw<Array<{
@@ -473,6 +541,7 @@ export const ordersRepository = {
           ${visibilityFilter}
           ${statusFilter}
           ${routeFilter}
+          ${vehicleBakeryOrderFilter}
       ),
       order_paid AS (
         SELECT
@@ -689,10 +758,22 @@ export const ordersRepository = {
     };
   },
 
-  async routeInvoiceSummary(tenantId: string, date: string) {
+  async routeInvoiceSummary(tenantId: string, date: string, routeIds?: string[]) {
     const start = new Date(`${date}T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
+    const routeFilter = routeIds?.length
+      ? Prisma.sql`AND r.id IN (${Prisma.join(routeIds)})`
+      : Prisma.empty;
+    const orderRouteFilter = routeIds?.length
+      ? Prisma.sql`AND o."routeId" IN (${Prisma.join(routeIds)})`
+      : Prisma.empty;
+    const customerRouteFilter = routeIds?.length
+      ? Prisma.sql`AND "routeId" IN (${Prisma.join(routeIds)})`
+      : Prisma.empty;
+    const routePriceFilter = routeIds?.length
+      ? Prisma.sql`AND "routeId" IN (${Prisma.join(routeIds)})`
+      : Prisma.empty;
 
     const rows = await prisma.$queryRaw<Array<{
       routeId: string;
@@ -707,12 +788,15 @@ export const ordersRepository = {
       WITH order_base AS (
         SELECT
           o.id,
-          COALESCE(o."routeId", c."routeId") AS "routeId",
+          o."routeId" AS "routeId",
           o."grandTotal",
           COALESCE(o."dueAt", o."createdAt") AS "orderDate"
         FROM "Order" o
-        JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
+          AND o."routeId" IS NOT NULL
+          AND o."source"::text <> 'CUSTOMER_PORTAL'
+          AND COALESCE(o."dueAt", o."createdAt") < ${end}
+          ${orderRouteFilter}
       ),
       order_paid AS (
         SELECT
@@ -720,7 +804,7 @@ export const ordersRepository = {
           COALESCE(SUM(p.amount), 0) AS "paidTotal",
           COALESCE(SUM(CASE WHEN p."paidAt" >= ${start} AND p."paidAt" < ${end} THEN p.amount ELSE 0 END), 0) AS "paidToday"
         FROM order_base ob
-        LEFT JOIN "Payment" p ON p."orderId" = ob.id
+        LEFT JOIN "Payment" p ON p."tenantId" = ${tenantId} AND p."orderId" = ob.id
         GROUP BY ob.id
       ),
       order_due AS (
@@ -737,12 +821,15 @@ export const ordersRepository = {
         FROM "Customer"
         WHERE "tenantId" = ${tenantId}
           AND "routeId" IS NOT NULL
+          AND NOT (tags @> ARRAY[${vehicleBakeryOrderTag}]::text[])
+          ${customerRouteFilter}
         GROUP BY "routeId"
       ),
       price_counts AS (
         SELECT "routeId", COUNT(DISTINCT "productId") AS "pricedProductCount"
         FROM "RouteProductPrice"
         WHERE "tenantId" = ${tenantId}
+          ${routePriceFilter}
         GROUP BY "routeId"
       ),
       route_totals AS (
@@ -771,6 +858,7 @@ export const ordersRepository = {
       LEFT JOIN route_totals rt ON rt."routeId" = r.id
       WHERE r."tenantId" = ${tenantId}
         AND r.active = true
+        ${routeFilter}
       ORDER BY r.name ASC
     `;
 
@@ -786,7 +874,7 @@ export const ordersRepository = {
       locked: false
     }));
     const locks = await prisma.routeOrderLock.findMany({
-      where: { tenantId, date: start },
+      where: { tenantId, date: start, ...(routeIds?.length ? { routeId: { in: routeIds } } : {}) },
       select: { routeId: true }
     });
     const lockedRouteIds = new Set(locks.map((lock) => lock.routeId));
@@ -817,6 +905,7 @@ export const ordersRepository = {
       const orders = await tx.order.findMany({
         where: {
           tenantId,
+          source: { not: "CUSTOMER_PORTAL" },
           OR: [
             { routeId },
             { routeId: null, customer: { routeId } }
