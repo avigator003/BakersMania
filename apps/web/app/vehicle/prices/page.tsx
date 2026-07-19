@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Eye, IndianRupee, RefreshCw } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -60,10 +61,14 @@ function productCategory(product: Product) {
 
 export default function VehiclePricesPage() {
   const toast = useToast();
+  const pathname = usePathname();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [bulkCategoryFilter, setBulkCategoryFilter] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkPriceMap, setBulkPriceMap] = useState<Record<string, string>>({});
   const [priceModal, setPriceModal] = useState<PriceModalState | null>(null);
   const [priceMap, setPriceMap] = useState<Record<string, string>>({});
   const [existingPriceMap, setExistingPriceMap] = useState<Record<string, number>>({});
@@ -72,7 +77,9 @@ export default function VehiclePricesPage() {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [saving, setSaving] = useState(false);
   const [assigningAll, setAssigningAll] = useState(false);
-  const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const pathTenantSlug = pathSegments.length > 1 && pathSegments[1] === "vehicle" ? pathSegments[0] : "";
+  const tenantSlug = pathTenantSlug || (typeof window === "undefined" ? "" : getStoredTenantSlug() || "");
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
   const categoryOptions = useMemo(
@@ -86,6 +93,11 @@ export default function VehiclePricesPage() {
     if (!categoryFilter) return products;
     return products.filter((product) => product.categoryId === categoryFilter || product.categoryRef?.id === categoryFilter);
   }, [categoryFilter, products]);
+
+  const bulkFilteredProducts = useMemo(() => {
+    if (!bulkCategoryFilter) return products;
+    return products.filter((product) => product.categoryId === bulkCategoryFilter || product.categoryRef?.id === bulkCategoryFilter);
+  }, [bulkCategoryFilter, products]);
 
   async function loadData() {
     if (!apiBase) return;
@@ -172,15 +184,29 @@ export default function VehiclePricesPage() {
     }
   }
 
+  function openAssignAllProductPrices() {
+    setBulkCategoryFilter("");
+    setBulkPriceMap(Object.fromEntries(products.map((product) => [product.id, String(product.unitPrice || 0)])));
+    setBulkOpen(true);
+  }
+
   async function assignAllUserProductPrices() {
     if (!apiBase) return;
     setAssigningAll(true);
     try {
       const data = await authFetch<{ result: { customers: number; products: number; created: number; updated: number; skipped: number } }>(`${apiBase}/catalog/customer-prices/assign-route-base`, {
         method: "POST",
-        body: JSON.stringify({ overwriteExisting: false })
+        body: JSON.stringify({
+          overwriteExisting: true,
+          prices: products.map((product) => ({
+            productId: product.id,
+            price: Number(bulkPriceMap[product.id] || 0)
+          }))
+        })
       });
-      toast.success("Product prices assigned", `${data.result.created} price${data.result.created === 1 ? "" : "s"} assigned for ${data.result.customers} customer${data.result.customers === 1 ? "" : "s"}.`);
+      setBulkOpen(false);
+      setBulkPriceMap({});
+      toast.success("Product prices assigned", `${data.result.created + data.result.updated} price${data.result.created + data.result.updated === 1 ? "" : "s"} applied for ${data.result.customers} customer${data.result.customers === 1 ? "" : "s"}.`);
     } catch (error) {
       toast.error("Assignment failed", error instanceof Error ? error.message : "Could not assign user product prices.");
     } finally {
@@ -198,9 +224,9 @@ export default function VehiclePricesPage() {
               <p className="mt-1 text-sm text-muted">Set customer-specific product prices for customers on this vehicle route.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={assigningAll || loading || !customers.length || !products.length} onClick={assignAllUserProductPrices} type="button">
+              <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={assigningAll || loading || !customers.length || !products.length} onClick={openAssignAllProductPrices} type="button">
                 <IndianRupee size={16} />
-                {assigningAll ? "Assigning..." : "Assign All User Product Prices"}
+                Assign All User Product Prices
               </button>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
             </div>
@@ -274,6 +300,93 @@ export default function VehiclePricesPage() {
           </div>
         </section>
       </div>
+
+      <Modal
+        open={bulkOpen}
+        title="Assign All User Product Prices"
+        description={`${customers.length} customer${customers.length === 1 ? "" : "s"} will receive these product prices.`}
+        onClose={() => { if (!assigningAll) setBulkOpen(false); }}
+      >
+        <div className="grid gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <SearchableSelect
+              className="sm:w-72"
+              onChange={setBulkCategoryFilter}
+              options={categoryOptions}
+              placeholder="All categories"
+              searchPlaceholder="Search categories"
+              value={bulkCategoryFilter}
+            />
+            <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 font-semibold text-white disabled:opacity-50" disabled={assigningAll || !products.length || !customers.length} onClick={assignAllUserProductPrices} type="button">
+              <IndianRupee size={16} />
+              {assigningAll ? "Applying..." : "Apply To All Users"}
+            </button>
+          </div>
+          {assigningAll ? <LoadingSpinner label="Applying product prices to all users" /> : null}
+          <div className="max-h-[62vh] overflow-auto rounded-lg border border-line sm:hidden">
+            <div className="grid gap-3 p-3">
+              {bulkFilteredProducts.map((product) => (
+                <article className="rounded-lg border border-line bg-panel2 p-3" key={product.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold">{product.name}</h3>
+                      <p className="mt-1 text-xs text-muted">{productCategory(product)}</p>
+                      <p className="mt-1 text-xs text-muted">Bakery base {formatAmount(product.unitPrice)}</p>
+                    </div>
+                    <input
+                      className="h-10 w-28 shrink-0 rounded-md border border-line bg-panel px-3 text-right font-semibold outline-none focus:border-mint"
+                      disabled={assigningAll}
+                      min="0"
+                      onChange={(event) => setBulkPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                      type="number"
+                      value={bulkPriceMap[product.id] ?? String(product.unitPrice)}
+                    />
+                  </div>
+                </article>
+              ))}
+              {!bulkFilteredProducts.length ? (
+                <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No products in this category.</div>
+              ) : null}
+            </div>
+          </div>
+          <div className="hidden max-h-[62vh] overflow-auto rounded-lg border border-line sm:block">
+            <table className="w-full min-w-[620px] text-left text-sm">
+              <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
+                <tr>
+                  <th className="px-4 py-3">Product</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3 text-right">Bakery Base Price</th>
+                  <th className="px-4 py-3 text-right">Assign Price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {bulkFilteredProducts.map((product) => (
+                  <tr key={product.id}>
+                    <td className="px-4 py-3 font-semibold">{product.name}</td>
+                    <td className="px-4 py-3 text-muted">{productCategory(product)}</td>
+                    <td className="px-4 py-3 text-right">{formatAmount(product.unitPrice)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <input
+                        className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
+                        disabled={assigningAll}
+                        min="0"
+                        onChange={(event) => setBulkPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                        type="number"
+                        value={bulkPriceMap[product.id] ?? String(product.unitPrice)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {!bulkFilteredProducts.length ? (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={4}>No products in this category.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={Boolean(priceModal)}

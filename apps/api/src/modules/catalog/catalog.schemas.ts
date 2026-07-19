@@ -28,7 +28,11 @@ export const customerPriceSchema = z.object({
 });
 
 export const assignCustomerPricesSchema = z.object({
-  overwriteExisting: z.boolean().default(false)
+  overwriteExisting: z.boolean().default(false),
+  prices: z.array(z.object({
+    productId: z.string().min(1),
+    price: z.coerce.number().nonnegative()
+  })).optional()
 });
 
 export const routePriceSchema = z.object({

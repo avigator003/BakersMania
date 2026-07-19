@@ -282,8 +282,9 @@ export const catalogRepository = {
     const existingMap = new Map(existingPrices.map((price) => [`${price.customerId}:${price.productId}`, price]));
     const routePriceMap = new Map(routePrices.map((price) => [`${price.routeId}:${price.productId}`, Number(price.price || 0)]));
     const basePriceMap = new Map(products.map((product) => [product.id, Number(product.unitPrice || 0)]));
+    const overridePriceMap = new Map((input.prices || []).map((price) => [price.productId, Number(price.price || 0)]));
     const assignments = customers.flatMap((customer) => products.map((product) => {
-      const price = routePriceMap.get(`${customer.routeId}:${product.id}`) ?? basePriceMap.get(product.id) ?? 0;
+      const price = overridePriceMap.get(product.id) ?? routePriceMap.get(`${customer.routeId}:${product.id}`) ?? basePriceMap.get(product.id) ?? 0;
       const existing = existingMap.get(`${customer.id}:${product.id}`);
       return { customerId: customer.id, productId: product.id, price, existing };
     }));
