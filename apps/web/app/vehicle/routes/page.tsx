@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Download, Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
@@ -215,6 +216,7 @@ function downloadPdf(fileName: string, pdf: string) {
 
 export default function VehicleRoutesPage() {
   const toast = useToast();
+  const pathname = usePathname();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
@@ -228,7 +230,9 @@ export default function VehicleRoutesPage() {
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
-  const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const pathTenantSlug = pathSegments.length > 1 && pathSegments[1] === "vehicle" ? pathSegments[0] : "";
+  const tenantSlug = pathTenantSlug || (typeof window === "undefined" ? "" : getStoredTenantSlug() || "");
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
 
   async function loadData() {
@@ -552,7 +556,46 @@ export default function VehicleRoutesPage() {
             </div>
           </div>
           {loading ? <LoadingSpinner label="Loading assigned orders" /> : null}
-          <div className="max-h-[700px] w-full max-w-full overflow-auto">
+          <div className="grid gap-3 p-3 sm:hidden">
+            {visibleOrders.map((order) => (
+              <article className="rounded-lg border border-line bg-panel2 p-3" key={order.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-semibold">{order.customer.name}</h2>
+                    <p className="mt-1 truncate text-xs text-muted">{order.customer.phone || "No phone"}</p>
+                    <p className="mt-1 truncate text-xs text-muted">{order.route?.name || order.customer.route?.name || "Assigned route"}</p>
+                  </div>
+                  <span className="shrink-0 rounded-md border border-line bg-panel px-2 py-1 text-xs font-semibold">{order.status}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
+                  <span className="rounded-md bg-panel p-2">Order Amount<br /><strong className="text-ink">{formatAmount(order.grandTotal)}</strong></span>
+                  <span className="rounded-md bg-panel p-2">Previous Due<br /><strong className="text-ink">{formatAmount(previousDue(order))}</strong></span>
+                  <span className="rounded-md bg-panel p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(orderPaid(order))}</strong></span>
+                  <span className="rounded-md bg-panel p-2">Today&apos;s Due<br /><strong className="text-berry">{formatAmount(todayDue(order))}</strong></span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                  <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Details</button>
+                  <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => exportOrderPdf(order)} type="button"><Download size={14} /> Invoice PDF</button>
+                  <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(order)} type="button"><Pencil size={14} /> Edit</button>
+                  <select
+                    className={`focus-ring col-span-2 rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}
+                    disabled={saving}
+                    onChange={(event) => updateOrder(order, { vehicleStatus: event.target.value })}
+                    value={vehicleStatusValue(order)}
+                  >
+                    <option value="PENDING">Pending</option>
+                    <option value="ACCEPTED">Accepted</option>
+                  </select>
+                  <button className="focus-ring col-span-2 rounded-md bg-mint px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={saving || (todayDue(order) <= 0 && !order.payments?.length)} onClick={() => startPayment(order)} type="button">{order.payments?.length ? "Edit payment" : "Record payment"}</button>
+                </div>
+              </article>
+            ))}
+            {!loading && !visibleOrders.length ? (
+              <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No customers for this date.</div>
+            ) : null}
+          </div>
+          <div className="hidden max-h-[700px] w-full max-w-full overflow-auto sm:block">
             <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>

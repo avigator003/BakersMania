@@ -5,7 +5,7 @@ export function GET() {
     name: "BakersMania CRM",
     short_name: "BakersMania",
     description: "Bakery CRM and operations PWA.",
-    start_url: "/bakery",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     background_color: "#f7f4ef",

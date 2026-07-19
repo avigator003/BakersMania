@@ -32,18 +32,31 @@ function withBalance(
 export const customersService = {
   async listCustomers(auth: Express.Request["auth"], tenantId: string, filters: CustomerListFilters = {}) {
     let routeIds: string[] | undefined;
+    let routeAccountPhone: string | null = null;
+    let routeAccountName: string | null = null;
     if (auth?.actorType === "vehicle") {
       const vehicle = await customersRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
       if (!vehicle) {
         throw new HttpError(403, "Vehicle workspace access required");
       }
       routeIds = vehicle.routes.map((route) => route.id);
+      routeAccountPhone = normalizePhone(vehicle.driverPhone);
+      routeAccountName = vehicle.driverName?.trim().toLowerCase() || null;
     }
     const result = await customersRepository.listByTenant(tenantId, filters, routeIds);
-    const summaries = await customersRepository.financialSummaryByCustomer(tenantId, result.customers.map((customer) => customer.id));
+    const customers = auth?.actorType === "vehicle"
+      ? result.customers.filter((customer) => {
+          const samePhone = routeAccountPhone && normalizePhone(customer.phone) === routeAccountPhone;
+          const sameName = routeAccountName && customer.name.trim().toLowerCase() === routeAccountName;
+          return !(samePhone && sameName);
+        })
+      : result.customers;
+    const summaries = await customersRepository.financialSummaryByCustomer(tenantId, customers.map((customer) => customer.id));
     return {
-      customers: result.customers.map((customer) => withBalance(customer, summaries.get(customer.id))),
-      pagination: result.pagination
+      customers: customers.map((customer) => withBalance(customer, summaries.get(customer.id))),
+      pagination: auth?.actorType === "vehicle"
+        ? { ...result.pagination, total: customers.length, pageCount: Math.max(1, Math.ceil(customers.length / result.pagination.pageSize)) }
+        : result.pagination
     };
   },
 

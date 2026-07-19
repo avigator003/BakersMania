@@ -474,7 +474,7 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-night pb-24 text-ink lg:pb-0">
+    <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-night pb-[calc(6rem+env(safe-area-inset-bottom))] text-ink lg:pb-0">
       <PwaRegister />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col bg-sidebar px-4 py-5 text-white lg:flex">
         <Link href="/" className="flex items-center gap-3 rounded-md px-2">
@@ -517,7 +517,7 @@ export function AppShell({
         ) : null}
       </aside>
 
-      <header className="sticky top-0 z-20 max-w-full border-b border-line bg-white/90 backdrop-blur lg:ml-72">
+      <header className="sticky top-0 z-20 max-w-full border-b border-line bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur lg:ml-72">
         <div className="flex min-h-14 min-w-0 items-center justify-between px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -609,7 +609,7 @@ export function AppShell({
           </aside>
         </div>
       ) : null}
-      <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-4 sm:px-6 lg:ml-72">
+      <main className="min-w-0 max-w-full overflow-x-hidden px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:ml-72 lg:pb-6">
         <nav className="mb-3 flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted" aria-label="Breadcrumb">
           {breadcrumbs.map((item, index) => {
             const last = index === breadcrumbs.length - 1;
@@ -629,8 +629,8 @@ export function AppShell({
         </nav>
         {children}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)] lg:hidden">
-        <div className="flex w-full max-w-full gap-1 overflow-x-auto px-2 py-2 [-webkit-overflow-scrolling:touch]">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-panel pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-[0_-12px_30px_rgba(16,32,51,0.08)] lg:hidden">
+        <div className="flex w-full max-w-full gap-1 overflow-x-auto px-2 pt-2 [-webkit-overflow-scrolling:touch]">
         {nav.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);

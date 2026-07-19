@@ -449,7 +449,57 @@ export default function CustomerOrdersPage() {
           <span className="rounded-md bg-panel2 p-3">Paid Amount<br /><strong>{formatAmount(totals.paid)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Today&apos;s Due Amount<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
         </div>
-        <div className="max-h-[calc(100vh-360px)] w-full max-w-full overflow-auto">
+        <div className="grid gap-3 p-3 sm:hidden">
+          {orderGroups.map(({ order, rows: orderRows }) => (
+            <article className="rounded-lg border border-line bg-panel2 p-3" key={order.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold">{order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`}</h2>
+                  <p className="mt-1 text-xs text-muted">{formatDate(order.dueAt || order.createdAt)} · {order.invoice?.paymentStatus || order.paymentStatus}</p>
+                </div>
+                <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${driverAccepted(order) ? "border-mint/30 bg-mint/10 text-mint" : "border-amber-400/40 bg-amber-100 text-amber-700"}`}>
+                  {driverAccepted(order) ? "Accepted" : "Pending"}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {orderRows.map((row) => (
+                  <div className="rounded-md bg-panel p-3 text-sm" key={`${row.order.id}-${row.item.id}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">{row.item.name}</span>
+                        <span className="mt-1 block text-xs text-muted">{row.category}</span>
+                      </span>
+                      <span className="shrink-0 text-right font-semibold">{formatQty(row.item.quantity)}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted">
+                      <span>Amount<br /><strong className="text-ink">{formatAmount(row.item.lineTotal)}</strong></span>
+                      <span>Paid<br /><strong className="text-ink">{formatAmount(row.paidAmount)}</strong></span>
+                      <span>Previous Due<br /><strong className="text-ink">{formatAmount(totals.previousDue)}</strong></span>
+                      <span>Today&apos;s Due<br /><strong className="text-ink">{formatAmount(todaysDueAmount(totals.previousDue, row.item.lineTotal, row.paidAmount))}</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
+                <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Details</button>
+                <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => exportOrder(order)} type="button"><Download size={14} /> Invoice PDF</button>
+                <button
+                  className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                  disabled={saving || order.status !== "PENDING" || driverAccepted(order)}
+                  onClick={() => openEditOrder(order)}
+                  type="button"
+                >
+                  <Pencil size={14} /> Edit
+                </button>
+              </div>
+            </article>
+          ))}
+          {!loading && !rows.length ? (
+            <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No products found for this date/filter.</div>
+          ) : null}
+        </div>
+        <div className="hidden max-h-[calc(100vh-360px)] w-full max-w-full overflow-auto sm:block">
           <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>
