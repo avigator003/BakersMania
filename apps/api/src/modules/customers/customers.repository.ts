@@ -5,6 +5,7 @@ import type { CustomerInput, CustomerUpdateInput } from "./customers.schemas.js"
 
 export type CustomerListFilters = PaginationInput & {
   search?: string;
+  passwordScope?: "all";
 };
 
 export const customersRepository = {

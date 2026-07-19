@@ -7,7 +7,8 @@ export const customersController = {
     const result = await customersService.listCustomers(req.auth, req.tenant!.id, {
       page: numberQueryParam(req.query.page),
       pageSize: numberQueryParam(req.query.pageSize),
-      search: req.query.search ? String(req.query.search) : undefined
+      search: req.query.search ? String(req.query.search) : undefined,
+      passwordScope: req.query.passwordScope === "all" ? "all" : undefined
     });
     res.json(result);
   },

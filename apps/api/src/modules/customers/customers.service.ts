@@ -34,7 +34,7 @@ export const customersService = {
     let routeIds: string[] | undefined;
     let routeAccountPhone: string | null = null;
     let routeAccountName: string | null = null;
-    if (auth?.actorType === "vehicle") {
+    if (auth?.actorType === "vehicle" && filters.passwordScope !== "all") {
       const vehicle = await customersRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
       if (!vehicle) {
         throw new HttpError(403, "Vehicle workspace access required");
@@ -224,13 +224,6 @@ export const customersService = {
     }
     if (!customer.userId) {
       throw new HttpError(404, "Customer login account not found");
-    }
-    if (auth.actorType === "vehicle") {
-      const vehicle = await customersRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
-      const routeIds = vehicle?.routes.map((route) => route.id) || [];
-      if (!customer.routeId || !routeIds.includes(customer.routeId)) {
-        throw new HttpError(403, "This customer is not assigned to this vehicle");
-      }
     }
     const passwordHash = await bcrypt.hash(input.password, 12);
     await customersRepository.updateUserPassword(customer.userId, passwordHash);
