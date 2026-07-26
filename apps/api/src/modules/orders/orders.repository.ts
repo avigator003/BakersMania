@@ -962,30 +962,16 @@ export const ordersRepository = {
         if (due <= 0) continue;
 
         const amount = Math.min(due, remaining);
-        const existingPayment = order.payments[0];
-        const nextPaid = existingPayment ? Math.min(Number(order.grandTotal || 0), paid + amount) : amount;
-        if (existingPayment) {
-          await tx.payment.update({
-            where: { id: existingPayment.id },
-            data: {
-              amount: nextPaid,
-              method: input.method,
-              reference: input.reference,
-              paidAt: new Date()
-            }
-          });
-        } else {
-          await tx.payment.create({
-            data: {
-              tenantId,
-              orderId: order.id,
-              amount,
-              method: input.method,
-              reference: input.reference
-            }
-          });
-        }
-
+        const nextPaid = Math.min(Number(order.grandTotal || 0), paid + amount);
+        await tx.payment.create({
+          data: {
+            tenantId,
+            orderId: order.id,
+            amount,
+            method: input.method,
+            reference: input.reference
+          }
+        });
         const paymentStatus: PaymentStatus = nextPaid >= Number(order.grandTotal || 0) ? "PAID" : "PARTIAL";
         await tx.order.update({ where: { id: order.id }, data: { paymentStatus } });
         if (order.invoice) {
@@ -1047,32 +1033,19 @@ export const ordersRepository = {
       let remaining = input.mode === "PARTIAL" ? Number(input.amount || 0) : computedAmount;
       const payments: Array<{ orderId: string; amount: number }> = [];
 
-      for (const { order, paid, due, existingPayment } of dueByOrder) {
+      for (const { order, paid, due } of dueByOrder) {
         if (remaining <= 0) break;
-        const amount = input.mode === "PARTIAL" ? Math.min(Number(order.grandTotal || 0), remaining) : Math.min(due, remaining);
-        const nextPaid = input.mode === "PARTIAL" ? amount : Math.min(Number(order.grandTotal || 0), paid + amount);
-        if (existingPayment) {
-          await tx.payment.update({
-            where: { id: existingPayment.id },
-            data: {
-              amount: nextPaid,
-              method: input.method,
-              reference: input.reference,
-              paidAt: new Date()
-            }
-          });
-        } else {
-          await tx.payment.create({
-            data: {
-              tenantId,
-              orderId: order.id,
-              amount: nextPaid,
-              method: input.method,
-              reference: input.reference
-            }
-          });
-        }
-
+        const amount = Math.min(due, remaining);
+        const nextPaid = Math.min(Number(order.grandTotal || 0), paid + amount);
+        await tx.payment.create({
+          data: {
+            tenantId,
+            orderId: order.id,
+            amount,
+            method: input.method,
+            reference: input.reference
+          }
+        });
         const paymentStatus: PaymentStatus = nextPaid >= Number(order.grandTotal || 0) ? "PAID" : "PARTIAL";
         await tx.order.update({ where: { id: order.id }, data: { paymentStatus } });
         if (order.invoice) {

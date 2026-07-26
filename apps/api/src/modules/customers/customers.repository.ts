@@ -157,7 +157,7 @@ export const customersRepository = {
       where: { id: customerId },
       data: {
         ...input,
-        routeId: input.routeId || undefined
+        ...(input.routeId !== undefined ? { routeId: input.routeId || null } : {})
       },
       include: { route: true }
     });

@@ -19,6 +19,7 @@ export const vehicleSchema = z.object({
   insurancePhotoUrl: z.string().optional(),
   fitnessExpiryDate: z.coerce.date().optional(),
   fitnessPhotoUrl: z.string().optional(),
+  preferredProductIds: z.array(z.string()).default([]),
   active: z.boolean().default(true)
 });
 

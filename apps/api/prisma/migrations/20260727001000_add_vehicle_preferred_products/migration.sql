@@ -1,0 +1,1 @@
+ALTER TABLE "Vehicle" ADD COLUMN "preferredProductIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

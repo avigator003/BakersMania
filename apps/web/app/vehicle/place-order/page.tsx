@@ -1,16 +1,17 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ShoppingCart, Star, Trash2 } from "lucide-react";
+import { ShoppingCart, Star, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
+import { Modal } from "../../../components/modal";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 import { fetchAllProducts } from "../../../lib/catalog";
 
-type Customer = { id: string; name: string; phone?: string | null; route?: { name: string } | null };
+type Customer = { id: string; name: string; phone?: string | null; address?: string | null; city?: string | null; state?: string | null; route?: { name: string } | null };
 type Product = {
   id: string;
   name: string;
@@ -18,6 +19,7 @@ type Product = {
   categoryId?: string | null;
   categoryRef?: { id: string; name: string } | null;
   unitPrice: string | number;
+  effectiveUnitPrice?: string | number;
   active: boolean;
   isPreferred?: boolean;
 };
@@ -25,6 +27,7 @@ type Category = { id: string; name: string; active?: boolean };
 type CartItem = { id: string; name: string; unitPrice: string | number; quantity: number };
 
 const tomorrow = localDateInput(addLocalDays(new Date(), 1));
+const emptyCustomerForm = { name: "", phone: "", address: "", city: "", state: "Gujarat", notes: "" };
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -38,6 +41,10 @@ function productCategory(product: Product) {
   return product.categoryRef?.name || product.category || "General";
 }
 
+function billingPrice(product: Product) {
+  return product.effectiveUnitPrice ?? product.unitPrice;
+}
+
 export default function VehiclePlaceOrderPage() {
   const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -49,6 +56,8 @@ export default function VehiclePlaceOrderPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [date, setDate] = useState(tomorrow);
   const [notes, setNotes] = useState("");
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [customerForm, setCustomerForm] = useState(emptyCustomerForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
@@ -57,7 +66,7 @@ export default function VehiclePlaceOrderPage() {
   const customerOptions = useMemo(() => customers.map((customer) => ({
     value: customer.id,
     label: customer.name,
-    description: [customer.phone, customer.route?.name].filter(Boolean).join(" · ") || undefined
+    description: [customer.phone, customer.route?.name, customer.city].filter(Boolean).join(" · ") || undefined
   })), [customers]);
 
   const categoryOptions = useMemo(
@@ -87,7 +96,7 @@ export default function VehiclePlaceOrderPage() {
     const preferredIds = new Set(preferredProducts.map((product) => product.id));
     const preferredRows = preferredProducts.map((product) => {
       const existing = cart.find((item) => item.id === product.id);
-      return existing || { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity: 0 };
+      return existing || { id: product.id, name: product.name, unitPrice: billingPrice(product), quantity: 0 };
     });
     const extraRows = cart.filter((item) => !preferredIds.has(item.id));
     return [...preferredRows, ...extraRows];
@@ -148,6 +157,15 @@ export default function VehiclePlaceOrderPage() {
     };
   }, [apiBase, customerId]);
 
+  useEffect(() => {
+    if (!products.length || !cart.length) return;
+    const productMap = new Map(products.map((product) => [product.id, product]));
+    setCart((current) => current.map((item) => {
+      const product = productMap.get(item.id);
+      return product ? { ...item, unitPrice: billingPrice(product) } : item;
+    }));
+  }, [products]);
+
   function updateQuantity(productId: string, quantity: number) {
     setCart((current) => {
       const existing = current.find((item) => item.id === productId);
@@ -156,7 +174,7 @@ export default function VehiclePlaceOrderPage() {
       }
       const product = products.find((item) => item.id === productId);
       if (!product) return current;
-      return [...current, { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity }].filter((item) => item.quantity > 0);
+      return [...current, { id: product.id, name: product.name, unitPrice: billingPrice(product), quantity }].filter((item) => item.quantity > 0);
     });
   }
 
@@ -181,6 +199,35 @@ export default function VehiclePlaceOrderPage() {
       setNotes("");
     } catch (error) {
       toast.error("Order failed", error instanceof Error ? error.message : "Could not place this order.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase) return;
+    setSaving(true);
+    try {
+      const data = await authFetch<{ customer: Customer }>(`${apiBase}/customers`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...customerForm,
+          phone: customerForm.phone || undefined,
+          address: customerForm.address || undefined,
+          city: customerForm.city || undefined,
+          state: customerForm.state || undefined,
+          notes: customerForm.notes || undefined,
+          tags: []
+        })
+      });
+      toast.success("Customer created", `${data.customer.name} was added to your assigned route.`);
+      setCustomerOpen(false);
+      setCustomerForm(emptyCustomerForm);
+      await loadData();
+      setCustomerId(data.customer.id);
+    } catch (error) {
+      toast.error("Customer creation failed", error instanceof Error ? error.message : "Could not create customer.");
     } finally {
       setSaving(false);
     }
@@ -220,8 +267,12 @@ export default function VehiclePlaceOrderPage() {
         </form>
 
         <div className="order-2 rounded-lg border border-line bg-panel shadow-subtle xl:order-1">
-          <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
-            <SearchableSelect className="min-w-0" onChange={(value) => { setCustomerId(value); setProductFilter(""); }} options={customerOptions} placeholder="Select customer" searchPlaceholder="Search assigned customers" value={customerId} />
+          <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(220px,1fr)_auto_minmax(180px,260px)_minmax(220px,1fr)] md:items-end">
+            <SearchableSelect className="min-w-0" onChange={(value) => { setCustomerId(value); setProductFilter(""); setCart([]); }} options={customerOptions} placeholder="Select customer" searchPlaceholder="Search assigned customers" value={customerId} />
+            <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" onClick={() => setCustomerOpen(true)} type="button">
+              <UserPlus size={16} />
+              Add Customer
+            </button>
             <SearchableSelect className="min-w-0" onChange={setCategoryFilter} options={categoryOptions} placeholder="All categories" searchPlaceholder="Search categories" value={categoryFilter} />
             <SearchableSelect className="min-w-0" onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
           </div>
@@ -259,6 +310,32 @@ export default function VehiclePlaceOrderPage() {
           </div>
         </div>
       </section>
+      <Modal open={customerOpen} title="Add Customer" description="Create a customer on your assigned route." onClose={() => { setCustomerOpen(false); setCustomerForm(emptyCustomerForm); }}>
+        <form className="grid gap-3" onSubmit={createCustomer}>
+          {[
+            ["name", "Name"],
+            ["phone", "Mobile number"],
+            ["address", "Address"],
+            ["city", "City"],
+            ["state", "State"],
+            ["notes", "Notes"]
+          ].map(([key, label]) => (
+            <label className="grid gap-1 text-sm font-semibold" key={key}>
+              {label}
+              <input
+                className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                onChange={(event) => setCustomerForm((current) => ({ ...current, [key]: event.target.value }))}
+                required={key === "name" || key === "phone"}
+                value={customerForm[key as keyof typeof customerForm]}
+              />
+            </label>
+          ))}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setCustomerOpen(false); setCustomerForm(emptyCustomerForm); }} type="button">Cancel</button>
+            <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={saving} type="submit">{saving ? "Saving..." : "Create Customer"}</button>
+          </div>
+        </form>
+      </Modal>
     </AppShell>
   );
 }

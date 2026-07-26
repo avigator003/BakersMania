@@ -18,6 +18,7 @@ type Product = {
   categoryId?: string | null;
   categoryRef?: { id: string; name: string } | null;
   unitPrice: string | number;
+  effectiveUnitPrice?: string | number;
   active: boolean;
   isPreferred?: boolean;
 };
@@ -40,6 +41,10 @@ function formatQty(value?: string | number | null) {
 
 function productCategory(product: Product) {
   return product.categoryRef?.name || product.category || "General";
+}
+
+function billingPrice(product: Product) {
+  return product.effectiveUnitPrice ?? product.unitPrice;
 }
 
 export default function CustomerPage() {
@@ -122,6 +127,15 @@ export default function CustomerPage() {
     window.localStorage.removeItem(cartStorageKey);
   }, [cart, cartStorageKey]);
 
+  useEffect(() => {
+    if (!products.length || !cart.length) return;
+    const productMap = new Map(products.map((product) => [product.id, product]));
+    setCart((current) => current.map((item) => {
+      const product = productMap.get(item.id);
+      return product ? { ...item, unitPrice: billingPrice(product) } : item;
+    }));
+  }, [products]);
+
   const shopProducts = useMemo(() => visibleProductSource.filter((product) => {
     if (shopCategoryFilter && product.categoryId !== shopCategoryFilter && product.categoryRef?.id !== shopCategoryFilter) return false;
     if (shopProductFilter && product.id !== shopProductFilter) return false;
@@ -134,7 +148,7 @@ export default function CustomerPage() {
       const preferredIds = new Set(preferredProducts.map((product) => product.id));
       const preferredRows = preferredProducts.map((product) => {
           const existing = cart.find((item) => item.id === product.id);
-          return existing || { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity: 0 };
+          return existing || { id: product.id, name: product.name, unitPrice: billingPrice(product), quantity: 0 };
         });
       const extraRows = cart.filter((item) => !preferredIds.has(item.id) && item.quantity > 0);
       return [...preferredRows, ...extraRows];
@@ -159,7 +173,7 @@ export default function CustomerPage() {
       }
       const product = products.find((item) => item.id === productId);
       if (!product) return current;
-      const next = [...current, { id: product.id, name: product.name, unitPrice: product.unitPrice, quantity }];
+      const next = [...current, { id: product.id, name: product.name, unitPrice: billingPrice(product), quantity }];
       return preferenceOnly ? next : next.filter((item) => item.quantity > 0);
     });
   }

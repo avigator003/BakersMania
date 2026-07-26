@@ -591,7 +591,8 @@ export const ordersService = {
       });
     });
 
-    baseRows.forEach((baseRow) => {
+    const includeBaseRows = !(auth?.actorType === "vehicle" && groupByCustomer);
+    if (includeBaseRows) baseRows.forEach((baseRow) => {
       const totals = rowTotalsMap.get(baseRow.id);
       routeMap.set(baseRow.id, {
         id: baseRow.id,

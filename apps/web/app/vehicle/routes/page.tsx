@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Download, Eye, IndianRupee, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Eye, IndianRupee, Pencil, Plus, RefreshCw, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, addLocalDays, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -34,7 +34,7 @@ type Order = {
   dueAt?: string | null;
   notes?: string | null;
   createdAt: string;
-  customer: { id?: string; name: string; phone?: string | null; route?: { name: string } | null };
+  customer: { id?: string; name: string; phone?: string | null; address?: string | null; city?: string | null; state?: string | null; route?: { name: string } | null };
   route?: { name: string } | null;
   items: {
     id: string;
@@ -63,6 +63,7 @@ const paymentTypes = [
 
 const today = localDateInput();
 const emptyOrderForm: OrderFormState = { dueAt: today, notes: "", items: [{ id: "row-1", productId: "", quantity: "" }] };
+const emptyCustomerForm = { name: "", phone: "", address: "", city: "", state: "Gujarat", notes: "" };
 
 function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -125,6 +126,16 @@ function itemAmount(item: Order["items"][number]) {
 
 function itemCategory(item: Order["items"][number]) {
   return item.product?.categoryRef?.name || item.product?.category || "-";
+}
+
+function customerLocation(customer: Order["customer"]) {
+  return [customer.city, customer.state].filter(Boolean).join(", ");
+}
+
+function customerDetailLine(order: Order) {
+  return [order.customer.phone, order.route?.name || order.customer.route?.name, customerLocation(order.customer)]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function productCategory(product: Product) {
@@ -248,6 +259,8 @@ export default function VehicleRoutesPage() {
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [customerForm, setCustomerForm] = useState(emptyCustomerForm);
   const pathSegments = pathname.split("/").filter(Boolean);
   const pathTenantSlug = pathSegments.length > 1 && pathSegments[1] === "vehicle" ? pathSegments[0] : "";
   const tenantSlug = pathTenantSlug || (typeof window === "undefined" ? "" : getStoredTenantSlug() || "");
@@ -279,6 +292,34 @@ export default function VehicleRoutesPage() {
     }
   }
 
+  async function createCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiBase) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/customers`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...customerForm,
+          phone: customerForm.phone || undefined,
+          address: customerForm.address || undefined,
+          city: customerForm.city || undefined,
+          state: customerForm.state || undefined,
+          notes: customerForm.notes || undefined,
+          tags: []
+        })
+      });
+      toast.success("Customer created", `${customerForm.name} was added to your assigned route.`);
+      setCustomerOpen(false);
+      setCustomerForm(emptyCustomerForm);
+      await loadData();
+    } catch (error) {
+      toast.error("Customer creation failed", error instanceof Error ? error.message : "Could not create customer.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   useEffect(() => {
     loadData();
   }, [date]);
@@ -301,7 +342,7 @@ export default function VehicleRoutesPage() {
         customers.set(value, {
           value,
           label: order.customer.name,
-          description: [order.customer.phone, order.route?.name || order.customer.route?.name].filter(Boolean).join(" · ") || undefined
+          description: customerDetailLine(order) || undefined
         });
       }
     });
@@ -501,6 +542,10 @@ export default function VehicleRoutesPage() {
     content += pdfLine(orderNumber, 48, y, 18); y -= 22;
     content += pdfLine(order.customer.name, 48, y, 10);
     content += pdfLine(`Order date: ${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(order.dueAt || order.createdAt))}`, 360, y, 9); y -= 16;
+    if (order.notes) {
+      content += pdfLine(`Notes: ${order.notes}`, 48, y, 9);
+      y -= 16;
+    }
     content += pdfLine(`Vehicle status: ${vehicleStatusLabel(order)}`, 360, y, 9);
     content += pdfLine(`Bakery status: ${order.status}`, 360, y - 14, 9);
     content += pdfLine(`Payment status: ${order.paymentStatus}`, 360, y - 28, 9); y -= 50;
@@ -571,9 +616,13 @@ export default function VehicleRoutesPage() {
               <span>Paid Amount: <span className="font-semibold text-ink">{formatAmount(totals.paid)}</span></span>
               <span>Today&apos;s Due Amount: <span className="font-semibold text-ink">{formatAmount(todayDueTotal)}</span></span>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_auto_auto]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_auto_auto_auto]">
               <SearchableSelect className="min-w-0" multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
               <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setDate} value={date} />
+              <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" onClick={() => setCustomerOpen(true)} type="button">
+                <UserPlus size={16} />
+                Add Customer
+              </button>
               <button className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold" disabled={!visibleOrders.length} onClick={exportCollectionSheet} type="button"><Download size={16} /> Export</button>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
             </div>
@@ -585,8 +634,8 @@ export default function VehicleRoutesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="truncate text-sm font-semibold">{order.customer.name}</h2>
-                    <p className="mt-1 truncate text-xs text-muted">{order.customer.phone || "No phone"}</p>
-                    <p className="mt-1 truncate text-xs text-muted">{order.route?.name || order.customer.route?.name || "Assigned route"}</p>
+                    <p className="mt-1 truncate text-xs text-muted">{customerDetailLine(order) || "No route/detail"}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted">{order.customer.address || "No address"}</p>
                   </div>
                   <span className="shrink-0 rounded-md border border-line bg-panel px-2 py-1 text-xs font-semibold">{order.status}</span>
                 </div>
@@ -637,7 +686,8 @@ export default function VehicleRoutesPage() {
                     <tr className="align-top" key={order.id}>
                       <td className="px-4 py-3">
                         <span className="block font-semibold">{order.customer.name}</span>
-                        <span className="text-xs text-muted">{order.customer.phone || "No phone"}</span>
+                        <span className="block text-xs text-muted">{customerDetailLine(order) || "No route/detail"}</span>
+                        <span className="block max-w-xs truncate text-xs text-muted">{order.customer.address || "No address"}</span>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
@@ -677,6 +727,36 @@ export default function VehicleRoutesPage() {
           </div>
         </section>
       </div>
+
+      <Modal open={customerOpen} title="Add Customer" description="Create a customer on your assigned route." onClose={() => { setCustomerOpen(false); setCustomerForm(emptyCustomerForm); }}>
+        <form className="grid gap-3" onSubmit={createCustomer}>
+          {[
+            ["name", "Name"],
+            ["phone", "Mobile number"],
+            ["address", "Address"],
+            ["city", "City"],
+            ["state", "State"]
+          ].map(([key, label]) => (
+            <label className="grid gap-1 text-sm font-semibold" key={key}>
+              {label}
+              <input
+                className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                onChange={(event) => setCustomerForm((current) => ({ ...current, [key]: event.target.value }))}
+                required={key === "name" || key === "phone"}
+                value={customerForm[key as keyof typeof customerForm]}
+              />
+            </label>
+          ))}
+          <label className="grid gap-1 text-sm font-semibold">
+            Notes
+            <textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setCustomerForm((current) => ({ ...current, notes: event.target.value }))} value={customerForm.notes} />
+          </label>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => { setCustomerOpen(false); setCustomerForm(emptyCustomerForm); }} type="button">Cancel</button>
+            <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={saving} type="submit">{saving ? "Saving..." : "Create Customer"}</button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={Boolean(editOrder)} title="Edit order" description={editOrder ? `${editOrder.customer.name} · Vehicle can edit accepted orders` : ""} onClose={() => setEditOrder(null)}>
         {editOrder ? (
@@ -752,6 +832,12 @@ export default function VehicleRoutesPage() {
           <>
             <div className="max-h-[560px] overflow-auto rounded-lg border border-line sm:hidden">
               <div className="grid gap-3 p-3">
+                {detailOrder.notes ? (
+                  <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+                    <span className="block text-xs font-semibold uppercase text-muted">Notes</span>
+                    <p className="mt-1 whitespace-pre-wrap">{detailOrder.notes}</p>
+                  </div>
+                ) : null}
                 {detailOrder.items.map((item) => (
                   <article className="rounded-lg border border-line bg-panel2 p-3" key={item.id}>
                     <div className="flex items-start justify-between gap-3">
@@ -773,6 +859,12 @@ export default function VehicleRoutesPage() {
               </div>
             </div>
             <div className="hidden max-h-[560px] overflow-auto rounded-lg border border-line sm:block">
+              {detailOrder.notes ? (
+                <div className="border-b border-line bg-panel2 px-4 py-3 text-sm">
+                  <span className="font-semibold">Notes: </span>
+                  <span className="whitespace-pre-wrap text-muted">{detailOrder.notes}</span>
+                </div>
+              ) : null}
               <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">
                 <tr>

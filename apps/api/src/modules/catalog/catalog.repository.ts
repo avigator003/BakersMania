@@ -148,9 +148,10 @@ export const catalogRepository = {
     return {
       products: products.map((product) => ({
         ...product,
-        unitPrice: "customerPrices" in product && product.customerPrices[0]?.price != null
+        effectiveUnitPrice: "customerPrices" in product && product.customerPrices[0]?.price != null
           ? product.customerPrices[0].price
           : product.unitPrice,
+        priceSource: "customerPrices" in product && product.customerPrices[0]?.price != null ? "CUSTOMER" : "BASE",
         isPreferred: "customerPreferences" in product ? product.customerPreferences.length > 0 : false
       })),
       pagination: paginationMeta(total, page, pageSize)

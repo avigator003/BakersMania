@@ -57,12 +57,23 @@ function formatExcelDate(value: string) {
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
+function formatDisplayDate(value: string) {
+  const [year, month, day] = value.split("-");
+  return year && month && day
+    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(Number(year), Number(month) - 1, Number(day)))
+    : value;
+}
+
 function compactProductName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 6);
 }
 
 function compactRowName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 10);
+}
+
+function exportRowName(row: { name: string; routeName?: string | null }) {
+  return compactRowName([row.name, row.routeName].filter(Boolean).join(" / "));
 }
 
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
@@ -138,20 +149,12 @@ export default function VehicleTruckLoadingPage() {
 
   const visibleProducts = useMemo(() => {
     const products = truckLoading?.products || [];
-    const productHasQuantity = new Set<string>();
-    sortedCustomers.forEach((route) => {
-      Object.entries(route.quantities).forEach(([productId, quantity]) => {
-        if (Number(quantity || 0) > 0) productHasQuantity.add(productId);
-      });
-    });
     return products.filter((product) => {
       const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
       const productMatches = !productFilter.length || productFilter.includes(product.id);
-      const hasQuantity = productHasQuantity.has(product.id);
-      const shouldShowEmptyProduct = Boolean(categoryFilter.length || productFilter.length);
-      return categoryMatches && productMatches && (hasQuantity || shouldShowEmptyProduct);
+      return categoryMatches && productMatches;
     }).sort(productSort);
-  }, [categoryFilter, productFilter, sortedCustomers, truckLoading]);
+  }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {
     const routes = sortedCustomers;
@@ -189,7 +192,7 @@ export default function VehicleTruckLoadingPage() {
       sum + exportProducts.reduce((routeSum, product) => routeSum + Number(route.quantities[product.id] || 0), 0)
     ), 0);
     const columns: XlsxColumn[] = [
-      { width: 10 },
+      { width: 16 },
       ...exportProducts.map(() => ({ width: 4.2 })),
       { width: 7 },
       { width: 9 },
@@ -207,7 +210,7 @@ export default function VehicleTruckLoadingPage() {
       {
         height: 30,
         cells: [
-          { value: "Customer Name", style: "header" },
+          { value: "Customer / Route", style: "header" },
           ...exportProducts.map((product) => ({ value: compactProductName(product.name), style: "header" as const })),
           { value: "Order", style: "header" },
           { value: "Previous", style: "header" },
@@ -219,7 +222,7 @@ export default function VehicleTruckLoadingPage() {
         return {
           height: 24,
           cells: [
-            { value: compactRowName(route.name), style: "name" as const },
+            { value: exportRowName(route), style: "name" as const },
             ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null })),
             { value: route.orderAmount || null, style: "amount" as const },
             { value: route.previousDue || null, style: "amount" as const },
@@ -252,6 +255,7 @@ export default function VehicleTruckLoadingPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm text-muted">
+              <span>Date: <span className="font-semibold text-ink">{formatDisplayDate(date)}</span></span>
               <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
               <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>
               <span>Accepted: <span className="font-semibold text-mint">{truckLoading?.statusCounts?.accepted || 0}</span></span>
@@ -271,7 +275,7 @@ export default function VehicleTruckLoadingPage() {
             <SearchableSelect className="min-w-56" multiple onChange={setProductFilter} options={productOptions} placeholder="All products" searchPlaceholder="Search products" value={productFilter} />
             <SearchableSelect className="min-w-52" multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
             <DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold outline-none focus:border-mint" onChange={setDate} value={date} />
-            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!visibleRoutes.length || !visibleProducts.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
+            <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-mint px-4 py-2 text-sm font-semibold text-white" disabled={!visibleProducts.length} onClick={exportTruckLoading} type="button"><Download size={16} /> Export</button>
             <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
           </div>
         </div>
@@ -282,7 +286,7 @@ export default function VehicleTruckLoadingPage() {
           <table className="min-w-full border-separate border-spacing-0 text-center text-sm">
             <thead className="sticky top-0 z-20 text-xs uppercase text-muted">
               <tr>
-                <th className="sticky left-0 z-40 min-w-44 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Customer Name</th>
+                <th className="sticky left-0 z-40 min-w-52 border-b border-r border-line bg-panel2 px-4 py-3 text-left shadow-[8px_0_12px_rgba(23,32,51,0.08)]">Customer / Route</th>
                 {visibleProducts.map((product) => (
                   <th className="min-w-28 border-b border-r border-line bg-panel2 px-3 py-3" key={product.id}>
                     <span className="block text-ink">{product.name}</span>
@@ -298,7 +302,10 @@ export default function VehicleTruckLoadingPage() {
             <tbody>
               {visibleRoutes.map((route, index) => (
                 <tr className={index % 2 ? "bg-panel2/30" : "bg-panel"} key={route.id}>
-                  <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>{route.name}</td>
+                  <td className={`sticky left-0 z-30 border-b border-r border-line px-4 py-3 text-left font-semibold text-ink shadow-[8px_0_12px_rgba(23,32,51,0.06)] ${index % 2 ? "bg-panel2" : "bg-panel"}`}>
+                    <span className="block">{route.name}</span>
+                    {route.routeName ? <span className="mt-0.5 block text-xs font-medium text-muted">{route.routeName}</span> : null}
+                  </td>
                   {visibleProducts.map((product) => {
                     const quantity = route.quantities[product.id] || 0;
                     return (
@@ -327,7 +334,7 @@ export default function VehicleTruckLoadingPage() {
               ) : null}
               {!loading && (!truckLoading || !visibleRoutes.length || !visibleProducts.length) ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 6}>No truck loading data for this date.</td>
+                  <td className="px-4 py-10 text-center text-muted" colSpan={visibleProducts.length + 6}>{visibleProducts.length ? "No customer orders for this date." : "No products found."}</td>
                 </tr>
               ) : null}
             </tbody>

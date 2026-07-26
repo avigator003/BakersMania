@@ -22,6 +22,7 @@ type BakeryOrder = {
   id: string;
   dueAt?: string | null;
   createdAt: string;
+  notes?: string | null;
   grandTotal: string | number;
   previousDueAmount?: string | number;
   orderAmount?: string | number;
@@ -60,6 +61,7 @@ export default function VehicleBakeryOrdersPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [editingOrder, setEditingOrder] = useState<BakeryOrder | null>(null);
+  const [editNotes, setEditNotes] = useState("");
   const [extraProductId, setExtraProductId] = useState("");
   const [extraQuantity, setExtraQuantity] = useState("1");
   const [loading, setLoading] = useState(true);
@@ -129,12 +131,14 @@ export default function VehicleBakeryOrdersPage() {
     });
     setQuantities(nextQuantities);
     setEditingOrder(order);
+    setEditNotes(order.notes || "");
     setExtraProductId("");
     setExtraQuantity("1");
   }
 
   function closeEdit() {
     setEditingOrder(null);
+    setEditNotes("");
     setExtraProductId("");
     setExtraQuantity("1");
     setQuantities({});
@@ -165,6 +169,7 @@ export default function VehicleBakeryOrdersPage() {
           source: "STAFF_CREATED",
           fulfillmentType: "DELIVERY",
           dueAt: date,
+          notes: editNotes || undefined,
           items: orderItems
         })
       });
@@ -225,6 +230,7 @@ export default function VehicleBakeryOrdersPage() {
                     <td className="px-4 py-3 text-right font-semibold text-berry">{formatCurrency(order.todaysDueAmount)}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-md border border-line bg-panel2 px-2 py-1 text-xs font-semibold">{order.status}</span>
+                      {order.notes ? <span className="mt-1 block max-w-[180px] truncate text-xs text-muted">{order.notes}</span> : null}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {order.status === "PENDING" ? (
@@ -257,6 +263,7 @@ export default function VehicleBakeryOrdersPage() {
                   <div>
                     <h2 className="text-sm font-semibold">{orderDate(order)}</h2>
                     <p className="mt-1 text-xs text-muted">Qty {formatQty(quantity)} · Order {formatCurrency(order.orderAmount ?? order.grandTotal)}</p>
+                    {order.notes ? <p className="mt-1 line-clamp-2 text-xs text-muted">{order.notes}</p> : null}
                   </div>
                   <span className="rounded-md border border-line bg-panel px-2 py-1 text-xs font-semibold">{order.status}</span>
                 </div>
@@ -298,6 +305,10 @@ export default function VehicleBakeryOrdersPage() {
             Add
           </button>
         </div>
+        <label className="mb-4 grid gap-1 text-sm font-semibold">
+          Notes
+          <textarea className="min-h-20 rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setEditNotes(event.target.value)} value={editNotes} />
+        </label>
         <div className="max-h-[72vh] overflow-auto rounded-lg border border-line">
           <table className="w-full min-w-[520px] text-left text-sm">
             <thead className="sticky top-0 border-b border-line bg-panel2 text-xs uppercase text-muted">

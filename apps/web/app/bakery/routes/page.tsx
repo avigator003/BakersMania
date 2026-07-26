@@ -11,6 +11,15 @@ import { PhotoPicker } from "../../../components/photo-picker";
 import { SearchableSelect } from "../../../components/searchable-select";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
+import { fetchAllProducts } from "../../../lib/catalog";
+
+type Product = {
+  id: string;
+  name: string;
+  category?: string | null;
+  categoryRef?: { name: string } | null;
+  active?: boolean;
+};
 
 type Vehicle = {
   id: string;
@@ -26,6 +35,7 @@ type Vehicle = {
   insurancePhotoUrl?: string | null;
   fitnessExpiryDate?: string | null;
   fitnessPhotoUrl?: string | null;
+  preferredProductIds?: string[];
   active: boolean;
   routes?: Array<{ id: string; name: string }>;
 };
@@ -65,6 +75,7 @@ const initialVehicleForm = {
   insurancePhotoUrl: "",
   fitnessExpiryDate: "",
   fitnessPhotoUrl: "",
+  preferredProductIds: [] as string[],
   active: true
 };
 
@@ -98,10 +109,15 @@ function DocumentExpiry({ label, value }: { label: string; value?: string | null
   );
 }
 
+function productCategory(product: Product) {
+  return product.categoryRef?.name || product.category || "General";
+}
+
 export default function BakeryRoutesPage() {
   const toast = useToast();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("routes");
   const [routeOpen, setRouteOpen] = useState(false);
   const [vehicleOpen, setVehicleOpen] = useState(false);
@@ -163,6 +179,20 @@ export default function BakeryRoutesPage() {
     description: [vehicle.number, vehicle.driverName, vehicle.driverPhone].filter(Boolean).join(" · ") || "No details"
   })), [vehicles]);
 
+  const productOptions = useMemo(() => products.map((product) => ({
+    value: product.id,
+    label: product.name,
+    description: productCategory(product)
+  })), [products]);
+
+  const productNameById = useMemo(() => new Map(products.map((product) => [product.id, product.name])), [products]);
+
+  function preferredProductSummary(vehicle: Vehicle) {
+    const names = (vehicle.preferredProductIds || []).map((id) => productNameById.get(id)).filter(Boolean);
+    if (!names.length) return "No preferred products";
+    return names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3}` : "");
+  }
+
   const visibleRoutes = useMemo(
     () => routeFilter.length ? routes.filter((route) => routeFilter.includes(route.id)) : routes,
     [routeFilter, routes]
@@ -199,9 +229,10 @@ export default function BakeryRoutesPage() {
       const vehicleParams = new URLSearchParams();
       vehicleParams.set("page", String(vehiclesPage));
       vehicleParams.set("pageSize", String(vehiclesPageSize));
-      const [routeData, vehicleData] = await Promise.all([
+      const [routeData, vehicleData, productData] = await Promise.all([
         authFetch<{ routes: Route[]; pagination?: PaginationMeta }>(`${apiBase}/routes?${routeParams.toString()}`),
-        authFetch<{ vehicles: Vehicle[]; pagination?: PaginationMeta }>(`${apiBase}/routes/vehicles?${vehicleParams.toString()}`)
+        authFetch<{ vehicles: Vehicle[]; pagination?: PaginationMeta }>(`${apiBase}/routes/vehicles?${vehicleParams.toString()}`),
+        fetchAllProducts<Product>(apiBase)
       ]);
       setRoutes(routeData.routes);
       setRoutesTotal(routeData.pagination?.total ?? routeData.routes.length);
@@ -213,6 +244,7 @@ export default function BakeryRoutesPage() {
       setVehiclesPageCount(vehicleData.pagination?.pageCount ?? 1);
       setVehiclesPage(vehicleData.pagination?.page ?? vehiclesPage);
       setVehiclesPageSize(vehicleData.pagination?.pageSize ?? vehiclesPageSize);
+      setProducts(productData.filter((product) => product.active !== false));
     } catch (error) {
       toast.error("Could not load routes", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -294,6 +326,7 @@ export default function BakeryRoutesPage() {
       insurancePhotoUrl: vehicle.insurancePhotoUrl || "",
       fitnessExpiryDate: dateInput(vehicle.fitnessExpiryDate),
       fitnessPhotoUrl: vehicle.fitnessPhotoUrl || "",
+      preferredProductIds: vehicle.preferredProductIds || [],
       active: vehicle.active
     });
   }
@@ -503,6 +536,7 @@ export default function BakeryRoutesPage() {
                     <span className="rounded-md bg-panel px-3 py-2"><DocumentExpiry label="PUC" value={vehicle.pucExpiryDate} /></span>
                     <span className="rounded-md bg-panel px-3 py-2"><DocumentExpiry label="Insurance" value={vehicle.insuranceExpiryDate} /></span>
                     <span className="rounded-md bg-panel px-3 py-2"><DocumentExpiry label="Fitness" value={vehicle.fitnessExpiryDate} /></span>
+                    <span className="col-span-2 rounded-md bg-panel px-3 py-2">Preferred: {preferredProductSummary(vehicle)}</span>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button className="focus-ring grid h-10 place-items-center rounded-md border border-line bg-panel" onClick={() => setViewVehicle(vehicle)} title="View vehicle" type="button"><Eye size={15} /></button>
@@ -522,6 +556,7 @@ export default function BakeryRoutesPage() {
                     <th className="px-4 py-3">PUC</th>
                     <th className="px-4 py-3">Insurance</th>
                     <th className="px-4 py-3">Fitness</th>
+                    <th className="px-4 py-3">Preferred Products</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
@@ -541,6 +576,7 @@ export default function BakeryRoutesPage() {
                       <td className="px-4 py-3"><span className={documentExpiryClass(vehicle.pucExpiryDate)}>{formatDate(vehicle.pucExpiryDate)}</span><br /><span className="text-xs text-mint">{vehicle.pucPhotoUrl || ""}</span></td>
                       <td className="px-4 py-3"><span className={documentExpiryClass(vehicle.insuranceExpiryDate)}>{formatDate(vehicle.insuranceExpiryDate)}</span><br /><span className="text-xs text-mint">{vehicle.insurancePhotoUrl || ""}</span></td>
                       <td className="px-4 py-3"><span className={documentExpiryClass(vehicle.fitnessExpiryDate)}>{formatDate(vehicle.fitnessExpiryDate)}</span><br /><span className="text-xs text-mint">{vehicle.fitnessPhotoUrl || ""}</span></td>
+                      <td className="px-4 py-3 text-muted">{preferredProductSummary(vehicle)}</td>
                       <td className="px-4 py-3">
                         <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${vehicle.active ? "border-mint/30 bg-mint/10 text-mint" : "border-slate-400/30 bg-slate-100 text-slate-600"}`}>
                           {vehicle.active ? "Active" : "Inactive"}
@@ -556,7 +592,7 @@ export default function BakeryRoutesPage() {
                   ))}
                   {!loading && !visibleVehicles.length ? (
                     <tr>
-                      <td className="px-4 py-6 text-center text-sm text-muted" colSpan={8}>No vehicles found.</td>
+                    <td className="px-4 py-6 text-center text-sm text-muted" colSpan={9}>No vehicles found.</td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -655,6 +691,15 @@ export default function BakeryRoutesPage() {
                 </div>
               );
             })}
+            <SearchableSelect
+              label="Preferred products"
+              multiple
+              onChange={(value) => setVehicleForm((current) => ({ ...current, preferredProductIds: value }))}
+              options={productOptions}
+              placeholder="No preferred products"
+              searchPlaceholder="Search products"
+              value={vehicleForm.preferredProductIds}
+            />
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={() => setVehicleOpen(false)} type="button">Cancel</button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Onboard Vehicle"}</button>
@@ -674,7 +719,8 @@ export default function BakeryRoutesPage() {
                 ["RC", `${formatDate(viewVehicle.rcExpiryDate)}${viewVehicle.rcPhotoUrl ? ` · ${viewVehicle.rcPhotoUrl}` : ""}`],
                 ["PUC", `${formatDate(viewVehicle.pucExpiryDate)}${viewVehicle.pucPhotoUrl ? ` · ${viewVehicle.pucPhotoUrl}` : ""}`],
                 ["Insurance", `${formatDate(viewVehicle.insuranceExpiryDate)}${viewVehicle.insurancePhotoUrl ? ` · ${viewVehicle.insurancePhotoUrl}` : ""}`],
-                ["Fitness", `${formatDate(viewVehicle.fitnessExpiryDate)}${viewVehicle.fitnessPhotoUrl ? ` · ${viewVehicle.fitnessPhotoUrl}` : ""}`]
+                ["Fitness", `${formatDate(viewVehicle.fitnessExpiryDate)}${viewVehicle.fitnessPhotoUrl ? ` · ${viewVehicle.fitnessPhotoUrl}` : ""}`],
+                ["Preferred products", preferredProductSummary(viewVehicle)]
               ].map(([label, value]) => (
                 <p className="flex justify-between gap-3 py-3" key={label}><span className="text-muted">{label}</span><span className="text-right font-semibold">{value}</span></p>
               ))}
@@ -719,6 +765,15 @@ export default function BakeryRoutesPage() {
                 </div>
               );
             })}
+            <SearchableSelect
+              label="Preferred products"
+              multiple
+              onChange={(value) => setVehicleForm((current) => ({ ...current, preferredProductIds: value }))}
+              options={productOptions}
+              placeholder="No preferred products"
+              searchPlaceholder="Search products"
+              value={vehicleForm.preferredProductIds}
+            />
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input checked={vehicleForm.active} onChange={(event) => setVehicleForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" />
               Active vehicle

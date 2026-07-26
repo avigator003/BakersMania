@@ -20,6 +20,7 @@ type Product = {
   active: boolean;
 };
 type Category = { id: string; name: string; active?: boolean };
+type Vehicle = { id: string; preferredProductIds?: string[] };
 type TruckLoading = {
   date: string;
   totals: Record<string, number>;
@@ -40,6 +41,7 @@ export default function VehicleBakeryOrderPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [totals, setTotals] = useState<Record<string, number>>({});
+  const [preferredProductIds, setPreferredProductIds] = useState<string[]>([]);
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [date, setDate] = useState(tomorrow);
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -63,8 +65,13 @@ export default function VehicleBakeryOrderPage() {
   );
 
   const productsWithTotals = useMemo(
-    () => sortedProducts.filter((product) => Number(totals[product.id] || 0) > 0),
-    [sortedProducts, totals]
+    () => {
+      const hasForwardedTotals = Object.values(totals).some((quantity) => Number(quantity || 0) > 0);
+      if (hasForwardedTotals) return sortedProducts.filter((product) => Number(totals[product.id] || 0) > 0);
+      const preferredIds = new Set(preferredProductIds);
+      return sortedProducts.filter((product) => preferredIds.has(product.id));
+    },
+    [preferredProductIds, sortedProducts, totals]
   );
 
   const productOptions = useMemo(
@@ -107,16 +114,19 @@ export default function VehicleBakeryOrderPage() {
     if (!apiBase) return;
     setLoading(true);
     try {
-      const [productData, categoryData, loadingData] = await Promise.all([
+      const [productData, categoryData, loadingData, vehicleData] = await Promise.all([
         fetchAllProducts<Product>(apiBase),
         authFetch<{ categories: Category[] }>(`${apiBase}/catalog/categories`),
-        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?date=${encodeURIComponent(date)}`)
+        authFetch<{ truckLoading: TruckLoading }>(`${apiBase}/orders/truck-loading?date=${encodeURIComponent(date)}`),
+        authFetch<{ vehicle: Vehicle }>(`${apiBase}/routes/vehicles/me`)
       ]);
       const activeProducts = productData.filter((product) => product.active !== false);
       const nextTotals = loadingData.truckLoading.totals || {};
+      const nextPreferredProductIds = vehicleData.vehicle.preferredProductIds || [];
       setProducts(activeProducts);
       setCategories(categoryData.categories);
       setTotals(nextTotals);
+      setPreferredProductIds(nextPreferredProductIds);
       setQuantities(Object.fromEntries(activeProducts.map((product) => [product.id, String(nextTotals[product.id] || 0)])));
     } catch (error) {
       toast.error("Could not load bakery order", error instanceof Error ? error.message : "Please try again.");
@@ -205,6 +215,12 @@ export default function VehicleBakeryOrderPage() {
             <span>Products: <strong className="text-ink">{orderItems.length}</strong></span>
             <span className="hidden sm:inline">·</span>
             <span>Total Quantity: <strong className="text-ink">{formatQty(totalQuantity)}</strong></span>
+            {!Object.values(totals).some((quantity) => Number(quantity || 0) > 0) ? (
+              <>
+                <span className="hidden sm:inline">·</span>
+                <span>Showing preferred products: <strong className="text-ink">{preferredProductIds.length}</strong></span>
+              </>
+            ) : null}
           </div>
 
           {loading ? <LoadingSpinner label="Loading product totals" /> : null}
@@ -239,7 +255,7 @@ export default function VehicleBakeryOrderPage() {
                 ))}
                 {!loading && !visibleProducts.length ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={4}>No products found.</td>
+                    <td className="px-4 py-8 text-center text-sm text-muted" colSpan={4}>No forwarded or preferred products found.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -266,7 +282,7 @@ export default function VehicleBakeryOrderPage() {
                 />
               </article>
             ))}
-            {!loading && !visibleProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No products found.</p> : null}
+            {!loading && !visibleProducts.length ? <p className="rounded-lg border border-line bg-panel2 p-4 text-center text-sm text-muted">No forwarded or preferred products found.</p> : null}
           </div>
         </section>
 

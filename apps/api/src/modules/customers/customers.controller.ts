@@ -14,7 +14,7 @@ export const customersController = {
   },
 
   async create(req: Request, res: Response) {
-    const customer = await customersService.createCustomer(req.auth?.actorType, req.tenant!.id, req.body);
+    const customer = await customersService.createCustomer(req.auth, req.tenant!.id, req.body);
     res.status(201).json({ customer });
   },
 

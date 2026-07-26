@@ -680,6 +680,7 @@ model Vehicle {
   insurancePhotoUrl   String?
   fitnessExpiryDate   DateTime?
   fitnessPhotoUrl     String?
+  preferredProductIds String[] @default([])
   active              Boolean  @default(true)
   tenant              Tenant   @relation(fields: [tenantId], references: [id])
   user                User?    @relation(fields: [userId], references: [id])

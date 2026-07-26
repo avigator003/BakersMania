@@ -60,16 +60,27 @@ export const customersService = {
     };
   },
 
-  async createCustomer(actorType: string | undefined, tenantId: string, input: CustomerInput) {
-    if (actorType !== "bakery_user") {
-      throw new HttpError(403, "Only bakery staff can create customers here");
+  async createCustomer(auth: Express.Request["auth"], tenantId: string, input: CustomerInput) {
+    let routeId = input.routeId;
+    if (auth?.actorType === "vehicle") {
+      const vehicle = await customersRepository.findVehicleRoutes(tenantId, auth.vehicleId!);
+      if (!vehicle?.routes.length) {
+        throw new HttpError(422, "This vehicle does not have an active route");
+      }
+      const allowedRouteIds = new Set(vehicle.routes.map((route) => route.id));
+      routeId = routeId || vehicle.routes[0].id;
+      if (!allowedRouteIds.has(routeId)) {
+        throw new HttpError(403, "Vehicle can only create customers on its assigned route");
+      }
+    } else if (auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Only bakery staff or assigned vehicles can create customers here");
     }
     const phone = normalizePhone(input.phone);
     if (!phone) {
       throw new HttpError(422, "Customer phone number is required for portal credentials");
     }
-    if (input.routeId) {
-      const route = await customersRepository.findRoute(tenantId, input.routeId);
+    if (routeId) {
+      const route = await customersRepository.findRoute(tenantId, routeId);
       if (!route) {
         throw new HttpError(400, "Selected route does not belong to this bakery");
       }
@@ -81,7 +92,7 @@ export const customersService = {
       phone,
       passwordHash
     });
-    return customersRepository.create(tenantId, { ...input, phone, userId: user.id });
+    return customersRepository.create(tenantId, { ...input, routeId, phone, userId: user.id });
   },
 
   async updateCustomer(actorType: string | undefined, tenantId: string, customerId: string, input: CustomerUpdateInput) {

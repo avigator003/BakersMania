@@ -42,6 +42,13 @@ function formatExcelDate(value: string) {
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
+function formatDisplayDate(value: string) {
+  const [year, month, day] = value.split("-");
+  return year && month && day
+    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(Number(year), Number(month) - 1, Number(day)))
+    : value;
+}
+
 function compactProductName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 6);
 }
@@ -210,6 +217,7 @@ export default function BakeryTruckLoadingPage() {
       <section className="rounded-lg border border-line bg-panel shadow-subtle">
         <div className="flex flex-col gap-3 border-b border-line p-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+            <span>Date: <span className="font-semibold text-ink">{formatDisplayDate(date)}</span></span>
             <span>Routes: <span className="font-semibold text-ink">{visibleRoutes.length}</span></span>
             <span>Products: <span className="font-semibold text-ink">{visibleProducts.length}</span></span>
             <span>Orders: <span className="font-semibold text-ink">{truckLoading?.orderCount || 0}</span></span>

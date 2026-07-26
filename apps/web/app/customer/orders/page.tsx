@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
-import { Download, Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -199,7 +199,6 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
-  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiBase = tenantSlug ? `/t/${tenantSlug}` : "";
@@ -445,7 +444,6 @@ export default function CustomerOrdersPage() {
         <div className="grid gap-2 border-b border-line p-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
           <span className="rounded-md bg-panel2 p-3">Orders<br /><strong>{totals.orders}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Quantity<br /><strong>{formatQty(totals.quantity)}</strong></span>
-          <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals.orderAmount)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Paid Amount<br /><strong>{formatAmount(totals.paid)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Today&apos;s Due Amount<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
@@ -462,28 +460,30 @@ export default function CustomerOrdersPage() {
                   {driverAccepted(order) ? "Accepted" : "Pending"}
                 </span>
               </div>
-              <div className="mt-3 grid gap-2">
-                {orderRows.map((row) => (
-                  <div className="rounded-md bg-panel p-3 text-sm" key={`${row.order.id}-${row.item.id}`}>
-                    <div className="flex items-start justify-between gap-3">
+              <div className="mt-3 grid gap-3 rounded-lg border border-line bg-panel p-3 text-sm">
+                <div className="grid gap-2 text-xs text-muted">
+                  <span className="rounded-md bg-panel2 p-2">Previous Due Amount<br /><strong className="text-ink">{formatAmount(totals.previousDue)}</strong></span>
+                  <span className="rounded-md bg-panel2 p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(paid(order))}</strong></span>
+                  <span className="rounded-md bg-panel2 p-2">Today&apos;s Due Amount<br /><strong className="text-ink">{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</strong></span>
+                </div>
+                <div className="grid gap-2">
+                  {orderRows.map((row) => (
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md bg-panel2 p-3" key={`${row.order.id}-${row.item.id}`}>
                       <span className="min-w-0">
                         <span className="block truncate font-semibold">{row.item.name}</span>
-                        <span className="mt-1 block text-xs text-muted">{row.category}</span>
+                        <span className="mt-1 block text-xs text-muted">Qty {formatQty(row.item.quantity)} · {formatAmount(row.item.unitPrice)}</span>
                       </span>
-                      <span className="shrink-0 text-right font-semibold">{formatQty(row.item.quantity)}</span>
+                      <span className="text-right font-semibold">{formatAmount(row.item.lineTotal)}</span>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted">
-                      <span>Amount<br /><strong className="text-ink">{formatAmount(row.item.lineTotal)}</strong></span>
-                      <span>Paid<br /><strong className="text-ink">{formatAmount(row.paidAmount)}</strong></span>
-                      <span>Previous Due<br /><strong className="text-ink">{formatAmount(totals.previousDue)}</strong></span>
-                      <span>Today&apos;s Due<br /><strong className="text-ink">{formatAmount(todaysDueAmount(totals.previousDue, row.item.lineTotal, row.paidAmount))}</strong></span>
-                    </div>
+                  ))}
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-line pt-2 font-semibold">
+                    <span>Order Amount</span>
+                    <span>{formatAmount(order.grandTotal)}</span>
                   </div>
-                ))}
+                </div>
+                <PaymentHistory payments={order.payments} total={order.grandTotal} />
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <PaymentHistory compact payments={order.payments} total={order.grandTotal} />
-                <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Details</button>
                 <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => exportOrder(order)} type="button"><Download size={14} /> Invoice PDF</button>
                 <button
                   className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold disabled:opacity-50"
@@ -505,10 +505,9 @@ export default function CustomerOrdersPage() {
             <thead className="sticky top-0 z-10 border-b border-line bg-panel2 text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3 text-right">Quantity</th>
-                <th className="px-4 py-3 text-right">Order Amount</th>
-                <th className="px-4 py-3 text-right">Previous Due Amount</th>
+                <th className="px-4 py-3 text-right">Price</th>
+                <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3 text-right">Paid Amount</th>
                 <th className="px-4 py-3 text-right">Today&apos;s Due Amount</th>
               </tr>
@@ -517,7 +516,7 @@ export default function CustomerOrdersPage() {
               {orderGroups.map(({ order, rows: orderRows }) => (
                 <Fragment key={order.id}>
                   <tr className="bg-panel2/70">
-                    <td className="px-4 py-3" colSpan={7}>
+                    <td className="px-4 py-3" colSpan={6}>
                       <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(0,auto)] lg:items-center">
                         <div>
                           <p className="font-semibold">{order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`}</p>
@@ -528,17 +527,8 @@ export default function CustomerOrdersPage() {
                             </span>
                           </div>
                         </div>
-                        <div className="grid grid-cols-[repeat(4,2.5rem)] gap-2 lg:justify-start lg:pr-10">
+                        <div className="grid grid-cols-[repeat(3,2.5rem)] gap-2 lg:justify-start lg:pr-10">
                           <PaymentHistory compact iconOnly payments={order.payments} total={order.grandTotal} />
-                          <button
-                            aria-label="Details"
-                            className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel"
-                            onClick={() => setDetailOrder(order)}
-                            title="Show invoice details"
-                            type="button"
-                          >
-                            <Eye size={14} />
-                          </button>
                           <button
                             aria-label="Invoice PDF"
                             className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel"
@@ -565,19 +555,36 @@ export default function CustomerOrdersPage() {
                   {orderRows.map((row) => (
                     <tr key={`${row.order.id}-${row.item.id}`}>
                       <td className="px-4 py-3 font-semibold">{row.item.name}</td>
-                      <td className="px-4 py-3 text-muted">{row.category}</td>
                       <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(row.item.unitPrice)}</td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(totals.previousDue)}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, row.item.lineTotal, row.paidAmount))}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</td>
                     </tr>
                   ))}
+                  <tr className="bg-panel2/40 font-semibold">
+                    <td className="px-4 py-3 text-right" colSpan={3}>Order Amount</td>
+                    <td className="px-4 py-3 text-right">{formatAmount(order.grandTotal)}</td>
+                    <td className="px-4 py-3 text-right">{formatAmount(paid(order))}</td>
+                    <td className="px-4 py-3 text-right text-berry">{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3" colSpan={6}>
+                      <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-3">
+                        <span>Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
+                        <span>Paid Amount<br /><strong>{formatAmount(paid(order))}</strong></span>
+                        <span>Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</strong></span>
+                      </div>
+                      <div className="mt-3">
+                        <PaymentHistory payments={order.payments} total={order.grandTotal} />
+                      </div>
+                    </td>
+                  </tr>
                 </Fragment>
               ))}
               {!loading && !rows.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted" colSpan={7}>No products found for this date/filter.</td>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={6}>No products found for this date/filter.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -615,40 +622,6 @@ export default function CustomerOrdersPage() {
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Order"}</button>
             </div>
           </form>
-        ) : null}
-      </Modal>
-
-      <Modal open={Boolean(detailOrder)} title="Invoice details" description={detailOrder?.invoice?.invoiceNumber || (detailOrder ? `Order ${detailOrder.id.slice(-6).toUpperCase()}` : "")} onClose={() => setDetailOrder(null)}>
-        {detailOrder ? (
-          <div className="grid gap-4">
-            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-4">
-              <span>Order Amount<br /><strong>{formatAmount(detailOrder.grandTotal)}</strong></span>
-              <span>Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
-              <span>Paid Amount<br /><strong>{formatAmount(paid(detailOrder))}</strong></span>
-              <span>Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(totals.previousDue, detailOrder.grandTotal, paid(detailOrder)))}</strong></span>
-            </div>
-            <div className="max-h-[420px] overflow-auto rounded-lg border border-line">
-              <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="sticky top-0 bg-panel2 text-xs uppercase text-muted">
-                  <tr><th className="px-4 py-3">Product</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Price</th><th className="px-4 py-3 text-right">Total</th></tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {detailOrder.items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-3 font-semibold">{item.name}</td>
-                      <td className="px-4 py-3 text-right">{formatQty(item.quantity)}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(item.unitPrice)}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(item.lineTotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <PaymentHistory payments={detailOrder.payments} total={detailOrder.grandTotal} />
-            <div className="flex flex-wrap justify-end gap-2">
-              <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold" onClick={() => exportOrder(detailOrder)} type="button"><Download size={15} /> Download PDF</button>
-            </div>
-          </div>
         ) : null}
       </Modal>
     </AppShell>

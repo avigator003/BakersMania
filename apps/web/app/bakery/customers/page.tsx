@@ -90,6 +90,14 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
+function customerLocation(customer: Customer) {
+  return [customer.city, customer.state].filter(Boolean).join(", ");
+}
+
+function customerDetailLine(customer: Customer) {
+  return [customer.phone, customer.route?.name, customerLocation(customer)].filter(Boolean).join(" · ");
+}
+
 export default function BakeryCustomersPage() {
   const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -279,7 +287,7 @@ export default function BakeryCustomersPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="truncate font-semibold">{customer.name}</h3>
-                    <p className="truncate text-xs text-muted">{customer.phone || "No phone"} · {customer.city || "No city"}</p>
+                    <p className="truncate text-xs text-muted">{customerDetailLine(customer) || "No route/detail"}</p>
                   </div>
                   <span className="shrink-0 rounded-md border border-mint/30 bg-mint/10 px-2 py-1 text-xs font-semibold text-mint">
                     {customer.route?.name || "No route"}
@@ -327,7 +335,8 @@ export default function BakeryCustomersPage() {
                         </div>
                         <span>
                           <span className="block font-semibold">{customer.name}</span>
-                          <span className="text-xs text-muted">{customer.email || "No email"}</span>
+                          <span className="block text-xs text-muted">{customer.email || "No email"}</span>
+                          <span className="block text-xs text-muted">{customerDetailLine(customer) || "No route/detail"}</span>
                         </span>
                       </div>
                     </td>
