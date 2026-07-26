@@ -134,7 +134,10 @@ export const catalogRepository = {
         include: {
           categoryRef: true,
           ...(filters.customerIdForPreferences
-            ? { customerPreferences: { where: { customerId: filters.customerIdForPreferences }, select: { id: true } } }
+            ? {
+                customerPreferences: { where: { customerId: filters.customerIdForPreferences }, select: { id: true } },
+                customerPrices: { where: { customerId: filters.customerIdForPreferences }, select: { price: true } }
+              }
             : {})
         },
         skip,
@@ -145,6 +148,9 @@ export const catalogRepository = {
     return {
       products: products.map((product) => ({
         ...product,
+        unitPrice: "customerPrices" in product && product.customerPrices[0]?.price != null
+          ? product.customerPrices[0].price
+          : product.unitPrice,
         isPreferred: "customerPreferences" in product ? product.customerPreferences.length > 0 : false
       })),
       pagination: paginationMeta(total, page, pageSize)

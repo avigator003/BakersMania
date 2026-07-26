@@ -56,7 +56,7 @@ function customerDefaultDueAt() {
   return new Date(Date.UTC(dueAt.getUTCFullYear(), dueAt.getUTCMonth(), dueAt.getUTCDate()));
 }
 
-async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput) {
+async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput, options: { useRoutePrice?: boolean } = {}) {
   const customer = await ordersRepository.findCustomer(tenantId, customerId);
   if (!customer) {
     throw new HttpError(404, "Customer not found");
@@ -69,7 +69,8 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
   const products = await ordersRepository.findProducts(
     tenantId,
     positiveItems.map((item) => item.productId),
-    customerId
+    customerId,
+    options.useRoutePrice ? customer.routeId : null
   );
 
   if (products.length !== positiveItems.length) {
@@ -78,8 +79,13 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
 
   const orderItems = positiveItems.map((item) => {
     const product = products.find((candidate) => candidate.id === item.productId)!;
-    const pricedProduct = product as typeof product & { customerPrices?: Array<{ price: unknown }> };
-    const unitPrice = Number(pricedProduct.customerPrices?.[0]?.price || product.unitPrice);
+    const pricedProduct = product as typeof product & {
+      customerPrices?: Array<{ price: unknown }>;
+      routePrices?: Array<{ price: unknown }>;
+    };
+    const customerPrice = pricedProduct.customerPrices?.[0]?.price;
+    const routePrice = options.useRoutePrice ? pricedProduct.routePrices?.[0]?.price : undefined;
+    const unitPrice = Number(customerPrice ?? routePrice ?? product.unitPrice);
     const taxRate = Number(product.taxRate);
     const lineSubtotal = unitPrice * item.quantity;
     const lineTax = lineSubtotal * (taxRate / 100);
@@ -226,7 +232,9 @@ export const ordersService = {
 
     const resolvedCustomerId = auth?.actorType === "customer" || auth?.actorType === "vehicle" ? existing.customerId : effectiveInput.customerId || existing.customerId;
     await assertOneOrderPerCustomerDate(tenantId, resolvedCustomerId, effectiveInput, orderId);
-    const payload = await buildOrderPayload(tenantId, resolvedCustomerId, effectiveInput);
+    const payload = await buildOrderPayload(tenantId, resolvedCustomerId, effectiveInput, {
+      useRoutePrice: existing.customer.tags.includes(vehicleBakeryOrderTag)
+    });
     const paid = existing.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     const paymentStatus = paid >= payload.totals.grandTotal && payload.totals.grandTotal > 0
       ? "PAID"
@@ -386,7 +394,7 @@ export const ordersService = {
       notes: input.notes || `Vehicle bakery order for ${input.dueAt.toISOString().slice(0, 10)}`,
       items: input.items
     };
-    const payload = await buildOrderPayload(tenantId, customer.id, orderInput);
+    const payload = await buildOrderPayload(tenantId, customer.id, orderInput, { useRoutePrice: true });
     const pipelineStages = await pipelineStagesForTenant(tenantId);
     const pipelineStage = nextStageAfterActor(pipelineStages, "VEHICLE");
     const existing = await ordersRepository.findCustomerOrderOnDate(tenantId, customer.id, input.dueAt);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 
 export type SelectOption = {
@@ -35,6 +36,8 @@ type MultiProps = CommonProps & {
 
 type Props = SingleProps | MultiProps;
 
+const dropdownViewportGap = 8;
+
 function isSelected(props: Props, value: string) {
   return props.multiple ? props.value.includes(value) : props.value === value;
 }
@@ -46,10 +49,42 @@ function selectedOptions(props: Props) {
   return values.map((value) => optionMap.get(value)).filter(Boolean) as SelectOption[];
 }
 
+function isScrollbarPointerEvent(event: MouseEvent | TouchEvent) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return false;
+
+  const point = "touches" in event ? event.touches[0] || event.changedTouches[0] : event;
+  if (!point) return false;
+
+  let element: Element | null = target;
+  while (element) {
+    if (element instanceof HTMLElement) {
+      const rect = element.getBoundingClientRect();
+      const verticalScrollbarWidth = element.offsetWidth - element.clientWidth;
+      const horizontalScrollbarHeight = element.offsetHeight - element.clientHeight;
+      const hasVerticalScrollbar = verticalScrollbarWidth > 0 && element.scrollHeight > element.clientHeight;
+      const hasHorizontalScrollbar = horizontalScrollbarHeight > 0 && element.scrollWidth > element.clientWidth;
+
+      if (hasVerticalScrollbar && point.clientX >= rect.right - verticalScrollbarWidth && point.clientX <= rect.right) {
+        return true;
+      }
+      if (hasHorizontalScrollbar && point.clientY >= rect.bottom - horizontalScrollbarHeight && point.clientY <= rect.bottom) {
+        return true;
+      }
+    }
+    element = element.parentElement;
+  }
+
+  return false;
+}
+
 export function SearchableSelect(props: Props) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [mounted, setMounted] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const selected = selectedOptions(props);
 
   const filteredOptions = useMemo(() => {
@@ -62,11 +97,40 @@ export function SearchableSelect(props: Props) {
     );
   }, [props.options, query]);
 
+  const updateMenuPosition = useCallback(() => {
+    if (!wrapperRef.current) return;
+
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const menuHeight = menuRef.current?.offsetHeight || 320;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom - dropdownViewportGap;
+    const spaceAbove = rect.top - dropdownViewportGap;
+    const openAbove = spaceBelow < Math.min(menuHeight, 240) && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(160, openAbove ? spaceAbove : spaceBelow);
+
+    setMenuStyle({
+      left: rect.left,
+      top: openAbove ? undefined : rect.bottom + dropdownViewportGap,
+      bottom: openAbove ? viewportHeight - rect.top + dropdownViewportGap : undefined,
+      width: rect.width,
+      maxHeight: Math.min(384, availableHeight)
+    });
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
 
     function closeOnOutsideClick(event: MouseEvent | TouchEvent) {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (wrapperRef.current?.contains(target) || menuRef.current?.contains(target) || isScrollbarPointerEvent(event)) {
+        return;
+      }
+
+      if (!wrapperRef.current?.contains(target)) {
         setOpen(false);
         setQuery("");
       }
@@ -79,15 +143,20 @@ export function SearchableSelect(props: Props) {
       }
     }
 
+    updateMenuPosition();
     document.addEventListener("mousedown", closeOnOutsideClick);
     document.addEventListener("touchstart", closeOnOutsideClick);
     document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
     return () => {
       document.removeEventListener("mousedown", closeOnOutsideClick);
       document.removeEventListener("touchstart", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
     };
-  }, [open]);
+  }, [open, updateMenuPosition]);
 
   function choose(value: string) {
     if (props.multiple) {
@@ -141,45 +210,51 @@ export function SearchableSelect(props: Props) {
     </button>
   );
 
+  const menu = open ? (
+    <div
+      className="fixed z-[200] whitespace-normal rounded-md border border-line bg-panel shadow-subtle"
+      ref={menuRef}
+      style={menuStyle}
+    >
+      <label className="flex h-10 items-center gap-2 border-b border-line px-3">
+        <Search size={15} className="text-muted" />
+        <input
+          autoFocus
+          className="w-full bg-transparent text-sm outline-none"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={props.searchPlaceholder || "Search"}
+          value={query}
+        />
+      </label>
+      <div className="overflow-auto p-1" style={{ maxHeight: menuStyle.maxHeight }}>
+        {filteredOptions.map((option) => {
+          const active = isSelected(props, option.value);
+          return (
+            <button
+              className={`grid w-full grid-cols-[18px_1fr] gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-panel2 ${active ? "text-mint" : ""}`}
+              key={option.value}
+              onClick={() => choose(option.value)}
+              type="button"
+            >
+              <span className="mt-0.5">{active ? <Check size={16} /> : null}</span>
+              <span className="min-w-0">
+                <span className="block truncate font-semibold">{option.label}</span>
+                {option.description ? <span className="block truncate text-xs text-muted">{option.description}</span> : null}
+              </span>
+            </button>
+          );
+        })}
+        {!filteredOptions.length ? <p className="px-3 py-2 text-sm text-muted">{props.emptyText || "No options found."}</p> : null}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className={`relative whitespace-normal ${props.className || ""}`} ref={wrapperRef}>
       {props.label ? <label className="mb-1 block text-sm font-semibold">{props.label}</label> : null}
       {trigger}
       {props.required && !selected.length ? <input className="sr-only" required value="" onChange={() => undefined} /> : null}
-      {open ? (
-        <div className="absolute left-0 right-0 z-30 mt-2 whitespace-normal rounded-md border border-line bg-panel shadow-subtle">
-          <label className="flex h-10 items-center gap-2 border-b border-line px-3">
-            <Search size={15} className="text-muted" />
-            <input
-              autoFocus
-              className="w-full bg-transparent text-sm outline-none"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={props.searchPlaceholder || "Search"}
-              value={query}
-            />
-          </label>
-          <div className="max-h-[min(24rem,55vh)] overflow-auto p-1">
-            {filteredOptions.map((option) => {
-              const active = isSelected(props, option.value);
-              return (
-                <button
-                  className={`grid w-full grid-cols-[18px_1fr] gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-panel2 ${active ? "text-mint" : ""}`}
-                  key={option.value}
-                  onClick={() => choose(option.value)}
-                  type="button"
-                >
-                  <span className="mt-0.5">{active ? <Check size={16} /> : null}</span>
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">{option.label}</span>
-                    {option.description ? <span className="block truncate text-xs text-muted">{option.description}</span> : null}
-                  </span>
-                </button>
-              );
-            })}
-            {!filteredOptions.length ? <p className="px-3 py-2 text-sm text-muted">{props.emptyText || "No options found."}</p> : null}
-          </div>
-        </div>
-      ) : null}
+      {mounted && menu ? createPortal(menu, document.body) : null}
     </div>
   );
 }
