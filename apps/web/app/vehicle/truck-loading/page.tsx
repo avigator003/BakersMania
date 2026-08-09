@@ -182,7 +182,10 @@ export default function VehicleTruckLoadingPage() {
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const exportProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
+    const candidateProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
+    const exportProducts = candidateProducts.filter((product) => (
+      visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0) >= 1
+    ));
     const selectedCategories = categoryFilter.length ? categoryFilter.join(", ") : "All categories";
     const exportProductTotals = Object.fromEntries(exportProducts.map((product) => [
       product.id,
