@@ -4,7 +4,7 @@ import { resolveTenant } from "../../middleware/tenant.js";
 import { validateBody } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/http.js";
 import { bakeryRoutesController } from "./routes.controller.js";
-import { passwordUpdateSchema, routeSchema, vehicleSchema } from "./routes.schemas.js";
+import { passwordUpdateSchema, routeSchema, vehiclePreferredProductsSchema, vehicleSchema } from "./routes.schemas.js";
 
 export const bakeryRoutesRouter = Router({ mergeParams: true });
 
@@ -12,6 +12,7 @@ bakeryRoutesRouter.use(resolveTenant, requireAuth);
 
 bakeryRoutesRouter.get("/vehicles", asyncHandler(bakeryRoutesController.listVehicles));
 bakeryRoutesRouter.get("/vehicles/me", asyncHandler(bakeryRoutesController.myVehicle));
+bakeryRoutesRouter.patch("/vehicles/me/preferred-products", validateBody(vehiclePreferredProductsSchema), asyncHandler(bakeryRoutesController.updateMyVehiclePreferredProducts));
 bakeryRoutesRouter.post("/vehicles", validateBody(vehicleSchema), asyncHandler(bakeryRoutesController.createVehicle));
 bakeryRoutesRouter.patch("/vehicles/:vehicleId/password", validateBody(passwordUpdateSchema), asyncHandler(bakeryRoutesController.resetVehiclePassword));
 bakeryRoutesRouter.patch("/vehicles/:vehicleId", validateBody(vehicleSchema), asyncHandler(bakeryRoutesController.updateVehicle));

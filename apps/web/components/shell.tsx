@@ -18,6 +18,7 @@ import {
   Settings,
   ShoppingBag,
   ShoppingCart,
+  Star,
   Truck,
   Users,
   X
@@ -374,6 +375,7 @@ export function AppShell({
         { href: `${routeBase}/vehicle/bakery-orders`, label: "Bakery Orders", icon: ClipboardList },
         { href: `${routeBase}/vehicle/truck-loading`, label: "Truck Loading", icon: Truck },
         { href: `${routeBase}/vehicle/route-invoices`, label: "Route Invoices", icon: CreditCard },
+        { href: `${routeBase}/vehicle/preferred-products`, label: "Preferred Products", icon: Star },
         { href: `${routeBase}/vehicle/prices`, label: "Product Prices", icon: IndianRupee },
         { href: `${routeBase}/vehicle/passwords`, label: "Password", icon: KeyRound }
       ]

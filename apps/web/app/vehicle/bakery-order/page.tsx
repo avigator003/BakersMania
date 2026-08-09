@@ -66,10 +66,8 @@ export default function VehicleBakeryOrderPage() {
 
   const productsWithTotals = useMemo(
     () => {
-      const hasForwardedTotals = Object.values(totals).some((quantity) => Number(quantity || 0) > 0);
-      if (hasForwardedTotals) return sortedProducts.filter((product) => Number(totals[product.id] || 0) > 0);
       const preferredIds = new Set(preferredProductIds);
-      return sortedProducts.filter((product) => preferredIds.has(product.id));
+      return sortedProducts.filter((product) => Number(totals[product.id] || 0) > 0 || preferredIds.has(product.id));
     },
     [preferredProductIds, sortedProducts, totals]
   );
@@ -215,12 +213,8 @@ export default function VehicleBakeryOrderPage() {
             <span>Products: <strong className="text-ink">{orderItems.length}</strong></span>
             <span className="hidden sm:inline">·</span>
             <span>Total Quantity: <strong className="text-ink">{formatQty(totalQuantity)}</strong></span>
-            {!Object.values(totals).some((quantity) => Number(quantity || 0) > 0) ? (
-              <>
-                <span className="hidden sm:inline">·</span>
-                <span>Showing preferred products: <strong className="text-ink">{preferredProductIds.length}</strong></span>
-              </>
-            ) : null}
+            <span className="hidden sm:inline">·</span>
+            <span>Preferred products: <strong className="text-ink">{preferredProductIds.length}</strong></span>
           </div>
 
           {loading ? <LoadingSpinner label="Loading product totals" /> : null}

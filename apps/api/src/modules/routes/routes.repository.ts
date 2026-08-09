@@ -121,6 +121,13 @@ export const bakeryRoutesRepository = {
     });
   },
 
+  updateVehiclePreferredProducts(tenantId: string, vehicleId: string, preferredProductIds: string[]) {
+    return prisma.vehicle.update({
+      where: { id: vehicleId, tenantId },
+      data: { preferredProductIds }
+    });
+  },
+
   async list(tenantId: string, filters: RouteListFilters = {}) {
     const { page, pageSize, skip } = pagination(filters);
     const search = filters.search?.trim();

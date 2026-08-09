@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { bakeryRoutesRepository } from "./routes.repository.js";
 import type { RouteListFilters, VehicleListFilters } from "./routes.repository.js";
-import type { PasswordUpdateInput, RouteInput, VehicleInput } from "./routes.schemas.js";
+import type { PasswordUpdateInput, RouteInput, VehicleInput, VehiclePreferredProductsInput } from "./routes.schemas.js";
 import { HttpError } from "../../utils/http.js";
 
 function normalizePhone(value?: string | null) {
@@ -26,6 +26,17 @@ export const bakeryRoutesService = {
       throw new HttpError(404, "Vehicle not found");
     }
     return vehicle;
+  },
+
+  async updateMyVehiclePreferredProducts(auth: Express.Request["auth"], tenantId: string, input: VehiclePreferredProductsInput) {
+    if (auth?.actorType !== "vehicle" || !auth.vehicleId) {
+      throw new HttpError(403, "Vehicle workspace access required");
+    }
+    const vehicle = await bakeryRoutesRepository.findVehicleDetail(tenantId, auth.vehicleId);
+    if (!vehicle) {
+      throw new HttpError(404, "Vehicle not found");
+    }
+    return bakeryRoutesRepository.updateVehiclePreferredProducts(tenantId, auth.vehicleId, Array.from(new Set(input.preferredProductIds)));
   },
 
   async createVehicle(tenantId: string, input: VehicleInput) {

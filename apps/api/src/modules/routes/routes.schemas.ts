@@ -27,6 +27,11 @@ export const passwordUpdateSchema = z.object({
   password: z.string().min(6)
 });
 
+export const vehiclePreferredProductsSchema = z.object({
+  preferredProductIds: z.array(z.string()).default([])
+});
+
 export type RouteInput = z.infer<typeof routeSchema>;
 export type VehicleInput = z.infer<typeof vehicleSchema>;
 export type PasswordUpdateInput = z.infer<typeof passwordUpdateSchema>;
+export type VehiclePreferredProductsInput = z.infer<typeof vehiclePreferredProductsSchema>;
