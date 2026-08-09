@@ -450,6 +450,7 @@ export default function CustomerOrdersPage() {
           <span className="rounded-md bg-panel2 p-3">Orders<br /><strong>{totals.orders}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Quantity<br /><strong>{formatQty(totals.quantity)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
+          <span className="rounded-md bg-panel2 p-3">Order Amount<br /><strong>{formatAmount(totals.orderAmount)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Paid Amount<br /><strong>{formatAmount(totals.paid)}</strong></span>
           <span className="rounded-md bg-panel2 p-3">Today&apos;s Due Amount<br /><strong>{formatAmount(totals.todaysDue)}</strong></span>
         </div>
@@ -468,6 +469,7 @@ export default function CustomerOrdersPage() {
               <div className="mt-3 grid gap-3 rounded-lg border border-line bg-panel p-3 text-sm">
                 <div className="grid gap-2 text-xs text-muted">
                   <span className="rounded-md bg-panel2 p-2">Previous Due Amount<br /><strong className="text-ink">{formatAmount(totals.previousDue)}</strong></span>
+                  <span className="rounded-md bg-panel2 p-2">Order Amount<br /><strong className="text-ink">{formatAmount(order.grandTotal)}</strong></span>
                   <span className="rounded-md bg-panel2 p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(paid(order))}</strong></span>
                   <span className="rounded-md bg-panel2 p-2">Today&apos;s Due Amount<br /><strong className="text-ink">{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</strong></span>
                 </div>
@@ -575,8 +577,9 @@ export default function CustomerOrdersPage() {
                   </tr>
                   <tr>
                     <td className="px-4 py-3" colSpan={6}>
-                      <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-3">
+                      <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-4">
                         <span>Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
+                        <span>Order Amount<br /><strong>{formatAmount(order.grandTotal)}</strong></span>
                         <span>Paid Amount<br /><strong>{formatAmount(paid(order))}</strong></span>
                         <span>Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</strong></span>
                       </div>
