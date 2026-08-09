@@ -559,7 +559,7 @@ export const ordersService = {
     if ((input.mode === "PARTIAL" || input.mode === "ORDER_FULL") && !input.orderId) {
       throw new HttpError(422, "Order is required for this payment type");
     }
-    if (input.mode === "PARTIAL" && !input.amount) {
+    if (input.mode === "PARTIAL" && input.amount === undefined) {
       throw new HttpError(422, "Partial payment amount is required");
     }
 
@@ -567,7 +567,7 @@ export const ordersService = {
     if (!result) {
       throw new HttpError(404, "Customer not found");
     }
-    if (result.appliedAmount <= 0) {
+    if (result.appliedAmount <= 0 && !(input.mode === "PARTIAL" && input.amount === 0)) {
       throw new HttpError(422, "No due orders found for this customer");
     }
     return result;

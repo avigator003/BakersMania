@@ -1061,6 +1061,38 @@ export const ordersRepository = {
       let remaining = input.mode === "PARTIAL" ? Number(input.amount || 0) : computedAmount;
       const payments: Array<{ orderId: string; amount: number }> = [];
 
+      if (input.mode === "PARTIAL" && Number(input.amount || 0) === 0 && input.orderId) {
+        const order = orders.find((candidate) => candidate.id === input.orderId);
+        if (!order) {
+          return {
+            customer,
+            requestedAmount: 0,
+            appliedAmount: 0,
+            unappliedAmount: 0,
+            payments
+          };
+        }
+        await tx.payment.deleteMany({
+          where: {
+            OR: [
+              { orderId: order.id },
+              { invoice: { orderId: order.id } }
+            ]
+          }
+        });
+        await tx.order.update({ where: { id: order.id }, data: { paymentStatus: "UNPAID" } });
+        if (order.invoice) {
+          await tx.invoice.update({ where: { id: order.invoice.id }, data: { paymentStatus: "UNPAID" } });
+        }
+        return {
+          customer,
+          requestedAmount: 0,
+          appliedAmount: 0,
+          unappliedAmount: 0,
+          payments
+        };
+      }
+
       for (const { order, paid, due } of dueByOrder) {
         if (remaining <= 0) break;
         const amount = Math.min(due, remaining);

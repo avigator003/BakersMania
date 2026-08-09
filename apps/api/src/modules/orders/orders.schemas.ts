@@ -57,7 +57,7 @@ export const routeInvoiceLockSchema = z.object({
 });
 
 export const customerPaymentSchema = z.object({
-  amount: z.coerce.number().positive().optional(),
+  amount: z.coerce.number().nonnegative().optional(),
   mode: z.enum(["PARTIAL", "ORDER_FULL", "DUE_FULL"]),
   orderId: z.string().optional(),
   date: z.string().min(10).optional(),
