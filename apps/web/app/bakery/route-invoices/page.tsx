@@ -236,7 +236,8 @@ export default function RouteInvoicesPage() {
         body: JSON.stringify({
           amount: Number(paymentForm.amount || 0),
           method: paymentForm.method,
-          reference: paymentForm.reference || undefined
+          reference: paymentForm.reference || undefined,
+          date
         })
       });
       toast.success("Payment recorded", `${formatAmount(data.result.appliedAmount)} applied to ${paymentRoute.routeName}.`);

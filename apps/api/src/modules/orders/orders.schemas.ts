@@ -48,7 +48,8 @@ export const vehicleBakeryOrderSchema = z.object({
 export const routeInvoicePaymentSchema = z.object({
   amount: z.coerce.number().positive(),
   method: z.string().min(1).default("Cash"),
-  reference: z.string().optional()
+  reference: z.string().optional(),
+  date: z.string().min(10).optional()
 });
 
 export const routeInvoiceLockSchema = z.object({

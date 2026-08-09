@@ -48,14 +48,14 @@ function truckLoadingStatusFilter(orderStatus?: TruckLoadingOrderStatus): Prisma
 }
 
 function truckLoadingStatusSql(orderStatus?: TruckLoadingOrderStatus) {
-  const acceptedSql = Prisma.sql`(o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED') OR o.status::text IN ('ACCEPTED', 'COMPLETED'))`;
+  const acceptedSql = Prisma.sql`(o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED') OR o."status"::text IN ('ACCEPTED', 'COMPLETED'))`;
   if (orderStatus === "accepted") return Prisma.sql`AND ${acceptedSql}`;
   if (orderStatus === "pending") return Prisma.sql`AND NOT ${acceptedSql}`;
   return Prisma.empty;
 }
 
 function financiallyAcceptedSql() {
-  return Prisma.sql`AND (o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED') OR o.status::text IN ('ACCEPTED', 'COMPLETED'))`;
+  return Prisma.sql`AND (o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED') OR o."status"::text IN ('ACCEPTED', 'COMPLETED'))`;
 }
 
 function pagination(filters: OrderListFilters) {
@@ -493,7 +493,6 @@ export const ordersRepository = {
     return prisma.order.findMany({
       where: {
         tenantId,
-        status: { not: "COMPLETED" },
         AND: andFilters
       },
       include: {
@@ -975,18 +974,36 @@ export const ordersRepository = {
     };
   },
 
-  async recordRoutePayment(tenantId: string, routeId: string, input: { amount: number; method: string; reference?: string }) {
+  async recordRoutePayment(tenantId: string, routeId: string, input: { amount: number; method: string; reference?: string; date?: string }) {
     return prisma.$transaction(async (tx) => {
       const route = await tx.route.findFirst({ where: { id: routeId, tenantId } });
       if (!route) return null;
+      const end = input.date ? new Date(`${input.date}T00:00:00.000Z`) : null;
+      if (end) end.setUTCDate(end.getUTCDate() + 1);
 
       const orders = await tx.order.findMany({
         where: {
           tenantId,
           source: { not: "CUSTOMER_PORTAL" },
-          OR: [
-            { routeId },
-            { routeId: null, customer: { routeId } }
+          AND: [
+            {
+              OR: [
+                { vehicleStatus: { in: ["ACCEPTED", "COMPLETED"] } },
+                { status: { in: ["ACCEPTED", "COMPLETED"] } }
+              ]
+            },
+            ...(end ? [{
+              OR: [
+                { dueAt: { lt: end } },
+                { dueAt: null, createdAt: { lt: end } }
+              ]
+            }] : []),
+            {
+              OR: [
+                { routeId },
+                { routeId: null, customer: { routeId } }
+              ]
+            }
           ]
         },
         include: { payments: true, invoice: true },

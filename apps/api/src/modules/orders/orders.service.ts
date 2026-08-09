@@ -691,8 +691,8 @@ export const ordersService = {
       }, {}),
       orderCount: orders.length,
       statusCounts: {
-        accepted: statusCountOrders.filter((order) => order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED").length,
-        pending: statusCountOrders.filter((order) => order.vehicleStatus !== "ACCEPTED" && order.vehicleStatus !== "COMPLETED").length
+        accepted: statusCountOrders.filter(financiallyAccepted).length,
+        pending: statusCountOrders.filter((order) => !financiallyAccepted(order)).length
       }
     };
   }

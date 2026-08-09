@@ -49,6 +49,10 @@ function formatDisplayDate(value: string) {
     : value;
 }
 
+function compactProductName(name: string) {
+  return name.trim().replace(/\s+/g, " ").slice(0, 6);
+}
+
 function compactRowName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 10);
 }
@@ -176,8 +180,8 @@ export default function BakeryTruckLoadingPage() {
       sum + exportProducts.reduce((routeSum, product) => routeSum + Number(route.quantities[product.id] || 0), 0)
     ), 0);
     const columns: XlsxColumn[] = [
-      { width: 10 },
-      ...exportProducts.map(() => ({ width: 12 }))
+      { width: 16 },
+      ...exportProducts.map(() => ({ width: 4.2 }))
     ];
     const rows: XlsxRow[] = [
       {
@@ -191,7 +195,7 @@ export default function BakeryTruckLoadingPage() {
         height: 30,
         cells: [
           { value: "Route Name", style: "header" },
-          ...exportProducts.map((product) => ({ value: product.name, style: "header" as const }))
+          ...exportProducts.map((product) => ({ value: compactProductName(product.name), style: "header" as const }))
         ]
       },
       ...exportRoutes.map((route) => {
