@@ -203,10 +203,32 @@ export default function VehiclePricesPage() {
     }
   }
 
-  function openAssignAllProductPrices() {
+  async function openAssignAllProductPrices() {
+    if (!apiBase) return;
     setBulkCategoryFilter("");
     setBulkPriceMap(Object.fromEntries(products.map((product) => [product.id, String(product.unitPrice || 0)])));
     setBulkCustomerProductPriceMap(Object.fromEntries(products.map((product) => [product.id, String(product.unitPrice || 0)])));
+    const sampleCustomer = customers[0];
+    if (sampleCustomer) {
+      setAssigningAll(true);
+      try {
+        const data = await authFetch<{ ledger: { productPrices: CustomerProductPrice[] } }>(`${apiBase}/customers/${sampleCustomer.id}/ledger`);
+        const existing = new Map(data.ledger.productPrices.map((price) => [price.productId, Number(price.price || 0)]));
+        const existingCustomerProduct = new Map(data.ledger.productPrices.map((price) => [
+          price.productId,
+          price.customerProductPrice === null || price.customerProductPrice === undefined ? undefined : Number(price.customerProductPrice || 0)
+        ]));
+        setBulkPriceMap(Object.fromEntries(products.map((product) => [product.id, String(existing.get(product.id) ?? Number(product.unitPrice || 0))])));
+        setBulkCustomerProductPriceMap(Object.fromEntries(products.map((product) => [
+          product.id,
+          String(existingCustomerProduct.get(product.id) ?? existing.get(product.id) ?? Number(product.unitPrice || 0))
+        ])));
+      } catch (error) {
+        toast.error("Could not load saved prices", error instanceof Error ? error.message : "Using bakery base prices.");
+      } finally {
+        setAssigningAll(false);
+      }
+    }
     setBulkOpen(true);
   }
 

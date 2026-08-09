@@ -80,7 +80,7 @@ export default function VehiclePlaceOrderPage() {
   );
 
   const productOptions = useMemo(
-    () => sortedProducts.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    () => sortedProducts.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(billingPrice(product))}` })),
     [sortedProducts]
   );
 
@@ -292,7 +292,7 @@ export default function VehiclePlaceOrderPage() {
                 <div className="mt-auto flex items-center justify-between gap-2 pt-3">
                   <span className="min-w-0">
                     {product.isPreferred ? <span className="mb-1 inline-block rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-amber-700">Preferred</span> : null}
-                    <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
+                    <p className="text-lg font-bold">{formatAmount(billingPrice(product))}</p>
                   </span>
                   <input
                     className="w-24 rounded-md border border-line bg-panel px-2 py-1.5 text-sm outline-none focus:border-mint"
