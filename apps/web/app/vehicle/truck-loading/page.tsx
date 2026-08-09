@@ -72,8 +72,8 @@ function compactRowName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 10);
 }
 
-function exportRowName(row: { name: string; routeName?: string | null }) {
-  return compactRowName([row.name, row.routeName].filter(Boolean).join(" / "));
+function exportRowName(row: { name: string }) {
+  return compactRowName(row.name);
 }
 
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
@@ -213,7 +213,7 @@ export default function VehicleTruckLoadingPage() {
       {
         height: 30,
         cells: [
-          { value: "Customer / Route", style: "header" },
+          { value: "Customer", style: "header" },
           ...exportProducts.map((product) => ({ value: compactProductName(product.name), style: "header" as const })),
           { value: "Order", style: "header" },
           { value: "Previous", style: "header" },

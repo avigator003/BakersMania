@@ -139,8 +139,7 @@ export default function BakeryTruckLoadingPage() {
       const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
       const productMatches = !productFilter.length || productFilter.includes(product.id);
       const hasQuantity = productHasQuantity.has(product.id);
-      const shouldShowEmptyProduct = Boolean(categoryFilter.length || productFilter.length);
-      return categoryMatches && productMatches && (hasQuantity || shouldShowEmptyProduct);
+      return categoryMatches && productMatches && hasQuantity;
     }).sort(productSort);
   }, [categoryFilter, productFilter, sortedRoutes, truckLoading]);
 

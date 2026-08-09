@@ -64,7 +64,7 @@ type PaginatedOrdersResponse = {
     pageCount: number;
   };
 };
-type CarryForwardSummary = { orders: number; quantity: number; previousDue: number };
+type CarryForwardSummary = { previousDue: number };
 type OrderStatusFilter = "all" | "accepted" | "pending";
 
 const today = localDateInput();
@@ -121,6 +121,14 @@ function financialPaid(order: Order) {
 
 function financialDue(order: Order) {
   return vehicleAccepted(order) ? orderDue(order) : 0;
+}
+
+function displayOrderAmount(order: Order) {
+  return Number(order.grandTotal || 0);
+}
+
+function displayPaid(order: Order) {
+  return orderPaid(order);
 }
 
 function dueByCustomer(orders: Order[]) {
@@ -233,11 +241,11 @@ export default function BakeryOrdersPage() {
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
   const [search, setSearch] = useState("");
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [orderDate, setOrderDate] = useState(today);
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
   const [routeFilter, setRouteFilter] = useState<string[]>([]);
   const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatusFilter>("all");
@@ -291,10 +299,8 @@ export default function BakeryOrdersPage() {
     const paid = orders.reduce((sum, order) => sum + financialPaid(order), 0);
     const fullAmount = totalAmount(previousDue, amount);
     return {
-      orders: orders.length || carryForwardSummary?.orders || 0,
-      quantity: orders.length
-        ? orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0)
-        : carryForwardSummary?.quantity || 0,
+      orders: orders.length,
+      quantity: orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
       amount,
       paid,
       due: orders.reduce((sum, order) => sum + financialDue(order), 0),
@@ -302,7 +308,7 @@ export default function BakeryOrdersPage() {
       totalAmount: fullAmount,
       todaysDue: Math.max(fullAmount - paid, 0)
     };
-  }, [carryForwardSummary, orders, previousDueByCustomer]);
+  }, [carryForwardSummary, orders]);
 
   function getOrderRouteName(order: Order) {
     return order.route?.name || order.customer.route?.name || "No route";
@@ -322,18 +328,20 @@ export default function BakeryOrdersPage() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+      setLoading(true);
     try {
       const orderParams = new URLSearchParams();
-      if (startDate) orderParams.set("startDate", startDate);
-      if (endDate) orderParams.set("endDate", endDate);
+      if (orderDate) {
+        orderParams.set("startDate", orderDate);
+        orderParams.set("endDate", orderDate);
+      }
       if (customerFilter.length) orderParams.set("customerIds", customerFilter.join(","));
       if (routeFilter.length) orderParams.set("routeIds", routeFilter.join(","));
       if (search.trim()) orderParams.set("search", search.trim());
       if (orderStatusFilter !== "all") orderParams.set("orderStatus", orderStatusFilter);
       orderParams.set("page", String(page));
       orderParams.set("pageSize", String(pageSize));
-      const previousEndDate = localDateInput(addLocalDays(new Date(`${startDate || today}T00:00:00`), -1));
+      const previousEndDate = localDateInput(addLocalDays(new Date(`${orderDate || today}T00:00:00`), -1));
       const previousParams = new URLSearchParams();
       previousParams.set("endDate", previousEndDate);
       previousParams.set("pageSize", "100");
@@ -347,35 +355,9 @@ export default function BakeryOrdersPage() {
         fetchAllProducts<Product>(apiBase),
         authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
       ]);
-      let effectiveCarryForwardSummary: CarryForwardSummary | null = latestDaySummary(previousData.orders);
-      let effectiveTotal = orderData.pagination?.total ?? orderData.orders.length;
-      let effectivePageCount = orderData.pagination?.pageCount ?? 1;
-      let effectivePage = orderData.pagination?.page ?? page;
-      let effectivePageSize = orderData.pagination?.pageSize ?? pageSize;
-      if (!orderData.orders.length && effectiveTotal === 0) {
-        const fallbackParams = new URLSearchParams();
-        if (customerFilter.length) fallbackParams.set("customerIds", customerFilter.join(","));
-        if (routeFilter.length) fallbackParams.set("routeIds", routeFilter.join(","));
-        if (search.trim()) fallbackParams.set("search", search.trim());
-        fallbackParams.set("page", "1");
-        fallbackParams.set("pageSize", "100");
-        fallbackParams.set("endDate", endDate || startDate || today);
-        const fallbackData = await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackParams.toString()}`);
-        const latestDate = fallbackData.orders
-          .map(orderDateKey)
-          .sort((a, b) => b.localeCompare(a))[0];
-        if (latestDate) {
-          const fallbackPreviousEndDate = localDateInput(addLocalDays(new Date(`${latestDate}T00:00:00`), -1));
-          const fallbackPreviousParams = new URLSearchParams();
-          fallbackPreviousParams.set("endDate", fallbackPreviousEndDate);
-          fallbackPreviousParams.set("pageSize", "100");
-          if (customerFilter.length) fallbackPreviousParams.set("customerIds", customerFilter.join(","));
-          if (routeFilter.length) fallbackPreviousParams.set("routeIds", routeFilter.join(","));
-          if (search.trim()) fallbackPreviousParams.set("search", search.trim());
-          const fallbackPreviousOrders = (await authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${fallbackPreviousParams.toString()}`)).orders;
-          effectiveCarryForwardSummary = latestDaySummary([...fallbackData.orders.filter((order) => orderDateKey(order) === latestDate), ...fallbackPreviousOrders]);
-        }
-      }
+      const effectiveCarryForwardSummary: CarryForwardSummary = {
+        previousDue: Array.from(dueByCustomer(previousData.orders).values()).reduce((sum, due) => sum + due, 0)
+      };
       setOrders(orderData.orders);
       setOrderStatusCounts(orderData.statusCounts || {
         accepted: orderData.orders.filter((order) => order.vehicleStatus === "ACCEPTED").length,
@@ -383,10 +365,10 @@ export default function BakeryOrdersPage() {
       });
       setPreviousOrders(previousData.orders);
       setCarryForwardSummary(effectiveCarryForwardSummary);
-      setOrdersTotal(effectiveTotal);
-      setOrdersPageCount(effectivePageCount);
-      setPage(effectivePage);
-      setPageSize(effectivePageSize);
+      setOrdersTotal(orderData.pagination?.total ?? orderData.orders.length);
+      setOrdersPageCount(orderData.pagination?.pageCount ?? 1);
+      setPage(orderData.pagination?.page ?? page);
+      setPageSize(orderData.pagination?.pageSize ?? pageSize);
       setCustomers(customerData.customers);
       setProducts(productData);
       setRoutes(routeData.routes);
@@ -399,11 +381,11 @@ export default function BakeryOrdersPage() {
 
   useEffect(() => {
     loadData();
-  }, [startDate, endDate, customerFilter, routeFilter, orderStatusFilter, search, page, pageSize]);
+  }, [orderDate, customerFilter, routeFilter, orderStatusFilter, search, page, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [startDate, endDate, customerFilter, routeFilter, orderStatusFilter, search]);
+  }, [orderDate, customerFilter, routeFilter, orderStatusFilter, search]);
 
   function updateFormItem(
     setter: typeof setForm,
@@ -506,6 +488,23 @@ export default function BakeryOrdersPage() {
       await loadData();
     } catch (error) {
       toast.error("Order update failed", error instanceof Error ? error.message : "Could not update order.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDeleteOrder() {
+    if (!apiBase || !deleteOrder) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/orders/${deleteOrder.id}`, { method: "DELETE" });
+      toast.success("Order deleted", `${orderDisplayName(deleteOrder)} order was removed.`);
+      setOrders((current) => current.filter((order) => order.id !== deleteOrder.id));
+      setPreviousOrders((current) => current.filter((order) => order.id !== deleteOrder.id));
+      setDeleteOrder(null);
+      await loadData();
+    } catch (error) {
+      toast.error("Delete failed", error instanceof Error ? error.message : "Could not delete this order.");
     } finally {
       setSaving(false);
     }
@@ -703,12 +702,11 @@ export default function BakeryOrdersPage() {
   async function exportRouteStatement() {
     if (!apiBase) return;
     try {
-      const params = new URLSearchParams({ startDate: startDate || today, endDate: endDate || today });
+      const params = new URLSearchParams({ startDate: orderDate || today, endDate: orderDate || today });
       if (routeFilter.length) params.set("routeIds", routeFilter.join(","));
       const { statement } = await authFetch<{ statement: RouteStatement }>(`${apiBase}/orders/route-statement?${params.toString()}`);
       const rows = [
-        ["Start Date", statement.startDate],
-        ["End Date", statement.endDate],
+        ["Date", statement.startDate],
         ["Customers", statement.totals.customers],
         ["Orders", statement.totals.orders],
         ["Previous Due Amount", 0],
@@ -720,7 +718,7 @@ export default function BakeryOrdersPage() {
         ["Route", "Customer", "Orders", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount"],
         ...statement.rows.map((row) => [row.routeName, row.customerName, row.orderCount, 0, row.orderTotal, row.orderTotal, row.paidTotal, row.dueTotal])
       ];
-      downloadFile(rows.map((row) => row.map(csvCell).join(",")).join("\n"), "text/csv;charset=utf-8", `route-statement-${statement.startDate}-to-${statement.endDate}.csv`);
+      downloadFile(rows.map((row) => row.map(csvCell).join(",")).join("\n"), "text/csv;charset=utf-8", `route-statement-${statement.startDate}.csv`);
       toast.success("Statement exported", `${statement.rows.length} customer row${statement.rows.length === 1 ? "" : "s"} downloaded.`);
     } catch (error) {
       toast.error("Statement export failed", error instanceof Error ? error.message : "Could not export route statement.");
@@ -743,13 +741,12 @@ export default function BakeryOrdersPage() {
                   <button className="focus-ring grid h-9 w-full place-items-center rounded-md border border-line bg-panel2 sm:w-9" onClick={loadData} title="Refresh orders" type="button"><RefreshCw size={15} /></button>
                 </div>
               </div>
-              <div className="grid gap-2 border-b border-line p-2 lg:grid-cols-[1.3fr_150px_150px_1fr_1fr_190px]">
+              <div className="grid gap-2 border-b border-line p-2 lg:grid-cols-[1.3fr_150px_1fr_1fr_190px]">
                 <label className="flex min-h-10 items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-1.5">
                   <Search size={16} className="text-muted" />
                   <input className="w-full bg-transparent text-sm outline-none" onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, route, status" value={search} />
                 </label>
-                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-1.5 text-sm font-semibold outline-none focus:border-mint" onChange={setStartDate} value={startDate} />
-                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-1.5 text-sm font-semibold outline-none focus:border-mint" onChange={setEndDate} value={endDate} />
+                <DateInput className="rounded-md border border-line bg-panel2 px-3 py-1.5 text-sm font-semibold outline-none focus:border-mint" onChange={setOrderDate} value={orderDate} />
                 <SearchableSelect multiple onChange={setCustomerFilter} options={customerOptions} placeholder="All customers" searchPlaceholder="Search customers" value={customerFilter} />
                 <SearchableSelect multiple onChange={setRouteFilter} options={routeOptions} placeholder="All routes" searchPlaceholder="Search routes" value={routeFilter} />
                 <SearchableSelect
@@ -785,10 +782,11 @@ export default function BakeryOrdersPage() {
               </div>
               <div className="grid gap-3 p-3 sm:hidden">
                 {orders.map((order) => {
-                  const paid = financialPaid(order);
+                  const paid = displayPaid(order);
                   const previousDue = previousDueForOrder(order);
-                  const orderAmount = financialOrderAmount(order);
+                  const orderAmount = displayOrderAmount(order);
                   const fullAmount = totalAmount(previousDue, orderAmount);
+                  const displayDue = vehicleAccepted(order) ? todaysDueAmount(previousDue, financialOrderAmount(order), financialPaid(order)) : 0;
                   return (
                     <article key={order.id} className="rounded-lg border border-line bg-panel2 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -817,7 +815,7 @@ export default function BakeryOrdersPage() {
                         </span>
                         <span>
                           <span className="block text-xs text-muted">Today&apos;s Due Amount</span>
-                          <span className="font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, orderAmount, paid))}</span>
+                          <span className="font-semibold text-berry">{formatAmount(displayDue)}</span>
                         </span>
                       </div>
                       {previousDue ? (
@@ -849,6 +847,9 @@ export default function BakeryOrdersPage() {
                           <FileDown size={15} />
                         </button>
                       </div>
+                      <button className="focus-ring mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-berry/30 bg-berry/10 px-3 py-2 text-xs font-semibold text-berry disabled:opacity-50" disabled={saving} onClick={() => setDeleteOrder(order)} type="button">
+                        <Trash2 size={14} /> Delete Order
+                      </button>
                     </article>
                   );
                 })}
@@ -873,10 +874,11 @@ export default function BakeryOrdersPage() {
                   </thead>
                   <tbody className="divide-y divide-line">
                     {orders.map((order) => {
-                      const paid = financialPaid(order);
+                      const paid = displayPaid(order);
                       const previousDue = previousDueForOrder(order);
-                      const orderAmount = financialOrderAmount(order);
+                      const orderAmount = displayOrderAmount(order);
                       const fullAmount = totalAmount(previousDue, orderAmount);
+                      const displayDue = vehicleAccepted(order) ? todaysDueAmount(previousDue, financialOrderAmount(order), financialPaid(order)) : 0;
                       return (
                       <tr className="align-top" key={order.id}>
                         <td className="px-3 py-2">
@@ -891,6 +893,9 @@ export default function BakeryOrdersPage() {
                               <button className="focus-ring grid h-7 w-7 place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderInvoice(order)} title="Export invoice" type="button">
                                 <FileDown size={14} />
                               </button>
+                              <button className="focus-ring grid h-7 w-7 place-items-center rounded-md border border-berry/30 bg-berry/10 text-berry disabled:opacity-50" disabled={saving} onClick={() => setDeleteOrder(order)} title="Delete order" type="button">
+                                <Trash2 size={14} />
+                              </button>
                             </div>
                             <div>
                               <span className="block font-semibold">{orderDisplayName(order)}</span>
@@ -903,7 +908,7 @@ export default function BakeryOrdersPage() {
                         <td className="px-3 py-2 text-right font-semibold">{formatAmount(orderAmount)}</td>
                         <td className="px-3 py-2 text-right font-semibold">{formatAmount(fullAmount)}</td>
                         <td className="px-3 py-2 text-right">{formatAmount(paid)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, orderAmount, paid))}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-berry">{formatAmount(displayDue)}</td>
                         <td className="px-3 py-2">{formatDate(order.dueAt || order.createdAt)}</td>
                         <td className="px-3 py-2">
                           <select
@@ -1102,6 +1107,26 @@ export default function BakeryOrdersPage() {
             <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Order"}</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={Boolean(deleteOrder)} title="Delete order" description={deleteOrder ? `${orderDisplayName(deleteOrder)} · ${formatAmount(deleteOrder.grandTotal)}` : ""} onClose={() => setDeleteOrder(null)}>
+        {deleteOrder ? (
+          <div className="grid gap-4">
+            <p className="text-sm text-muted">
+              This will permanently delete this bakery order, its products, invoice, and any payments linked to it.
+            </p>
+            <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 text-sm sm:grid-cols-4">
+              <span>Route<br /><strong>{orderDisplayName(deleteOrder)}</strong></span>
+              <span>Order Amount<br /><strong>{formatAmount(deleteOrder.grandTotal)}</strong></span>
+              <span>Order Date<br /><strong>{formatDate(deleteOrder.dueAt || deleteOrder.createdAt)}</strong></span>
+              <span>Status<br /><strong>{deleteOrder.status}</strong></span>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" disabled={saving} onClick={() => setDeleteOrder(null)} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-berry px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={saving} onClick={confirmDeleteOrder} type="button">{saving ? "Deleting..." : "Delete Order"}</button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
 
       <Modal open={Boolean(paymentOrder)} title={paymentOrder?.payments?.length ? "Edit payment" : "Record payment"} description="Save the single payment amount for this order." onClose={() => setPaymentOrder(null)}>
