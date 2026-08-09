@@ -36,19 +36,26 @@ function bakeryVisibleOrderFilter(): Prisma.OrderWhereInput {
 }
 
 function truckLoadingStatusFilter(orderStatus?: TruckLoadingOrderStatus): Prisma.OrderWhereInput | null {
-  if (orderStatus === "accepted") return { vehicleStatus: { in: ["ACCEPTED", "COMPLETED"] } };
-  if (orderStatus === "pending") return { vehicleStatus: { notIn: ["ACCEPTED", "COMPLETED"] } };
+  const acceptedFilter: Prisma.OrderWhereInput = {
+    OR: [
+      { vehicleStatus: { in: ["ACCEPTED", "COMPLETED"] } },
+      { status: { in: ["ACCEPTED", "COMPLETED"] } }
+    ]
+  };
+  if (orderStatus === "accepted") return acceptedFilter;
+  if (orderStatus === "pending") return { NOT: acceptedFilter };
   return null;
 }
 
 function truckLoadingStatusSql(orderStatus?: TruckLoadingOrderStatus) {
-  if (orderStatus === "accepted") return Prisma.sql`AND o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED')`;
-  if (orderStatus === "pending") return Prisma.sql`AND (o."vehicleStatus" IS NULL OR o."vehicleStatus"::text NOT IN ('ACCEPTED', 'COMPLETED'))`;
+  const acceptedSql = Prisma.sql`(o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED') OR o.status::text IN ('ACCEPTED', 'COMPLETED'))`;
+  if (orderStatus === "accepted") return Prisma.sql`AND ${acceptedSql}`;
+  if (orderStatus === "pending") return Prisma.sql`AND NOT ${acceptedSql}`;
   return Prisma.empty;
 }
 
 function financiallyAcceptedSql() {
-  return Prisma.sql`AND o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED')`;
+  return Prisma.sql`AND (o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED') OR o.status::text IN ('ACCEPTED', 'COMPLETED'))`;
 }
 
 function pagination(filters: OrderListFilters) {
@@ -135,10 +142,16 @@ function buildOrderWhere(tenantId: string, filters: OrderListFilters = {}, baseF
 }
 
 function statusCountWhere(where: Prisma.OrderWhereInput, status: OrderApprovalStatus): Prisma.OrderWhereInput {
+  const acceptedFilter: Prisma.OrderWhereInput = {
+    OR: [
+      { vehicleStatus: { in: ["ACCEPTED", "COMPLETED"] } },
+      { status: { in: ["ACCEPTED", "COMPLETED"] } }
+    ]
+  };
   return {
     AND: [
       where,
-      status === "accepted" ? { vehicleStatus: { in: ["ACCEPTED", "COMPLETED"] } } : { vehicleStatus: { notIn: ["ACCEPTED", "COMPLETED"] } }
+      status === "accepted" ? acceptedFilter : { NOT: acceptedFilter }
     ]
   };
 }

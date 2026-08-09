@@ -32,8 +32,8 @@ function orderRouteId(order: Awaited<ReturnType<typeof ordersRepository.findOrde
   return order?.routeId || order?.customer.routeId || null;
 }
 
-function financiallyAccepted(order: { vehicleStatus?: string | null }) {
-  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED";
+function financiallyAccepted(order: { status?: string | null; vehicleStatus?: string | null }) {
+  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED" || order.status === "ACCEPTED" || order.status === "COMPLETED";
 }
 
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });

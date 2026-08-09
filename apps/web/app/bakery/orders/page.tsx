@@ -108,7 +108,7 @@ function customerKey(order: Order) {
 }
 
 function vehicleAccepted(order: Order) {
-  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED";
+  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED" || order.status === "ACCEPTED" || order.status === "COMPLETED";
 }
 
 function financialOrderAmount(order: Order) {
