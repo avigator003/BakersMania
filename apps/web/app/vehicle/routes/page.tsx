@@ -675,9 +675,9 @@ export default function VehicleRoutesPage() {
                   <span className="shrink-0 rounded-md border border-line bg-panel px-2 py-1 text-xs font-semibold">{order.status}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
-                  <span className="rounded-md bg-panel p-2">Order Amount<br /><strong className="text-ink">{formatAmount(financialOrderAmount(order))}</strong></span>
+                  <span className="rounded-md bg-panel p-2">Order Amount<br /><strong className="text-ink">{formatAmount(order.grandTotal)}</strong></span>
                   <span className="rounded-md bg-panel p-2">Previous Due<br /><strong className="text-ink">{formatAmount(previousDue(order))}</strong></span>
-                  <span className="rounded-md bg-panel p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(financialPaid(order))}</strong></span>
+                  <span className="rounded-md bg-panel p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(orderPaid(order))}</strong></span>
                   <span className="rounded-md bg-panel p-2">Today&apos;s Due<br /><strong className="text-berry">{formatAmount(todayDue(order))}</strong></span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
@@ -725,9 +725,9 @@ export default function VehicleRoutesPage() {
                         <span className="block text-xs text-muted">{customerDetailLine(order) || "No route/detail"}</span>
                         <span className="block max-w-xs truncate text-xs text-muted">{order.customer.address || "No address"}</span>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(financialOrderAmount(order))}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(financialPaid(order))}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(orderPaid(order))}</td>
                       <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todayDue(order))}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-md border border-line bg-panel2 px-2 py-1 text-xs font-semibold">{order.status}</span>
