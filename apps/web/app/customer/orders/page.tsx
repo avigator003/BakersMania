@@ -19,6 +19,7 @@ type Product = {
   categoryId?: string | null;
   categoryRef?: { id: string; name: string } | null;
   unitPrice: string | number;
+  effectiveUnitPrice?: string | number;
   active: boolean;
 };
 type Category = { id: string; name: string; active?: boolean };
@@ -103,6 +104,10 @@ function todaysDueAmount(previousDue: number, orderAmount: string | number, paid
 
 function productCategory(product: Product) {
   return product.categoryRef?.name || product.category || "General";
+}
+
+function customerDisplayPrice(product: Product) {
+  return product.effectiveUnitPrice ?? product.unitPrice;
 }
 
 function itemCategory(item: OrderItem) {
@@ -209,7 +214,7 @@ export default function CustomerOrdersPage() {
   );
 
   const productOptions = useMemo(
-    () => products.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    () => products.map((product) => ({ value: product.id, label: product.name, description: `${productCategory(product)} · ${formatAmount(customerDisplayPrice(product))}` })),
     [products]
   );
 

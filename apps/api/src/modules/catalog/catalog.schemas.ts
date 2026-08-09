@@ -24,6 +24,7 @@ export const customerPriceSchema = z.object({
   productId: z.string().min(1),
   customerId: z.string().min(1),
   price: z.coerce.number().nonnegative(),
+  customerProductPrice: z.coerce.number().nonnegative().optional(),
   notes: z.string().optional()
 });
 
@@ -31,7 +32,8 @@ export const assignCustomerPricesSchema = z.object({
   overwriteExisting: z.boolean().default(false),
   prices: z.array(z.object({
     productId: z.string().min(1),
-    price: z.coerce.number().nonnegative()
+    price: z.coerce.number().nonnegative(),
+    customerProductPrice: z.coerce.number().nonnegative().optional()
   })).optional()
 });
 

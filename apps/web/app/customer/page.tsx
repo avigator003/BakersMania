@@ -82,7 +82,7 @@ export default function CustomerPage() {
   const visibleProductSource = preferenceOnly ? preferredProducts : sortedProducts;
 
   const productOptions = useMemo(
-    () => visibleProductSource.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(product.unitPrice)}` })),
+    () => visibleProductSource.map((product) => ({ value: product.id, label: product.name, description: `${product.isPreferred ? "Preferred · " : ""}${productCategory(product)} · ${formatAmount(billingPrice(product))}` })),
     [visibleProductSource]
   );
 
@@ -276,7 +276,7 @@ export default function CustomerPage() {
                 <h2 className="mt-1 text-sm font-semibold leading-5 text-mint">{product.name}</h2>
                 <div className="mt-2 flex items-center justify-between gap-2">
                   {product.isPreferred ? <p className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-amber-700">Preferred</p> : <span />}
-                  <p className="text-lg font-bold">{formatAmount(product.unitPrice)}</p>
+                  <p className="text-lg font-bold">{formatAmount(billingPrice(product))}</p>
                 </div>
               </article>
             ))}

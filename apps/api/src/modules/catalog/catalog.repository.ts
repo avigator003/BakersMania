@@ -136,7 +136,7 @@ export const catalogRepository = {
           ...(filters.customerIdForPreferences
             ? {
                 customerPreferences: { where: { customerId: filters.customerIdForPreferences }, select: { id: true } },
-                customerPrices: { where: { customerId: filters.customerIdForPreferences }, select: { price: true } }
+                customerPrices: { where: { customerId: filters.customerIdForPreferences }, select: { price: true, customerProductPrice: true } }
               }
             : {})
         },
@@ -148,10 +148,19 @@ export const catalogRepository = {
     return {
       products: products.map((product) => ({
         ...product,
-        effectiveUnitPrice: "customerPrices" in product && product.customerPrices[0]?.price != null
+        effectiveUnitPrice: "customerPrices" in product && product.customerPrices[0]?.customerProductPrice != null
+          ? product.customerPrices[0].customerProductPrice
+          : "customerPrices" in product && product.customerPrices[0]?.price != null
+            ? product.customerPrices[0].price
+            : product.unitPrice,
+        billingUnitPrice: "customerPrices" in product && product.customerPrices[0]?.price != null
           ? product.customerPrices[0].price
           : product.unitPrice,
-        priceSource: "customerPrices" in product && product.customerPrices[0]?.price != null ? "CUSTOMER" : "BASE",
+        priceSource: "customerPrices" in product && product.customerPrices[0]?.customerProductPrice != null
+          ? "CUSTOMER_PRODUCT"
+          : "customerPrices" in product && product.customerPrices[0]?.price != null
+            ? "CUSTOMER_BASE"
+            : "BASE",
         isPreferred: "customerPreferences" in product ? product.customerPreferences.length > 0 : false
       })),
       pagination: paginationMeta(total, page, pageSize)
@@ -240,7 +249,7 @@ export const catalogRepository = {
             customerId: input.customerId
           }
         },
-        update: { price: input.price, notes: input.notes },
+        update: { price: input.price, customerProductPrice: input.customerProductPrice, notes: input.notes },
         create: { ...input, tenantId },
         include: {
           product: true,
@@ -289,16 +298,18 @@ export const catalogRepository = {
     const customerIds = customers.map((customer) => customer.id);
     const existingPrices = await prisma.customerProductPrice.findMany({
       where: { tenantId, customerId: { in: customerIds }, productId: { in: productIds } },
-      select: { customerId: true, productId: true, price: true }
+      select: { customerId: true, productId: true, price: true, customerProductPrice: true }
     });
     const existingMap = new Map(existingPrices.map((price) => [`${price.customerId}:${price.productId}`, price]));
     const routePriceMap = new Map(routePrices.map((price) => [`${price.routeId}:${price.productId}`, Number(price.price || 0)]));
     const basePriceMap = new Map(products.map((product) => [product.id, Number(product.unitPrice || 0)]));
     const overridePriceMap = new Map((input.prices || []).map((price) => [price.productId, Number(price.price || 0)]));
+    const overrideCustomerProductPriceMap = new Map((input.prices || []).map((price) => [price.productId, price.customerProductPrice === undefined ? undefined : Number(price.customerProductPrice || 0)]));
     const assignments = customers.flatMap((customer) => products.map((product) => {
       const price = overridePriceMap.get(product.id) ?? routePriceMap.get(`${customer.routeId}:${product.id}`) ?? basePriceMap.get(product.id) ?? 0;
+      const customerProductPrice = overrideCustomerProductPriceMap.get(product.id);
       const existing = existingMap.get(`${customer.id}:${product.id}`);
-      return { customerId: customer.id, productId: product.id, price, existing };
+      return { customerId: customer.id, productId: product.id, price, customerProductPrice, existing };
     }));
     const writableAssignments = assignments.filter((assignment) => input.overwriteExisting || !assignment.existing);
 
@@ -320,19 +331,27 @@ export const catalogRepository = {
                 customerId: assignment.customerId
               }
             },
-            update: { price: assignment.price, notes: "Assigned from vehicle route base price" },
+            update: {
+              price: assignment.price,
+              customerProductPrice: assignment.customerProductPrice,
+              notes: "Assigned from vehicle customer base price"
+            },
             create: {
               tenantId,
               productId: assignment.productId,
               customerId: assignment.customerId,
               price: assignment.price,
-              notes: "Assigned from vehicle route base price"
+              customerProductPrice: assignment.customerProductPrice,
+              notes: "Assigned from vehicle customer base price"
             }
           });
 
           if (!existing) {
             batchCreated += 1;
-          } else if (Number(existing.price) !== assignment.price) {
+          } else if (
+            Number(existing.price) !== assignment.price ||
+            Number(existing.customerProductPrice ?? existing.price) !== Number(assignment.customerProductPrice ?? assignment.price)
+          ) {
             batchUpdated += 1;
           }
           if (!existing || Number(existing.price) !== assignment.price) {

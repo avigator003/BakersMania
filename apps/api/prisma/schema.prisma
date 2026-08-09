@@ -303,6 +303,7 @@ model CustomerProductPrice {
   productId  String
   customerId String
   price      Decimal  @db.Decimal(12, 2)
+  customerProductPrice Decimal? @db.Decimal(12, 2)
   notes      String?
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   product    Product  @relation(fields: [productId], references: [id])

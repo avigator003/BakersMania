@@ -66,7 +66,7 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
     throw new HttpError(422, "At least one product quantity is required");
   }
 
-  const routePriceRouteId = options.useRoutePrice === false ? null : customer.routeId;
+  const routePriceRouteId = options.useRoutePrice ? customer.routeId : null;
   const products = await ordersRepository.findProducts(
     tenantId,
     positiveItems.map((item) => item.productId),
