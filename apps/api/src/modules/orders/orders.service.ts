@@ -66,11 +66,12 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
     throw new HttpError(422, "At least one product quantity is required");
   }
 
+  const routePriceRouteId = options.useRoutePrice === false ? null : customer.routeId;
   const products = await ordersRepository.findProducts(
     tenantId,
     positiveItems.map((item) => item.productId),
     customerId,
-    options.useRoutePrice ? customer.routeId : null
+    routePriceRouteId
   );
 
   if (products.length !== positiveItems.length) {
@@ -84,8 +85,8 @@ async function buildOrderPayload(tenantId: string, customerId: string, input: Cr
       routePrices?: Array<{ price: unknown }>;
     };
     const customerPrice = pricedProduct.customerPrices?.[0]?.price;
-    const routePrice = options.useRoutePrice ? pricedProduct.routePrices?.[0]?.price : undefined;
-    const unitPrice = Number(customerPrice ?? routePrice ?? product.unitPrice);
+    const routePrice = routePriceRouteId ? pricedProduct.routePrices?.[0]?.price : undefined;
+    const unitPrice = Number(routePrice ?? customerPrice ?? product.unitPrice);
     const taxRate = Number(product.taxRate);
     const lineSubtotal = unitPrice * item.quantity;
     const lineTax = lineSubtotal * (taxRate / 100);
