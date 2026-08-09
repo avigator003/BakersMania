@@ -49,10 +49,6 @@ function formatDisplayDate(value: string) {
     : value;
 }
 
-function compactProductName(name: string) {
-  return name.trim().replace(/\s+/g, " ").slice(0, 6);
-}
-
 function compactRowName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 10);
 }
@@ -163,21 +159,25 @@ export default function BakeryTruckLoadingPage() {
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const candidateProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
-    const exportProducts = candidateProducts.filter((product) => (
-      visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0) >= 1
+    const exportProducts = [...truckLoading.products].filter((product) => {
+      const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
+      const productMatches = !productFilter.length || productFilter.includes(product.id);
+      return categoryMatches && productMatches;
+    }).sort(productSort);
+    const exportRoutes = visibleRoutes.filter((route) => (
+      exportProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0) >= 1
     ));
     const selectedCategories = categoryFilter.length ? categoryFilter.join(", ") : "All categories";
     const exportProductTotals = Object.fromEntries(exportProducts.map((product) => [
       product.id,
-      visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0)
+      exportRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0)
     ]));
-    const exportTotalQuantity = visibleRoutes.reduce((sum, route) => (
+    const exportTotalQuantity = exportRoutes.reduce((sum, route) => (
       sum + exportProducts.reduce((routeSum, product) => routeSum + Number(route.quantities[product.id] || 0), 0)
     ), 0);
     const columns: XlsxColumn[] = [
       { width: 10 },
-      ...exportProducts.map(() => ({ width: 4.2 }))
+      ...exportProducts.map(() => ({ width: 12 }))
     ];
     const rows: XlsxRow[] = [
       {
@@ -191,10 +191,10 @@ export default function BakeryTruckLoadingPage() {
         height: 30,
         cells: [
           { value: "Route Name", style: "header" },
-          ...exportProducts.map((product) => ({ value: compactProductName(product.name), style: "header" as const }))
+          ...exportProducts.map((product) => ({ value: product.name, style: "header" as const }))
         ]
       },
-      ...visibleRoutes.map((route) => {
+      ...exportRoutes.map((route) => {
         return {
           height: 24,
           cells: [

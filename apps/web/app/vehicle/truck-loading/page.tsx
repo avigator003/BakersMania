@@ -187,6 +187,7 @@ export default function VehicleTruckLoadingPage() {
       visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0) >= 1
     ));
     const selectedCategories = categoryFilter.length ? categoryFilter.join(", ") : "All categories";
+    const selectedRoutes = Array.from(new Set(visibleRoutes.map((route) => route.routeName).filter(Boolean))).join(", ") || "All routes";
     const exportProductTotals = Object.fromEntries(exportProducts.map((product) => [
       product.id,
       visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0)
@@ -206,7 +207,7 @@ export default function VehicleTruckLoadingPage() {
       {
         height: 18,
         cells: [
-          { value: `Date: ${formatExcelDate(truckLoading.date)} | Category: ${selectedCategories} | Quantity: ${formatQty(exportTotalQuantity) || "0"}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
+          { value: `Date: ${formatExcelDate(truckLoading.date)} | Route: ${selectedRoutes} | Category: ${selectedCategories} | Quantity: ${formatQty(exportTotalQuantity) || "0"}`, style: "metaValue", colSpan: Math.max(columns.length, 1) }
         ]
       },
       { height: 12, cells: [] },
