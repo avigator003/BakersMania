@@ -24,3 +24,4 @@ ordersRouter.post("/route-invoices/:routeId/payments", requireAuth, validateBody
 ordersRouter.post("/route-invoices/:routeId/lock", requireAuth, validateBody(routeInvoiceLockSchema), asyncHandler(ordersController.setRouteInvoiceLock));
 ordersRouter.patch("/:orderId/status", requireAuth, validateBody(updateOrderStatusSchema), asyncHandler(ordersController.updateStatus));
 ordersRouter.patch("/:orderId", requireAuth, validateBody(updateOrderSchema), asyncHandler(ordersController.update));
+ordersRouter.delete("/:orderId", requireAuth, asyncHandler(ordersController.delete));

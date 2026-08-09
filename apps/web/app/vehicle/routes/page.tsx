@@ -74,6 +74,11 @@ function formatQty(value?: string | number | null) {
   return amount ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(amount) : "";
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
+}
+
 function orderDateKey(order: Order) {
   return (order.dueAt || order.createdAt).slice(0, 10);
 }
@@ -96,6 +101,18 @@ function todaysDueAmount(previousDue: number, orderAmount: string | number, paid
 
 function vehicleAccepted(order: Order) {
   return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED";
+}
+
+function financialOrderAmount(order: Order) {
+  return vehicleAccepted(order) ? Number(order.grandTotal || 0) : 0;
+}
+
+function financialPaid(order: Order) {
+  return vehicleAccepted(order) ? orderPaid(order) : 0;
+}
+
+function financialDue(order: Order) {
+  return vehicleAccepted(order) ? orderDue(order) : 0;
 }
 
 function vehicleStatusValue(order: Order) {
@@ -145,7 +162,7 @@ function productCategory(product: Product) {
 function dueByCustomer(orders: Order[]) {
   const dueByCustomer = new Map<string, number>();
   orders.forEach((order) => {
-    dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+    dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + financialDue(order));
   });
   return dueByCustomer;
 }
@@ -160,7 +177,7 @@ function latestDaySummary(orders: Order[]) {
   return {
     orders: latestOrders.length,
     previousDue: latestOrders.reduce((sum, order) => (
-      sum + todaysDueAmount(olderDueByCustomer.get(customerKey(order)) || 0, order.grandTotal, orderPaid(order))
+      sum + todaysDueAmount(olderDueByCustomer.get(customerKey(order)) || 0, financialOrderAmount(order), financialPaid(order))
     ), 0)
   };
 }
@@ -257,6 +274,7 @@ export default function VehicleRoutesPage() {
   const [editForm, setEditForm] = useState<OrderFormState>(emptyOrderForm);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: "PARTIAL", amount: "", method: "Cash", reference: "" });
   const [customerFilter, setCustomerFilter] = useState<string[]>([]);
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -331,7 +349,7 @@ export default function VehicleRoutesPage() {
   }
 
   function todayDue(order: Order) {
-    return todaysDueAmount(previousDue(order), order.grandTotal, orderPaid(order));
+    return todaysDueAmount(previousDue(order), financialOrderAmount(order), financialPaid(order));
   }
 
   const customerOptions = useMemo(() => {
@@ -356,9 +374,9 @@ export default function VehicleRoutesPage() {
 
   const totals = useMemo(() => ({
     orders: visibleOrders.length || carryForwardSummary?.orders || 0,
-    orderAmount: visibleOrders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0),
+    orderAmount: visibleOrders.reduce((sum, order) => sum + financialOrderAmount(order), 0),
     previousDue: carryForwardSummary?.previousDue || 0,
-    paid: visibleOrders.reduce((sum, order) => sum + orderPaid(order), 0)
+    paid: visibleOrders.reduce((sum, order) => sum + financialPaid(order), 0)
   }), [carryForwardSummary, previousDueByCustomer, visibleOrders]);
   const todayDueTotal = Math.max(totals.orderAmount + totals.previousDue - totals.paid, 0);
 
@@ -446,8 +464,25 @@ export default function VehicleRoutesPage() {
     }
   }
 
+  async function confirmDeleteOrder() {
+    if (!apiBase || !deleteOrder) return;
+    setSaving(true);
+    try {
+      await authFetch(`${apiBase}/orders/${deleteOrder.id}`, { method: "DELETE" });
+      toast.success("Order deleted", `${deleteOrder.customer.name} order was removed.`);
+      setOrders((current) => current.filter((order) => order.id !== deleteOrder.id));
+      setPreviousOrders((current) => current.filter((order) => order.id !== deleteOrder.id));
+      setDeleteOrder(null);
+      await loadData();
+    } catch (error) {
+      toast.error("Delete failed", error instanceof Error ? error.message : "Could not delete this order.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function paymentAmountForType(order: Order, type: string) {
-    if (type === "ORDER_FULL") return Number(order.grandTotal || 0);
+    if (type === "ORDER_FULL") return financialOrderAmount(order);
     if (type === "DUE_FULL") return todayDue(order);
     return 0;
   }
@@ -496,9 +531,9 @@ export default function VehicleRoutesPage() {
     const rows = visibleOrders.map((order) => [
       order.customer.name,
       order.customer.phone || "",
-      Number(order.grandTotal || 0),
+      financialOrderAmount(order),
       previousDue(order),
-      orderPaid(order),
+      financialPaid(order),
       todayDue(order),
       "",
       ""
@@ -518,8 +553,8 @@ export default function VehicleRoutesPage() {
   function exportOrderPdf(order: Order) {
     const orderNumber = `Order ${order.id.slice(-6).toUpperCase()}`;
     const previousDueAmount = previousDue(order);
-    const orderAmount = Number(order.grandTotal || 0);
-    const paidAmount = orderPaid(order);
+    const orderAmount = financialOrderAmount(order);
+    const paidAmount = financialPaid(order);
     const todaysDue = todayDue(order);
     const productColumns: PdfColumn[] = [
       { x: 48, width: 250 },
@@ -640,9 +675,9 @@ export default function VehicleRoutesPage() {
                   <span className="shrink-0 rounded-md border border-line bg-panel px-2 py-1 text-xs font-semibold">{order.status}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
-                  <span className="rounded-md bg-panel p-2">Order Amount<br /><strong className="text-ink">{formatAmount(order.grandTotal)}</strong></span>
+                  <span className="rounded-md bg-panel p-2">Order Amount<br /><strong className="text-ink">{formatAmount(financialOrderAmount(order))}</strong></span>
                   <span className="rounded-md bg-panel p-2">Previous Due<br /><strong className="text-ink">{formatAmount(previousDue(order))}</strong></span>
-                  <span className="rounded-md bg-panel p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(orderPaid(order))}</strong></span>
+                  <span className="rounded-md bg-panel p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(financialPaid(order))}</strong></span>
                   <span className="rounded-md bg-panel p-2">Today&apos;s Due<br /><strong className="text-berry">{formatAmount(todayDue(order))}</strong></span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
@@ -650,8 +685,9 @@ export default function VehicleRoutesPage() {
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Details</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => exportOrderPdf(order)} type="button"><Download size={14} /> Invoice PDF</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(order)} type="button"><Pencil size={14} /> Edit</button>
+                  <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-berry/30 bg-berry/10 px-3 py-2 text-xs font-semibold text-berry disabled:opacity-50" disabled={saving} onClick={() => setDeleteOrder(order)} type="button"><Trash2 size={14} /> Delete</button>
                   <select
-                    className={`focus-ring col-span-2 rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleStatusClass(order)}`}
+                    className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleStatusClass(order)}`}
                     disabled={saving}
                     onChange={(event) => updateOrder(order, { vehicleStatus: event.target.value })}
                     value={vehicleStatusValue(order)}
@@ -689,9 +725,9 @@ export default function VehicleRoutesPage() {
                         <span className="block text-xs text-muted">{customerDetailLine(order) || "No route/detail"}</span>
                         <span className="block max-w-xs truncate text-xs text-muted">{order.customer.address || "No address"}</span>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(financialOrderAmount(order))}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(previousDue(order))}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(orderPaid(order))}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(financialPaid(order))}</td>
                       <td className="px-4 py-3 text-right font-semibold text-berry">{formatAmount(todayDue(order))}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-md border border-line bg-panel2 px-2 py-1 text-xs font-semibold">{order.status}</span>
@@ -702,6 +738,7 @@ export default function VehicleRoutesPage() {
                           <button aria-label="Order details" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2" onClick={() => setDetailOrder(order)} title="Order details" type="button"><Eye size={14} /></button>
                           <button aria-label="Invoice PDF" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderPdf(order)} title="Invoice PDF" type="button"><Download size={14} /></button>
                           <button aria-label="Edit order" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={saving} onClick={() => openEditOrder(order)} title="Edit order" type="button"><Pencil size={14} /></button>
+                          <button aria-label="Delete order" className="focus-ring grid place-items-center rounded-md border border-berry/30 bg-berry/10 text-berry disabled:opacity-50" disabled={saving} onClick={() => setDeleteOrder(order)} title="Delete order" type="button"><Trash2 size={14} /></button>
                           <select
                             className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleStatusClass(order)}`}
                             disabled={saving}
@@ -816,7 +853,7 @@ export default function VehicleRoutesPage() {
                 method: current.method
               }));
             }} value={paymentForm.type}>{paymentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
-            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={paymentForm.type === "PARTIAL" ? totalAmount(previousDue(paymentOrder), paymentOrder.grandTotal) : undefined} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type !== "PARTIAL"} required type="number" value={paymentForm.amount} /></label>
+            <label className="grid gap-1 text-sm font-semibold">Amount<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" max={paymentForm.type === "PARTIAL" ? totalAmount(previousDue(paymentOrder), financialOrderAmount(paymentOrder)) : undefined} min="1" onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} readOnly={paymentForm.type !== "PARTIAL"} required type="number" value={paymentForm.amount} /></label>
             <label className="grid gap-1 text-sm font-semibold">Payment method<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} value={paymentForm.method}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-semibold">Reference<input className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))} value={paymentForm.reference} /></label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -824,6 +861,26 @@ export default function VehicleRoutesPage() {
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving} type="submit">{saving ? "Saving..." : "Save Payment"}</button>
             </div>
           </form>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(deleteOrder)} title="Delete order" description={deleteOrder ? `${deleteOrder.customer.name} · ${formatAmount(deleteOrder.grandTotal)}` : ""} onClose={() => setDeleteOrder(null)}>
+        {deleteOrder ? (
+          <div className="grid gap-4">
+            <div className="rounded-lg border border-berry/30 bg-berry/10 p-4 text-sm text-berry">
+              This will permanently delete the customer order, its items, invoice, and any payments linked to it.
+            </div>
+            <div className="grid gap-2 rounded-lg border border-line bg-panel2 p-4 text-sm sm:grid-cols-2">
+              <span>Customer<br /><strong>{deleteOrder.customer.name}</strong></span>
+              <span>Order Amount<br /><strong>{formatAmount(deleteOrder.grandTotal)}</strong></span>
+              <span>Order Date<br /><strong>{formatDate(deleteOrder.dueAt || deleteOrder.createdAt)}</strong></span>
+              <span>Status<br /><strong>{vehicleStatusLabel(deleteOrder)}</strong></span>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" disabled={saving} onClick={() => setDeleteOrder(null)} type="button">Cancel</button>
+              <button className="focus-ring rounded-md bg-berry px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={saving} onClick={confirmDeleteOrder} type="button">{saving ? "Deleting..." : "Delete Order"}</button>
+            </div>
+          </div>
         ) : null}
       </Modal>
 

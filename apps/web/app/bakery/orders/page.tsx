@@ -107,10 +107,26 @@ function customerKey(order: Order) {
   return order.customer.id || order.customer.name;
 }
 
+function vehicleAccepted(order: Order) {
+  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED";
+}
+
+function financialOrderAmount(order: Order) {
+  return vehicleAccepted(order) ? Number(order.grandTotal || 0) : 0;
+}
+
+function financialPaid(order: Order) {
+  return vehicleAccepted(order) ? orderPaid(order) : 0;
+}
+
+function financialDue(order: Order) {
+  return vehicleAccepted(order) ? orderDue(order) : 0;
+}
+
 function dueByCustomer(orders: Order[]) {
   const dueByCustomer = new Map<string, number>();
   orders.forEach((order) => {
-    dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + orderDue(order));
+    dueByCustomer.set(customerKey(order), (dueByCustomer.get(customerKey(order)) || 0) + financialDue(order));
   });
   return dueByCustomer;
 }
@@ -126,7 +142,7 @@ function latestDaySummary(orders: Order[]) {
     orders: latestOrders.length,
     quantity: latestOrders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0),
     previousDue: latestOrders.reduce((sum, order) => (
-      sum + todaysDueAmount(olderDueByCustomer.get(customerKey(order)) || 0, order.grandTotal, orderPaid(order))
+      sum + todaysDueAmount(olderDueByCustomer.get(customerKey(order)) || 0, financialOrderAmount(order), financialPaid(order))
     ), 0)
   };
 }
@@ -271,8 +287,8 @@ export default function BakeryOrdersPage() {
 
   const orderTotals = useMemo(() => {
     const previousDue = carryForwardSummary?.previousDue || 0;
-    const amount = orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0);
-    const paid = orders.reduce((sum, order) => sum + orderPaid(order), 0);
+    const amount = orders.reduce((sum, order) => sum + financialOrderAmount(order), 0);
+    const paid = orders.reduce((sum, order) => sum + financialPaid(order), 0);
     const fullAmount = totalAmount(previousDue, amount);
     return {
       orders: orders.length || carryForwardSummary?.orders || 0,
@@ -281,7 +297,7 @@ export default function BakeryOrdersPage() {
         : carryForwardSummary?.quantity || 0,
       amount,
       paid,
-      due: orders.reduce((sum, order) => sum + orderDue(order), 0),
+      due: orders.reduce((sum, order) => sum + financialDue(order), 0),
       previousDue,
       totalAmount: fullAmount,
       todaysDue: Math.max(fullAmount - paid, 0)
@@ -515,11 +531,11 @@ export default function BakeryOrdersPage() {
   }
 
   function todayDueForOrder(order: Order) {
-    return todaysDueAmount(previousDueForOrder(order), order.grandTotal, orderPaid(order));
+    return todaysDueAmount(previousDueForOrder(order), financialOrderAmount(order), financialPaid(order));
   }
 
   function paymentAmountForType(order: Order, type: string) {
-    if (type === "ORDER_FULL") return Number(order.grandTotal || 0);
+    if (type === "ORDER_FULL") return financialOrderAmount(order);
     if (type === "DUE_FULL") return todayDueForOrder(order);
     return 0;
   }
@@ -575,10 +591,11 @@ export default function BakeryOrdersPage() {
       const { invoice } = await authFetch<{ invoice: Invoice }>(`${apiBase}/invoices/from-order/${order.id}`, {
         method: "POST"
       });
-      const paid = orderPaid(order);
+      const paid = financialPaid(order);
       const previousDue = previousDueForOrder(order);
-      const fullAmount = totalAmount(previousDue, order.grandTotal);
-      const due = todaysDueAmount(previousDue, order.grandTotal, paid);
+      const orderAmount = financialOrderAmount(order);
+      const fullAmount = totalAmount(previousDue, orderAmount);
+      const due = todaysDueAmount(previousDue, orderAmount, paid);
       const productRows = order.items.map((item) => `
         <tr>
           <td>${escapeHtml(item.name)}</td>
@@ -634,7 +651,7 @@ export default function BakeryOrdersPage() {
   </table>
   <div class="totals">
     <div><span>Previous Due Amount</span><span>${escapeHtml(formatAmount(previousDue))}</span></div>
-    <div><span>Order Amount</span><span>${escapeHtml(formatAmount(order.grandTotal))}</span></div>
+    <div><span>Order Amount</span><span>${escapeHtml(formatAmount(orderAmount))}</span></div>
     <div><span>Total Amount</span><span>${escapeHtml(formatAmount(fullAmount))}</span></div>
     <div><span>Paid Amount</span><span>${escapeHtml(formatAmount(paid))}</span></div>
     <div class="strong"><span>Today's Due Amount</span><span>${escapeHtml(formatAmount(due))}</span></div>
@@ -768,9 +785,10 @@ export default function BakeryOrdersPage() {
               </div>
               <div className="grid gap-3 p-3 sm:hidden">
                 {orders.map((order) => {
-                  const paid = orderPaid(order);
+                  const paid = financialPaid(order);
                   const previousDue = previousDueForOrder(order);
-                  const fullAmount = totalAmount(previousDue, order.grandTotal);
+                  const orderAmount = financialOrderAmount(order);
+                  const fullAmount = totalAmount(previousDue, orderAmount);
                   return (
                     <article key={order.id} className="rounded-lg border border-line bg-panel2 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -787,7 +805,7 @@ export default function BakeryOrdersPage() {
                         </span>
                         <span>
                           <span className="block text-xs text-muted">Order Amount</span>
-                          <span className="font-semibold">{formatAmount(order.grandTotal)}</span>
+                          <span className="font-semibold">{formatAmount(orderAmount)}</span>
                         </span>
                         <span>
                           <span className="block text-xs text-muted">Total Amount</span>
@@ -799,7 +817,7 @@ export default function BakeryOrdersPage() {
                         </span>
                         <span>
                           <span className="block text-xs text-muted">Today&apos;s Due Amount</span>
-                          <span className="font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, order.grandTotal, paid))}</span>
+                          <span className="font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, orderAmount, paid))}</span>
                         </span>
                       </div>
                       {previousDue ? (
@@ -855,9 +873,10 @@ export default function BakeryOrdersPage() {
                   </thead>
                   <tbody className="divide-y divide-line">
                     {orders.map((order) => {
-                      const paid = orderPaid(order);
+                      const paid = financialPaid(order);
                       const previousDue = previousDueForOrder(order);
-                      const fullAmount = totalAmount(previousDue, order.grandTotal);
+                      const orderAmount = financialOrderAmount(order);
+                      const fullAmount = totalAmount(previousDue, orderAmount);
                       return (
                       <tr className="align-top" key={order.id}>
                         <td className="px-3 py-2">
@@ -881,10 +900,10 @@ export default function BakeryOrdersPage() {
                         </td>
                         <td className="px-3 py-2 text-right">{order.items.length}</td>
                         <td className="px-3 py-2 text-right font-semibold">{previousDue ? formatAmount(previousDue) : "-"}</td>
-                        <td className="px-3 py-2 text-right font-semibold">{formatAmount(order.grandTotal)}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{formatAmount(orderAmount)}</td>
                         <td className="px-3 py-2 text-right font-semibold">{formatAmount(fullAmount)}</td>
                         <td className="px-3 py-2 text-right">{formatAmount(paid)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, order.grandTotal, paid))}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-berry">{formatAmount(todaysDueAmount(previousDue, orderAmount, paid))}</td>
                         <td className="px-3 py-2">{formatDate(order.dueAt || order.createdAt)}</td>
                         <td className="px-3 py-2">
                           <select
@@ -1095,15 +1114,15 @@ export default function BakeryOrdersPage() {
               </div>
               <div>
                 <p className="text-xs uppercase text-muted">Order Amount</p>
-                <p className="mt-1 font-semibold">{formatAmount(paymentOrder.grandTotal)}</p>
+                <p className="mt-1 font-semibold">{formatAmount(financialOrderAmount(paymentOrder))}</p>
               </div>
               <div>
                 <p className="text-xs uppercase text-muted">Total Amount</p>
-                <p className="mt-1 font-semibold">{formatAmount(totalAmount(previousDueForOrder(paymentOrder), paymentOrder.grandTotal))}</p>
+                <p className="mt-1 font-semibold">{formatAmount(totalAmount(previousDueForOrder(paymentOrder), financialOrderAmount(paymentOrder)))}</p>
               </div>
               <div>
                 <p className="text-xs uppercase text-muted">Paid Amount</p>
-                <p className="mt-1 font-semibold">{formatAmount(orderPaid(paymentOrder))}</p>
+                <p className="mt-1 font-semibold">{formatAmount(financialPaid(paymentOrder))}</p>
               </div>
               <div>
                 <p className="text-xs uppercase text-muted">Today&apos;s Due Amount</p>
@@ -1132,7 +1151,7 @@ export default function BakeryOrdersPage() {
                 Amount
                 <input
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
-                  max={paymentForm.type === "PARTIAL" ? totalAmount(previousDueForOrder(paymentOrder), paymentOrder.grandTotal) : undefined}
+                  max={paymentForm.type === "PARTIAL" ? totalAmount(previousDueForOrder(paymentOrder), financialOrderAmount(paymentOrder)) : undefined}
                   min="1"
                   onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))}
                   readOnly={paymentForm.type !== "PARTIAL"}

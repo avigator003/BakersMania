@@ -47,6 +47,10 @@ function truckLoadingStatusSql(orderStatus?: TruckLoadingOrderStatus) {
   return Prisma.empty;
 }
 
+function financiallyAcceptedSql() {
+  return Prisma.sql`AND o."vehicleStatus"::text IN ('ACCEPTED', 'COMPLETED')`;
+}
+
 function pagination(filters: OrderListFilters) {
   const pageSize = Math.min(Math.max(Number(filters.pageSize) || 100, 1), 100);
   const page = Math.max(Number(filters.page) || 1, 1);
@@ -381,6 +385,26 @@ export const ordersRepository = {
     });
   },
 
+  async deleteOrder(tenantId: string, orderId: string) {
+    return prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({ where: { tenantId, id: orderId }, select: { id: true } });
+      if (!order) return null;
+      await tx.payment.deleteMany({
+        where: {
+          OR: [
+            { orderId },
+            { invoice: { orderId } }
+          ]
+        }
+      });
+      await tx.orderStageHistory.deleteMany({ where: { orderId } });
+      await tx.invoice.deleteMany({ where: { orderId } });
+      await tx.orderItem.deleteMany({ where: { orderId } });
+      await tx.order.delete({ where: { id: orderId } });
+      return { id: orderId };
+    });
+  },
+
   findRouteOrderLock(tenantId: string, routeId: string, date: Date) {
     const lockDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
     return prisma.routeOrderLock.findUnique({
@@ -502,6 +526,7 @@ export const ordersRepository = {
         JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
           AND COALESCE(o."routeId", c."routeId") IS NOT NULL
+          ${financiallyAcceptedSql()}
           ${visibilityFilter}
           ${statusFilter}
           ${routeFilter}
@@ -575,6 +600,7 @@ export const ordersRepository = {
         FROM "Order" o
         JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
+          ${financiallyAcceptedSql()}
           ${visibilityFilter}
           ${statusFilter}
           ${routeFilter}
@@ -767,6 +793,7 @@ export const ordersRepository = {
         LEFT JOIN "Payment" p ON p."orderId" = o.id
         WHERE o."tenantId" = ${tenantId}
           AND o."customerId" = ${customerId}
+          ${financiallyAcceptedSql()}
         GROUP BY o.id
       )
       SELECT
@@ -832,6 +859,7 @@ export const ordersRepository = {
         WHERE o."tenantId" = ${tenantId}
           AND o."routeId" IS NOT NULL
           AND o."source"::text <> 'CUSTOMER_PORTAL'
+          ${financiallyAcceptedSql()}
           AND COALESCE(o."dueAt", o."createdAt") < ${end}
           ${orderRouteFilter}
       ),

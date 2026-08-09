@@ -91,7 +91,15 @@ function due(order: Order) {
 }
 
 function driverAccepted(order: Order) {
-  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED" || order.status === "ACCEPTED" || order.status === "COMPLETED";
+  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED";
+}
+
+function financialOrderAmount(order: Order) {
+  return driverAccepted(order) ? Number(order.grandTotal || 0) : 0;
+}
+
+function financialPaid(order: Order) {
+  return driverAccepted(order) ? paid(order) : 0;
 }
 
 function totalAmount(previousDue: number, orderAmount: string | number) {
@@ -286,8 +294,8 @@ export default function CustomerOrdersPage() {
   const totals = useMemo(() => {
     const uniqueOrders = Array.from(new Map(rows.map((row) => [row.order.id, row.order])).values());
     const previousDue = rows.length ? summary?.previousDue || 0 : carryForwardSummary?.previousDue || summary?.previousDue || 0;
-    const orderAmount = rows.reduce((sum, row) => sum + Number(row.item.lineTotal || 0), 0);
-    const paidAmount = uniqueOrders.reduce((sum, order) => sum + paid(order), 0);
+    const orderAmount = uniqueOrders.reduce((sum, order) => sum + financialOrderAmount(order), 0);
+    const paidAmount = uniqueOrders.reduce((sum, order) => sum + financialPaid(order), 0);
     return {
       orders: uniqueOrders.length || carryForwardSummary?.orders || 0,
       quantity: rows.length
@@ -312,8 +320,8 @@ export default function CustomerOrdersPage() {
   function exportOrder(order: Order) {
     const invoiceNumber = order.invoice?.invoiceNumber || `Order ${order.id.slice(-6).toUpperCase()}`;
     const previousDueAmount = totals.previousDue;
-    const orderAmount = Number(order.grandTotal || 0);
-    const paidAmount = paid(order);
+    const orderAmount = financialOrderAmount(order);
+    const paidAmount = financialPaid(order);
     const todaysDue = todaysDueAmount(previousDueAmount, orderAmount, paidAmount);
     const productColumns: PdfColumn[] = [
       { x: 48, width: 250 },
@@ -469,9 +477,9 @@ export default function CustomerOrdersPage() {
               <div className="mt-3 grid gap-3 rounded-lg border border-line bg-panel p-3 text-sm">
                 <div className="grid gap-2 text-xs text-muted">
                   <span className="rounded-md bg-panel2 p-2">Previous Due Amount<br /><strong className="text-ink">{formatAmount(totals.previousDue)}</strong></span>
-                  <span className="rounded-md bg-panel2 p-2">Order Amount<br /><strong className="text-ink">{formatAmount(order.grandTotal)}</strong></span>
-                  <span className="rounded-md bg-panel2 p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(paid(order))}</strong></span>
-                  <span className="rounded-md bg-panel2 p-2">Today&apos;s Due Amount<br /><strong className="text-ink">{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</strong></span>
+                  <span className="rounded-md bg-panel2 p-2">Order Amount<br /><strong className="text-ink">{formatAmount(financialOrderAmount(order))}</strong></span>
+                  <span className="rounded-md bg-panel2 p-2">Paid Amount<br /><strong className="text-ink">{formatAmount(financialPaid(order))}</strong></span>
+                  <span className="rounded-md bg-panel2 p-2">Today&apos;s Due Amount<br /><strong className="text-ink">{formatAmount(todaysDueAmount(totals.previousDue, financialOrderAmount(order), financialPaid(order)))}</strong></span>
                 </div>
                 <div className="grid gap-2">
                   {orderRows.map((row) => (
@@ -485,7 +493,7 @@ export default function CustomerOrdersPage() {
                   ))}
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-line pt-2 font-semibold">
                     <span>Order Amount</span>
-                    <span>{formatAmount(order.grandTotal)}</span>
+                    <span>{formatAmount(financialOrderAmount(order))}</span>
                   </div>
                 </div>
                 <PaymentHistory payments={order.payments} total={order.grandTotal} />
@@ -565,23 +573,23 @@ export default function CustomerOrdersPage() {
                       <td className="px-4 py-3 text-right">{formatQty(row.item.quantity)}</td>
                       <td className="px-4 py-3 text-right">{formatAmount(row.item.unitPrice)}</td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAmount(row.item.lineTotal)}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(row.paidAmount)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</td>
+                      <td className="px-4 py-3 text-right">{formatAmount(financialPaid(order))}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatAmount(todaysDueAmount(totals.previousDue, financialOrderAmount(order), financialPaid(order)))}</td>
                     </tr>
                   ))}
                   <tr className="bg-panel2/40 font-semibold">
                     <td className="px-4 py-3 text-right" colSpan={3}>Order Amount</td>
-                    <td className="px-4 py-3 text-right">{formatAmount(order.grandTotal)}</td>
-                    <td className="px-4 py-3 text-right">{formatAmount(paid(order))}</td>
-                    <td className="px-4 py-3 text-right text-berry">{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</td>
+                    <td className="px-4 py-3 text-right">{formatAmount(financialOrderAmount(order))}</td>
+                    <td className="px-4 py-3 text-right">{formatAmount(financialPaid(order))}</td>
+                    <td className="px-4 py-3 text-right text-berry">{formatAmount(todaysDueAmount(totals.previousDue, financialOrderAmount(order), financialPaid(order)))}</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3" colSpan={6}>
                       <div className="grid gap-3 rounded-lg border border-line bg-panel2 p-4 sm:grid-cols-4">
                         <span>Previous Due Amount<br /><strong>{formatAmount(totals.previousDue)}</strong></span>
-                        <span>Order Amount<br /><strong>{formatAmount(order.grandTotal)}</strong></span>
-                        <span>Paid Amount<br /><strong>{formatAmount(paid(order))}</strong></span>
-                        <span>Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(totals.previousDue, order.grandTotal, paid(order)))}</strong></span>
+                        <span>Order Amount<br /><strong>{formatAmount(financialOrderAmount(order))}</strong></span>
+                        <span>Paid Amount<br /><strong>{formatAmount(financialPaid(order))}</strong></span>
+                        <span>Today&apos;s Due Amount<br /><strong>{formatAmount(todaysDueAmount(totals.previousDue, financialOrderAmount(order), financialPaid(order)))}</strong></span>
                       </div>
                       <div className="mt-3">
                         <PaymentHistory payments={order.payments} total={order.grandTotal} />

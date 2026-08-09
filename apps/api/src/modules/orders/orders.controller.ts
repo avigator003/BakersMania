@@ -53,6 +53,11 @@ export const ordersController = {
     res.json({ order });
   },
 
+  async delete(req: Request, res: Response) {
+    const deleted = await ordersService.deleteOrder(req.tenant!.id, req.auth, req.params.orderId);
+    res.json({ deleted });
+  },
+
   async updateStatus(req: Request, res: Response) {
     const order = await ordersService.updateOrderStatus(req.tenant!.id, req.auth, req.params.orderId, req.body);
     res.json({ order });

@@ -32,6 +32,10 @@ function orderRouteId(order: Awaited<ReturnType<typeof ordersRepository.findOrde
   return order?.routeId || order?.customer.routeId || null;
 }
 
+function financiallyAccepted(order: { vehicleStatus?: string | null }) {
+  return order.vehicleStatus === "ACCEPTED" || order.vehicleStatus === "COMPLETED";
+}
+
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 
 function updatedAscending(a: { updatedAt?: Date | string | null; name: string }, b: { updatedAt?: Date | string | null; name: string }) {
@@ -342,6 +346,26 @@ export const ordersService = {
     });
   },
 
+  async deleteOrder(tenantId: string, auth: AccessTokenPayload | undefined, orderId: string) {
+    if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Vehicle or bakery access required");
+    }
+    const existing = await ordersRepository.findOrder(tenantId, orderId);
+    if (!existing) {
+      throw new HttpError(404, "Order not found");
+    }
+    const routeIds = await vehicleRouteIds(tenantId, auth);
+    if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
+      throw new HttpError(403, "This order is not assigned to this vehicle");
+    }
+    await assertRouteNotLockedForVehicle(tenantId, auth, existing);
+    const deleted = await ordersRepository.deleteOrder(tenantId, orderId);
+    if (!deleted) {
+      throw new HttpError(404, "Order not found");
+    }
+    return deleted;
+  },
+
   async repeatOrders(tenantId: string, auth: AccessTokenPayload | undefined, input: RepeatOrdersInput) {
     if (auth?.actorType === "customer") {
       throw new HttpError(403, "Customers cannot repeat staff orders");
@@ -450,7 +474,7 @@ export const ordersService = {
       routeIds: assignedRouteIds || filters.routeIds
     });
     const customers = new Map<string, { customerId: string; customerName: string; routeName: string; orderTotal: number; paidTotal: number; dueTotal: number; orderCount: number }>();
-    orders.forEach((order) => {
+    orders.filter(financiallyAccepted).forEach((order) => {
       const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
       const total = Number(order.grandTotal || 0);
       const existing = customers.get(order.customerId) || {
@@ -473,7 +497,7 @@ export const ordersService = {
       ...filters,
       totals: {
         customers: rows.length,
-        orders: orders.length,
+        orders: rows.reduce((sum, row) => sum + row.orderCount, 0),
         orderTotal: rows.reduce((sum, row) => sum + row.orderTotal, 0),
         paidTotal: rows.reduce((sum, row) => sum + row.paidTotal, 0),
         dueTotal: rows.reduce((sum, row) => sum + row.dueTotal, 0)
