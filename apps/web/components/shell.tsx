@@ -110,6 +110,7 @@ export function AppShell({
   });
   const [workspaceName, setWorkspaceName] = useState(surface === "bakery" || surface === "customer" || surface === "vehicle" ? getStoredTenantName() || "" : "");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showBottomNav, setShowBottomNav] = useState(false);
   const [customerRoute, setCustomerRoute] = useState<CustomerRouteSummary | null>(null);
   const [vehicleRoute, setVehicleRoute] = useState<VehicleRouteSummary | null>(null);
   const [accountSummary, setAccountSummary] = useState<AccountSummary | null>(null);
@@ -127,6 +128,7 @@ export function AppShell({
   const tenantSlug = pathTenantSlug || storedTenantSlug;
   const routeBase = surface === "admin" || !tenantSlug ? "" : `/${tenantSlug}`;
   const shellTitle = (surface === "bakery" || surface === "customer" || surface === "vehicle") && workspaceName ? workspaceName : title;
+  const bottomNavPreferenceKey = `bakersmania_bottom_nav_visible:${surface}`;
 
   const footerCopy =
     surface === "admin"
@@ -446,6 +448,11 @@ export function AppShell({
     router.replace("/login");
   }
 
+  function handleBottomNavToggle(checked: boolean) {
+    setShowBottomNav(checked);
+    window.localStorage.setItem(bottomNavPreferenceKey, checked ? "true" : "false");
+  }
+
   const sidebarFooter = surface === "customer" && customerRoute
     ? {
         title: accountSummary?.name || customerRoute.routeName,
@@ -471,6 +478,10 @@ export function AppShell({
   }, [pathname]);
 
   useEffect(() => {
+    setShowBottomNav(window.localStorage.getItem(bottomNavPreferenceKey) === "true");
+  }, [bottomNavPreferenceKey]);
+
+  useEffect(() => {
     function selectSingleZero(event: FocusEvent) {
       const target = event.target;
       if (!(target instanceof HTMLInputElement) || target.type !== "number" || target.value !== "0" || target.readOnly || target.disabled) return;
@@ -492,7 +503,7 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-night pb-[calc(6rem+env(safe-area-inset-bottom))] text-ink lg:pb-0">
+    <div className={`min-h-dvh w-full max-w-full overflow-x-hidden bg-night text-ink ${showBottomNav ? "pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0" : ""}`}>
       <PwaRegister />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col bg-sidebar px-4 py-5 text-white lg:flex">
         <Link href="/" className="flex items-center gap-3 rounded-md px-2">
@@ -618,6 +629,16 @@ export function AppShell({
               })}
             </nav>
 
+            <label className="focus-within:ring-mint/30 mb-4 flex items-center justify-between gap-3 rounded-md border border-white/10 bg-sidebar2 px-3 py-3 text-sm font-semibold text-white focus-within:ring-2">
+              <span>Bottom navigator</span>
+              <input
+                checked={showBottomNav}
+                className="h-5 w-5 accent-mint"
+                onChange={(event) => handleBottomNavToggle(event.target.checked)}
+                type="checkbox"
+              />
+            </label>
+
             {surface !== "admin" ? (
               <div className="mt-auto rounded-lg border border-white/10 bg-sidebar2 p-4">
                 <p className="text-sm font-semibold">{sidebarFooter.title}</p>
@@ -627,7 +648,7 @@ export function AppShell({
           </aside>
         </div>
       ) : null}
-      <main className="flex min-h-[calc(100dvh-3.5rem)] min-w-0 max-w-full flex-col overflow-x-hidden bg-night px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:ml-72 lg:pb-6">
+      <main className={`flex min-h-[calc(100dvh-3.5rem)] min-w-0 max-w-full flex-col overflow-x-hidden bg-night px-3 pt-4 sm:px-6 lg:ml-72 lg:pb-6 ${showBottomNav ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-6"}`}>
         <nav className="mb-3 flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted" aria-label="Breadcrumb">
           {breadcrumbs.map((item, index) => {
             const last = index === breadcrumbs.length - 1;
@@ -649,27 +670,29 @@ export function AppShell({
           {children}
         </div>
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-panel pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-[0_-12px_30px_rgba(16,32,51,0.08)] lg:hidden">
-        <div className="flex w-full max-w-full gap-1 overflow-x-auto px-2 pt-2 [-webkit-overflow-scrolling:touch]">
-        {nav.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`focus-ring flex min-w-[4.8rem] shrink-0 flex-col items-center gap-1 rounded-md px-2 py-2 text-xs ${
-                active ? "bg-mint/10 text-mint" : "text-muted"
-              }`}
-              aria-current={active ? "page" : undefined}
-            >
-              <Icon size={20} />
-              <span className="max-w-full truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-        </div>
-      </nav>
+      {showBottomNav ? (
+        <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-panel pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-[0_-12px_30px_rgba(16,32,51,0.08)] lg:hidden">
+          <div className="flex w-full max-w-full gap-1 overflow-x-auto px-2 pt-2 [-webkit-overflow-scrolling:touch]">
+          {nav.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`focus-ring flex min-w-[4.8rem] shrink-0 flex-col items-center gap-1 rounded-md px-2 py-2 text-xs ${
+                  active ? "bg-mint/10 text-mint" : "text-muted"
+                }`}
+                aria-current={active ? "page" : undefined}
+              >
+                <Icon size={20} />
+                <span className="max-w-full truncate">{item.label}</span>
+              </Link>
+            );
+          })}
+          </div>
+        </nav>
+      ) : null}
     </div>
   );
 }
