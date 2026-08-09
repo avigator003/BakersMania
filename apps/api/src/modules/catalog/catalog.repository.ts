@@ -232,6 +232,7 @@ export const catalogRepository = {
 
   upsertCustomerPrice(tenantId: string, input: CustomerPriceInput) {
     return prisma.$transaction(async (tx) => {
+      const customerProductPrice = input.customerProductPrice ?? input.price;
       const existing = await tx.customerProductPrice.findUnique({
         where: {
           tenantId_productId_customerId: {
@@ -249,8 +250,8 @@ export const catalogRepository = {
             customerId: input.customerId
           }
         },
-        update: { price: input.price, customerProductPrice: input.customerProductPrice, notes: input.notes },
-        create: { ...input, tenantId },
+        update: { price: input.price, customerProductPrice, notes: input.notes },
+        create: { ...input, customerProductPrice, tenantId },
         include: {
           product: true,
           customer: { include: { route: true } }
@@ -307,7 +308,7 @@ export const catalogRepository = {
     const overrideCustomerProductPriceMap = new Map((input.prices || []).map((price) => [price.productId, price.customerProductPrice === undefined ? undefined : Number(price.customerProductPrice || 0)]));
     const assignments = customers.flatMap((customer) => products.map((product) => {
       const price = overridePriceMap.get(product.id) ?? routePriceMap.get(`${customer.routeId}:${product.id}`) ?? basePriceMap.get(product.id) ?? 0;
-      const customerProductPrice = overrideCustomerProductPriceMap.get(product.id);
+      const customerProductPrice = overrideCustomerProductPriceMap.get(product.id) ?? price;
       const existing = existingMap.get(`${customer.id}:${product.id}`);
       return { customerId: customer.id, productId: product.id, price, customerProductPrice, existing };
     }));
