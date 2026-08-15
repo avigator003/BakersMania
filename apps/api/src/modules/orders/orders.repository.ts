@@ -394,7 +394,7 @@ export const ordersRepository = {
   findOrder(tenantId: string, orderId: string) {
     return prisma.order.findFirst({
       where: { tenantId, id: orderId },
-      include: { payments: true, invoice: true, customer: true, route: true }
+      include: { payments: true, invoice: true, customer: true, route: true, items: true }
     });
   },
 
@@ -538,7 +538,6 @@ export const ordersRepository = {
         JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
           AND COALESCE(o."routeId", c."routeId") IS NOT NULL
-          ${financiallyAcceptedSql()}
           ${visibilityFilter}
           ${statusFilter}
           ${routeFilter}
@@ -612,7 +611,6 @@ export const ordersRepository = {
         FROM "Order" o
         JOIN "Customer" c ON c.id = o."customerId"
         WHERE o."tenantId" = ${tenantId}
-          ${financiallyAcceptedSql()}
           ${visibilityFilter}
           ${statusFilter}
           ${routeFilter}

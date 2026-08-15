@@ -64,18 +64,6 @@ function formatDisplayDate(value: string) {
     : value;
 }
 
-function compactProductName(name: string) {
-  return name.trim().replace(/\s+/g, " ").slice(0, 6);
-}
-
-function compactRowName(name: string) {
-  return name.trim().replace(/\s+/g, " ").slice(0, 10);
-}
-
-function exportRowName(row: { name: string }) {
-  return compactRowName(row.name);
-}
-
 function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
@@ -196,13 +184,45 @@ export default function VehicleTruckLoadingPage() {
       sum + exportProducts.reduce((routeSum, product) => routeSum + Number(route.quantities[product.id] || 0), 0)
     ), 0);
     const columns: XlsxColumn[] = [
+      { width: 18 },
       { width: 16 },
-      ...exportProducts.map(() => ({ width: 4.2 })),
-      { width: 7 },
-      { width: 9 },
-      { width: 7 },
-      { width: 9 }
+      { width: 24 },
+      { width: 8 },
+      { width: 12 },
+      { width: 12 },
+      { width: 12 },
+      { width: 12 }
     ];
+    const detailRows: XlsxRow[] = visibleRoutes.flatMap((route) => {
+      const productsForRoute = exportProducts.filter((product) => Number(route.quantities[product.id] || 0) > 0);
+      const rowsForRoute = productsForRoute.length ? productsForRoute : [{ id: "", name: "-", category: "" }];
+      return rowsForRoute.map((product, index) => ({
+        height: 24,
+        cells: [
+          { value: index === 0 ? route.name : "", style: index === 0 ? "name" as const : "default" as const },
+          { value: index === 0 ? route.routeName || "" : "" },
+          { value: product.name },
+          { value: product.id ? route.quantities[product.id] || null : null },
+          { value: index === 0 ? route.orderAmount || null : null, style: "amount" as const },
+          { value: index === 0 ? route.previousDue || null : null, style: "amount" as const },
+          { value: index === 0 ? route.paidAmount || null : null, style: "amount" as const },
+          { value: index === 0 ? route.todaysDue || null : null, style: "amount" as const }
+        ]
+      }));
+    });
+    const productTotalRows: XlsxRow[] = exportProducts.map((product, index) => ({
+      height: 22,
+      cells: [
+        { value: index === 0 ? "Product Total" : "", style: "summary" as const },
+        { value: "" },
+        { value: product.name, style: "summary" as const },
+        { value: exportProductTotals[product.id] || null, style: "summary" as const },
+        { value: null },
+        { value: null },
+        { value: null },
+        { value: null }
+      ]
+    }));
     const rows: XlsxRow[] = [
       {
         height: 18,
@@ -215,31 +235,25 @@ export default function VehicleTruckLoadingPage() {
         height: 30,
         cells: [
           { value: "Customer", style: "header" },
-          ...exportProducts.map((product) => ({ value: compactProductName(product.name), style: "header" as const })),
+          { value: "Vehicle / Route", style: "header" },
+          { value: "Product", style: "header" },
+          { value: "Qty", style: "header" },
           { value: "Order", style: "header" },
           { value: "Previous", style: "header" },
           { value: "Paid", style: "header" },
           { value: "Today Due", style: "header" }
         ]
       },
-      ...visibleRoutes.map((route) => {
-        return {
-          height: 24,
-          cells: [
-            { value: exportRowName(route), style: "name" as const },
-            ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null })),
-            { value: route.orderAmount || null, style: "amount" as const },
-            { value: route.previousDue || null, style: "amount" as const },
-            { value: route.paidAmount || null, style: "amount" as const },
-            { value: route.todaysDue || null, style: "amount" as const }
-          ]
-        };
-      }),
+      ...detailRows,
+      { height: 12, cells: [] },
+      ...productTotalRows,
       {
         height: 24,
         cells: [
-          { value: "Product Total", style: "summary" },
-          ...exportProducts.map((product) => ({ value: exportProductTotals[product.id] || null, style: "summary" as const })),
+          { value: "Grand Total", style: "summary" },
+          { value: "" },
+          { value: "" },
+          { value: exportTotalQuantity || null, style: "summary" },
           { value: amountTotals.orderAmount || null, style: "summary" },
           { value: amountTotals.previousDue || null, style: "summary" },
           { value: amountTotals.paidAmount || null, style: "summary" },

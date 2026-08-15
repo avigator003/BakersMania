@@ -2,7 +2,7 @@ import type { AccessTokenPayload } from "../../utils/tokens.js";
 import { HttpError } from "../../utils/http.js";
 import { enabledPipelineStages, nextStageAfterActor, type OrderPipelineActor } from "./order-pipeline.js";
 import { ordersRepository } from "./orders.repository.js";
-import type { CreateOrderInput, CustomerPaymentInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput, VehicleBakeryOrderInput } from "./orders.schemas.js";
+import type { CompleteNextOrderInput, CreateOrderInput, CustomerPaymentInput, RepeatOrdersInput, RouteInvoicePaymentInput, UpdateOrderStatusInput, VehicleBakeryOrderInput } from "./orders.schemas.js";
 
 type OrderFilters = {
   startDate?: string;
@@ -58,6 +58,17 @@ function customerDefaultDueAt() {
   const dueAt = new Date();
   dueAt.setUTCDate(dueAt.getUTCDate() + 1);
   return new Date(Date.UTC(dueAt.getUTCFullYear(), dueAt.getUTCMonth(), dueAt.getUTCDate()));
+}
+
+function nextOrderDate(date: Date) {
+  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next;
+}
+
+function dateFromInput(value?: string) {
+  if (!value) return null;
+  return new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
 }
 
 async function buildOrderPayload(tenantId: string, customerId: string, input: CreateOrderInput, options: { useRoutePrice?: boolean } = {}) {
@@ -395,6 +406,68 @@ export const ordersService = {
       }));
     }
     return { sourceDate: input.sourceDate, targetDate: input.targetDate, copied: created.length, orders: created };
+  },
+
+  async completeAndCreateNextOrder(tenantId: string, auth: AccessTokenPayload | undefined, orderId: string, input: CompleteNextOrderInput = {}) {
+    if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Vehicle or bakery access required");
+    }
+    const existing = await ordersRepository.findOrder(tenantId, orderId);
+    if (!existing) {
+      throw new HttpError(404, "Order not found");
+    }
+    const routeIds = await vehicleRouteIds(tenantId, auth);
+    if (routeIds && !routeIds.includes(orderRouteId(existing) || "")) {
+      throw new HttpError(403, "This order is not assigned to this vehicle");
+    }
+    await assertRouteNotLockedForVehicle(tenantId, auth, existing);
+    if ((auth.actorType === "vehicle" && existing.vehicleStatus === "COMPLETED") || (auth.actorType === "bakery_user" && existing.status === "COMPLETED")) {
+      throw new HttpError(409, "Order is already completed");
+    }
+    if (!existing.items.length) {
+      throw new HttpError(422, "Order has no products to copy");
+    }
+
+    const targetDate = dateFromInput(input.targetDate) || nextOrderDate(existing.dueAt || existing.createdAt);
+    await assertRouteNotLockedForVehicle(tenantId, auth, { routeId: orderRouteId(existing), dueAt: targetDate, createdAt: targetDate });
+    await assertOneOrderPerCustomerDate(tenantId, existing.customerId, {
+      customerId: existing.customerId,
+      source: existing.source,
+      fulfillmentType: existing.fulfillmentType,
+      dueAt: targetDate,
+      items: existing.items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) }))
+    });
+
+    const nextInput: CreateOrderInput = {
+      customerId: existing.customerId,
+      source: existing.source,
+      fulfillmentType: existing.fulfillmentType,
+      dueAt: targetDate,
+      notes: existing.notes || undefined,
+      items: existing.items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) }))
+    };
+    const payload = await buildOrderPayload(tenantId, existing.customerId, nextInput, {
+      useRoutePrice: existing.customer.tags.includes(vehicleBakeryOrderTag)
+    });
+    const pipelineStages = await pipelineStagesForTenant(tenantId);
+    const completedOrder = await ordersRepository.updateOrderStatus({
+      tenantId,
+      orderId,
+      status: auth.actorType === "bakery_user" ? "COMPLETED" : undefined,
+      vehicleStatus: auth.actorType === "vehicle" ? "COMPLETED" : undefined,
+      pipelineAction: "UPDATED",
+      pipelineActorId: auth.sub
+    });
+    const nextOrder = await ordersRepository.createOrder({
+      tenantId,
+      customerId: existing.customerId,
+      routeId: payload.customer.routeId,
+      orderInput: payload.orderInput,
+      totals: payload.totals,
+      items: payload.items,
+      pipelineStage: nextStageAfterActor(pipelineStages, pipelineActorForAuth(auth))
+    });
+    return { completedOrder, nextOrder };
   },
 
   async createVehicleBakeryOrder(tenantId: string, auth: AccessTokenPayload | undefined, input: VehicleBakeryOrderInput) {
