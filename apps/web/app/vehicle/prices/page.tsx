@@ -167,14 +167,15 @@ export default function VehiclePricesPage() {
 
   async function savePrices() {
     if (!apiBase || !priceModal) return;
+    const getNextCustomerProductPrice = (product: Product) => Number(priceMap[product.id] || 0);
     const validProducts = products.filter((product) => {
       const nextPrice = Number(priceMap[product.id] || 0);
-      const nextCustomerProductPrice = Number(customerProductPriceMap[product.id] || 0);
+      const nextCustomerProductPrice = getNextCustomerProductPrice(product);
       return Number.isFinite(nextPrice) && nextPrice >= 0 && Number.isFinite(nextCustomerProductPrice) && nextCustomerProductPrice >= 0;
     });
     const changedPrices = validProducts.filter((product) => {
       const nextPrice = Number(priceMap[product.id] || 0);
-      const nextCustomerProductPrice = Number(customerProductPriceMap[product.id] || 0);
+      const nextCustomerProductPrice = getNextCustomerProductPrice(product);
       const currentPrice = existingPriceMap[product.id] ?? vehicleBasePriceMap[product.id] ?? Number(product.unitPrice || 0);
       const currentCustomerProductPrice = existingCustomerProductPriceMap[product.id] ?? currentPrice;
       return nextPrice !== currentPrice || nextCustomerProductPrice !== currentCustomerProductPrice;
@@ -196,7 +197,7 @@ export default function VehiclePricesPage() {
             prices: productsToSave.map((product) => ({
               productId: product.id,
               price: Number(priceMap[product.id] || 0),
-              customerProductPrice: Number(customerProductPriceMap[product.id] || priceMap[product.id] || 0)
+              customerProductPrice: Number(priceMap[product.id] || 0)
             }))
           })
         });
@@ -209,7 +210,7 @@ export default function VehiclePricesPage() {
             customerId: priceModal.customer!.id,
             productId: product.id,
             price: Number(priceMap[product.id] || 0),
-            customerProductPrice: Number(customerProductPriceMap[product.id] || priceMap[product.id] || 0),
+            customerProductPrice: getNextCustomerProductPrice(product),
             notes: "Vehicle dashboard product price"
           })
         })));
@@ -349,22 +350,29 @@ export default function VehiclePricesPage() {
                       {priceModal.mode === "view" ? (
                         <span className="grid shrink-0 gap-1 text-right text-sm">
                           <span className="font-semibold">{formatAmount(customerProductPriceMap[product.id] ?? priceMap[product.id] ?? product.unitPrice)}</span>
-                          <span className="text-xs text-muted">Custom {formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
+                          <span className="text-xs text-muted">Customer {formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
                         </span>
+                      ) : priceModal.mode === "bulk" ? (
+                        <label className="grid shrink-0 gap-1 text-[11px] font-semibold uppercase text-muted">
+                          Customer Display Price
+                          <input
+                            className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
+                            min="0"
+                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                            type="number"
+                            value={priceMap[product.id] ?? String(product.unitPrice)}
+                          />
+                        </label>
                       ) : (
                         <div className="grid shrink-0 gap-2">
                           <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
                             Customer Display Price
-                            <input
-                              className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
-                              min="0"
-                              onChange={(event) => setCustomerProductPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                              type="number"
-                              value={customerProductPriceMap[product.id] ?? String(product.unitPrice)}
-                            />
+                            <span className="grid h-10 w-32 place-items-center rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink">
+                              {formatAmount(priceMap[product.id] ?? product.unitPrice)}
+                            </span>
                           </label>
                           <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
-                            Custom Price
+                            Customer Price
                             <input
                               className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
                               min="0"
@@ -392,7 +400,7 @@ export default function VehiclePricesPage() {
                     <th className="px-4 py-3 text-right">Display Price</th>
                     <th className="px-4 py-3 text-right">Vehicle Price</th>
                     <th className="px-4 py-3 text-right">Customer Display Price</th>
-                    <th className="px-4 py-3 text-right">Custom Price</th>
+                    {priceModal.mode === "bulk" ? null : <th className="px-4 py-3 text-right">Customer Price</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -405,20 +413,7 @@ export default function VehiclePricesPage() {
                       <td className="px-4 py-3 text-right">
                         {priceModal.mode === "view" ? (
                           <span className="font-semibold">{formatAmount(customerProductPriceMap[product.id] ?? priceMap[product.id] ?? product.unitPrice)}</span>
-                        ) : (
-                          <input
-                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
-                            min="0"
-                            onChange={(event) => setCustomerProductPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                            type="number"
-                            value={customerProductPriceMap[product.id] ?? String(product.unitPrice)}
-                          />
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {priceModal.mode === "view" ? (
-                          <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
-                        ) : (
+                        ) : priceModal.mode === "bulk" ? (
                           <input
                             className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
                             min="0"
@@ -426,13 +421,32 @@ export default function VehiclePricesPage() {
                             type="number"
                             value={priceMap[product.id] ?? String(product.unitPrice)}
                           />
+                        ) : (
+                          <span className="ml-auto grid h-10 w-32 place-items-center rounded-md border border-line bg-panel2 px-3 text-right font-semibold">
+                            {formatAmount(priceMap[product.id] ?? product.unitPrice)}
+                          </span>
                         )}
                       </td>
+                      {priceModal.mode === "bulk" ? null : (
+                        <td className="px-4 py-3 text-right">
+                          {priceModal.mode === "view" ? (
+                            <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
+                          ) : (
+                            <input
+                              className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
+                              min="0"
+                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                              type="number"
+                              value={priceMap[product.id] ?? String(product.unitPrice)}
+                            />
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {!filteredProducts.length ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-muted" colSpan={6}>No products in this category.</td>
+                      <td className="px-4 py-8 text-center text-muted" colSpan={priceModal.mode === "bulk" ? 5 : 6}>No products in this category.</td>
                     </tr>
                   ) : null}
                 </tbody>
