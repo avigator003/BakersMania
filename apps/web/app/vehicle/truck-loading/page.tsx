@@ -189,7 +189,7 @@ export default function VehicleTruckLoadingPage() {
     ), 0);
     const columns: XlsxColumn[] = [
       { width: 16 },
-      ...exportProducts.map(() => ({ width: 8 })),
+      ...exportProducts.map(() => ({ width: 4 })),
       { width: 7 },
       { width: 9 },
       { width: 7 },

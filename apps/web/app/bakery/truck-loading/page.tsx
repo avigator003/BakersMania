@@ -181,7 +181,7 @@ export default function BakeryTruckLoadingPage() {
     ), 0);
     const columns: XlsxColumn[] = [
       { width: 16 },
-      ...exportProducts.map(() => ({ width: 8 }))
+      ...exportProducts.map(() => ({ width: 4 }))
     ];
     const rows: XlsxRow[] = [
       {
