@@ -124,10 +124,11 @@ export default function VehiclePricesPage() {
     setLoadingPrices(true);
     try {
       const routeId = customer.route?.id || customer.routeId || "";
+      const cacheKey = Date.now();
       const [customerPriceData, routePriceData] = await Promise.all([
-        authFetch<{ ledger: { productPrices: CustomerProductPrice[] } }>(`${apiBase}/customers/${customer.id}/ledger`),
+        authFetch<{ ledger: { productPrices: CustomerProductPrice[] } }>(`${apiBase}/customers/${customer.id}/ledger?_=${cacheKey}`),
         routeId
-          ? authFetch<{ routePrices: RouteProductPrice[] }>(`${apiBase}/catalog/route-prices?routeId=${encodeURIComponent(routeId)}`)
+          ? authFetch<{ routePrices: RouteProductPrice[] }>(`${apiBase}/catalog/route-prices?routeId=${encodeURIComponent(routeId)}&_=${cacheKey}`)
           : Promise.resolve({ routePrices: [] })
       ]);
       const existing = new Map(customerPriceData.ledger.productPrices.map((price) => [price.productId, Number(price.price || 0)]));
@@ -155,14 +156,32 @@ export default function VehiclePricesPage() {
     setVehicleBasePriceMap({});
   }
 
-  function openAssignAllPrices() {
+  async function openAssignAllPrices() {
+    if (!apiBase) return;
     setPriceModal({ mode: "bulk" });
     setCategoryFilter("");
+    setLoadingPrices(true);
     setExistingPriceMap({});
     setExistingCustomerProductPriceMap({});
     setVehicleBasePriceMap({});
-    setPriceMap(Object.fromEntries(products.map((product) => [product.id, String(Number(product.unitPrice || 0))])));
-    setCustomerProductPriceMap(Object.fromEntries(products.map((product) => [product.id, String(Number(product.unitPrice || 0))])));
+    try {
+      const cacheKey = Date.now();
+      const sampleCustomer = customers[0];
+      const customerPriceData = sampleCustomer
+        ? await authFetch<{ ledger: { productPrices: CustomerProductPrice[] } }>(`${apiBase}/customers/${sampleCustomer.id}/ledger?_=${cacheKey}`)
+        : { ledger: { productPrices: [] } };
+      const existing = new Map(customerPriceData.ledger.productPrices.map((price) => [price.productId, Number(price.price || 0)]));
+      const existingCustomerProduct = new Map(customerPriceData.ledger.productPrices.map((price) => [price.productId, price.customerProductPrice === null || price.customerProductPrice === undefined ? undefined : Number(price.customerProductPrice || 0)]));
+      setExistingPriceMap(Object.fromEntries(existing.entries()));
+      setExistingCustomerProductPriceMap(Object.fromEntries(Array.from(existingCustomerProduct.entries()).filter((entry): entry is [string, number] => entry[1] !== undefined)));
+      setPriceMap(Object.fromEntries(products.map((product) => [product.id, String(existingCustomerProduct.get(product.id) ?? existing.get(product.id) ?? Number(product.unitPrice || 0))])));
+      setCustomerProductPriceMap(Object.fromEntries(products.map((product) => [product.id, String(existingCustomerProduct.get(product.id) ?? existing.get(product.id) ?? Number(product.unitPrice || 0))])));
+    } catch (error) {
+      toast.error("Could not load assigned prices", error instanceof Error ? error.message : "Please try again.");
+      resetPriceModal();
+    } finally {
+      setLoadingPrices(false);
+    }
   }
 
   async function savePrices() {
@@ -379,13 +398,9 @@ export default function VehiclePricesPage() {
                         <div className="grid shrink-0 gap-2">
                           <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
                             Customer Display Price
-                            <input
-                              className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
-                              min="0"
-                              onChange={(event) => setCustomerProductPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                              type="number"
-                              value={customerProductPriceMap[product.id] ?? String(product.unitPrice)}
-                            />
+                            <span className="grid h-10 w-32 place-items-center rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink">
+                              {formatAmount(customerProductPriceMap[product.id] ?? product.unitPrice)}
+                            </span>
                           </label>
                           <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
                             Customer Price
@@ -438,13 +453,9 @@ export default function VehiclePricesPage() {
                             value={priceMap[product.id] ?? String(product.unitPrice)}
                           />
                         ) : (
-                          <input
-                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
-                            min="0"
-                            onChange={(event) => setCustomerProductPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                            type="number"
-                            value={customerProductPriceMap[product.id] ?? String(product.unitPrice)}
-                          />
+                          <span className="ml-auto grid h-10 w-32 place-items-center rounded-md border border-line bg-panel2 px-3 text-right font-semibold">
+                            {formatAmount(customerProductPriceMap[product.id] ?? product.unitPrice)}
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">

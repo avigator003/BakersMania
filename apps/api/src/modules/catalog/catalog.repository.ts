@@ -340,12 +340,14 @@ export const catalogRepository = {
     }));
     const writableAssignments = assignments.filter((assignment) => input.overwriteExisting || !assignment.existing);
 
-    let created = 0;
-    let updated = 0;
-    const batchSize = 150;
-    for (let index = 0; index < writableAssignments.length; index += batchSize) {
-      const batch = writableAssignments.slice(index, index + batchSize);
-      const result = await prisma.$transaction(async (tx) => {
+    const batchSize = 50;
+    const batchConcurrency = 4;
+    const batches = Array.from({ length: Math.ceil(writableAssignments.length / batchSize) }, (_, index) => (
+      writableAssignments.slice(index * batchSize, index * batchSize + batchSize)
+    ));
+
+    async function processBatch(batch: typeof writableAssignments) {
+      return prisma.$transaction(async (tx) => {
         let batchCreated = 0;
         let batchUpdated = 0;
         for (const assignment of batch) {
@@ -394,10 +396,25 @@ export const catalogRepository = {
           }
         }
         return { created: batchCreated, updated: batchUpdated };
-      }, { timeout: 15000 });
-      created += result.created;
-      updated += result.updated;
+      }, { timeout: 30000 });
     }
+
+    let nextBatchIndex = 0;
+    const workers = Array.from({ length: Math.min(batchConcurrency, batches.length) }, async () => {
+      let created = 0;
+      let updated = 0;
+      while (nextBatchIndex < batches.length) {
+        const batch = batches[nextBatchIndex];
+        nextBatchIndex += 1;
+        const result = await processBatch(batch);
+        created += result.created;
+        updated += result.updated;
+      }
+      return { created, updated };
+    });
+    const results = await Promise.all(workers);
+    const created = results.reduce((sum, result) => sum + result.created, 0);
+    const updated = results.reduce((sum, result) => sum + result.updated, 0);
 
     return {
       customers: customers.length,
