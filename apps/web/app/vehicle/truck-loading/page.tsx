@@ -52,6 +52,10 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
+function roundAmount(value?: string | number | null) {
+  return Math.round(Number(value || 0));
+}
+
 function formatExcelDate(value: string) {
   const [year, month, day] = value.split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
@@ -166,10 +170,10 @@ export default function VehicleTruckLoadingPage() {
 
   const totalQuantity = useMemo(() => visibleRoutes.reduce((sum, route) => sum + routeTotal(route), 0), [visibleProducts, visibleRoutes]);
   const amountTotals = useMemo(() => ({
-    orderAmount: visibleRoutes.reduce((sum, route) => sum + Number(route.orderAmount || 0), 0),
-    previousDue: visibleRoutes.reduce((sum, route) => sum + Number(route.previousDue || 0), 0),
-    paidAmount: visibleRoutes.reduce((sum, route) => sum + Number(route.paidAmount || 0), 0),
-    todaysDue: visibleRoutes.reduce((sum, route) => sum + Number(route.todaysDue || 0), 0)
+    orderAmount: visibleRoutes.reduce((sum, route) => sum + roundAmount(route.orderAmount), 0),
+    previousDue: visibleRoutes.reduce((sum, route) => sum + roundAmount(route.previousDue), 0),
+    paidAmount: visibleRoutes.reduce((sum, route) => sum + roundAmount(route.paidAmount), 0),
+    todaysDue: visibleRoutes.reduce((sum, route) => sum + roundAmount(route.todaysDue), 0)
   }), [visibleRoutes]);
 
   function exportTruckLoading() {
@@ -220,10 +224,10 @@ export default function VehicleTruckLoadingPage() {
           cells: [
             { value: route.name, style: "name" as const },
             ...exportProducts.map((product) => ({ value: route.quantities[product.id] || null })),
-            { value: route.orderAmount || null, style: "amount" as const },
-            { value: route.previousDue || null, style: "amount" as const },
-            { value: route.paidAmount || null, style: "amount" as const },
-            { value: route.todaysDue || null, style: "amount" as const }
+            { value: roundAmount(route.orderAmount) || null, style: "amount" as const },
+            { value: roundAmount(route.previousDue) || null, style: "amount" as const },
+            { value: roundAmount(route.paidAmount) || null, style: "amount" as const },
+            { value: roundAmount(route.todaysDue) || null, style: "amount" as const }
           ]
         };
       }),

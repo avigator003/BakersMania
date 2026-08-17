@@ -714,13 +714,13 @@ export default function BakeryOrdersPage() {
         ["Customers", statement.totals.customers],
         ["Orders", statement.totals.orders],
         ["Previous Due Amount", 0],
-        ["Order Amount", statement.totals.orderTotal],
-        ["Total Amount", statement.totals.orderTotal],
-        ["Paid Amount", statement.totals.paidTotal],
-        ["Today's Due Amount", statement.totals.dueTotal],
+        ["Order Amount", roundAmount(statement.totals.orderTotal)],
+        ["Total Amount", roundAmount(statement.totals.orderTotal)],
+        ["Paid Amount", roundAmount(statement.totals.paidTotal)],
+        ["Today's Due Amount", roundAmount(statement.totals.dueTotal)],
         [],
         ["Route", "Customer", "Orders", "Previous Due Amount", "Order Amount", "Total Amount", "Paid Amount", "Today's Due Amount"],
-        ...statement.rows.map((row) => [row.routeName, row.customerName, row.orderCount, 0, row.orderTotal, row.orderTotal, row.paidTotal, row.dueTotal])
+        ...statement.rows.map((row) => [row.routeName, row.customerName, row.orderCount, 0, roundAmount(row.orderTotal), roundAmount(row.orderTotal), roundAmount(row.paidTotal), roundAmount(row.dueTotal)])
       ];
       downloadFile(rows.map((row) => row.map(csvCell).join(",")).join("\n"), "text/csv;charset=utf-8", `route-statement-${statement.startDate}.csv`);
       toast.success("Statement exported", `${statement.rows.length} customer row${statement.rows.length === 1 ? "" : "s"} downloaded.`);
