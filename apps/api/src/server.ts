@@ -19,8 +19,12 @@ async function cleanupExpiredPendingOrders() {
 }
 
 async function startServer() {
-  const preload = await preloadTenantPrismaClients(platformPrisma);
-  console.log(`Loaded ${preload.loaded} tenant database client${preload.loaded === 1 ? "" : "s"} into memory`);
+  try {
+    const preload = await preloadTenantPrismaClients(platformPrisma);
+    console.log(`Loaded ${preload.loaded} tenant database client${preload.loaded === 1 ? "" : "s"} into memory`);
+  } catch (error) {
+    console.warn("Tenant database preload skipped", error);
+  }
 
   app.listen(env.API_PORT, () => {
     console.log(`BakersMania API listening on http://localhost:${env.API_PORT}`);

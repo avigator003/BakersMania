@@ -144,14 +144,8 @@ export const catalogService = {
       if (!customer.routeId || !allowedRouteIds.has(customer.routeId)) {
         throw new HttpError(403, "Customer is not assigned to this vehicle");
       }
-      const [existingPrice, routePrice] = await Promise.all([
-        catalogRepository.findCustomerProductPrice(tenantId, input.productId, input.customerId),
-        catalogRepository.findRouteProductPrice(tenantId, input.productId, customer.routeId)
-      ]);
-      const preservedBasePrice = Number(existingPrice?.price ?? routePrice?.price ?? product.unitPrice);
       return catalogRepository.upsertCustomerPrice(tenantId, {
         ...input,
-        price: preservedBasePrice,
         customerProductPrice: input.customerProductPrice ?? input.price
       });
     }

@@ -51,7 +51,7 @@ export async function preloadTenantPrismaClients(platformPrisma: PrismaClient) {
     }
   });
 
-  await Promise.all(
+  const preloadResults = await Promise.allSettled(
     tenants.map(async (tenant) => {
       if (!tenant.postgresConnectionId || !tenant.postgresConnection) return;
       if (tenantClients.has(tenant.postgresConnectionId)) return;
@@ -64,7 +64,12 @@ export async function preloadTenantPrismaClients(platformPrisma: PrismaClient) {
     })
   );
 
-  return { loaded: tenantClients.size };
+  const failed = preloadResults.filter((result) => result.status === "rejected");
+  if (failed.length) {
+    console.warn(`Skipped ${failed.length} tenant database client${failed.length === 1 ? "" : "s"} that could not connect`);
+  }
+
+  return { loaded: tenantClients.size, failed: failed.length };
 }
 
 export async function disconnectTenantPrismaClients() {

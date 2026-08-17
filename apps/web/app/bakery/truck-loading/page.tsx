@@ -192,7 +192,7 @@ export default function BakeryTruckLoadingPage() {
       },
       { height: 12, cells: [] },
       {
-        height: 108,
+        height: 54,
         cells: [
           { value: "Route Name", style: "header" },
           ...exportProducts.map((product) => ({ value: productHeaderName(product.name), style: "header" as const }))

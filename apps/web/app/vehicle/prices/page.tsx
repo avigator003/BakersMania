@@ -49,8 +49,8 @@ type RouteProductPrice = {
 };
 
 type PriceModalState = {
-  customer: Customer;
-  mode: "edit" | "view";
+  customer?: Customer;
+  mode: "edit" | "view" | "bulk";
 };
 
 function formatAmount(value?: string | number | null) {
@@ -146,43 +146,76 @@ export default function VehiclePricesPage() {
     }
   }
 
+  function resetPriceModal() {
+    setPriceModal(null);
+    setPriceMap({});
+    setCustomerProductPriceMap({});
+    setExistingPriceMap({});
+    setExistingCustomerProductPriceMap({});
+    setVehicleBasePriceMap({});
+  }
+
+  function openAssignAllPrices() {
+    setPriceModal({ mode: "bulk" });
+    setCategoryFilter("");
+    setExistingPriceMap({});
+    setExistingCustomerProductPriceMap({});
+    setVehicleBasePriceMap({});
+    setPriceMap(Object.fromEntries(products.map((product) => [product.id, String(Number(product.unitPrice || 0))])));
+    setCustomerProductPriceMap(Object.fromEntries(products.map((product) => [product.id, String(Number(product.unitPrice || 0))])));
+  }
+
   async function savePrices() {
     if (!apiBase || !priceModal) return;
-    const changedPrices = products.filter((product) => {
+    const validProducts = products.filter((product) => {
+      const nextPrice = Number(priceMap[product.id] || 0);
+      const nextCustomerProductPrice = Number(customerProductPriceMap[product.id] || 0);
+      return Number.isFinite(nextPrice) && nextPrice >= 0 && Number.isFinite(nextCustomerProductPrice) && nextCustomerProductPrice >= 0;
+    });
+    const changedPrices = validProducts.filter((product) => {
+      const nextPrice = Number(priceMap[product.id] || 0);
       const nextCustomerProductPrice = Number(customerProductPriceMap[product.id] || 0);
       const currentPrice = existingPriceMap[product.id] ?? vehicleBasePriceMap[product.id] ?? Number(product.unitPrice || 0);
       const currentCustomerProductPrice = existingCustomerProductPriceMap[product.id] ?? currentPrice;
-      return (
-        Number.isFinite(nextCustomerProductPrice) &&
-        nextCustomerProductPrice >= 0 &&
-        nextCustomerProductPrice !== currentCustomerProductPrice
-      );
+      return nextPrice !== currentPrice || nextCustomerProductPrice !== currentCustomerProductPrice;
     });
+    const productsToSave = priceModal.mode === "bulk" ? validProducts : changedPrices;
 
-    if (!changedPrices.length) {
+    if (!productsToSave.length) {
       toast.info("No changes", "Prices are already up to date.");
       return;
     }
 
     setSaving(true);
     try {
-      await Promise.all(changedPrices.map((product) => authFetch(`${apiBase}/catalog/customer-prices`, {
-        method: "POST",
-        body: JSON.stringify({
-          customerId: priceModal.customer.id,
-          productId: product.id,
-          price: Number(priceMap[product.id] || 0),
-          customerProductPrice: Number(customerProductPriceMap[product.id] || priceMap[product.id] || 0),
-          notes: "Vehicle dashboard product price"
-        })
-      })));
-      toast.success("Product prices updated", `${changedPrices.length} product price${changedPrices.length === 1 ? "" : "s"} saved for ${priceModal.customer.name}.`);
-      setPriceModal(null);
-      setPriceMap({});
-      setCustomerProductPriceMap({});
-      setExistingPriceMap({});
-      setExistingCustomerProductPriceMap({});
-      setVehicleBasePriceMap({});
+      if (priceModal.mode === "bulk") {
+        const data = await authFetch<{ result: { customers: number; products: number; created: number; updated: number; skipped: number } }>(`${apiBase}/catalog/customer-prices/assign-route-base`, {
+          method: "POST",
+          body: JSON.stringify({
+            overwriteExisting: true,
+            prices: productsToSave.map((product) => ({
+              productId: product.id,
+              price: Number(priceMap[product.id] || 0),
+              customerProductPrice: Number(customerProductPriceMap[product.id] || priceMap[product.id] || 0)
+            }))
+          })
+        });
+        const changed = data.result.created + data.result.updated;
+        toast.success("Prices assigned", `${changed} product price${changed === 1 ? "" : "s"} applied across ${data.result.customers} customer${data.result.customers === 1 ? "" : "s"}.`);
+      } else if (priceModal.customer) {
+        await Promise.all(productsToSave.map((product) => authFetch(`${apiBase}/catalog/customer-prices`, {
+          method: "POST",
+          body: JSON.stringify({
+            customerId: priceModal.customer!.id,
+            productId: product.id,
+            price: Number(priceMap[product.id] || 0),
+            customerProductPrice: Number(customerProductPriceMap[product.id] || priceMap[product.id] || 0),
+            notes: "Vehicle dashboard product price"
+          })
+        })));
+        toast.success("Product prices updated", `${productsToSave.length} product price${productsToSave.length === 1 ? "" : "s"} saved for ${priceModal.customer.name}.`);
+      }
+      resetPriceModal();
     } catch (error) {
       toast.error("Price update failed", error instanceof Error ? error.message : "Could not save customer prices.");
     } finally {
@@ -200,6 +233,10 @@ export default function VehiclePricesPage() {
               <p className="mt-1 text-sm text-muted">Set customer-specific product prices for customers on this vehicle&apos;s routes.</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={loading || !customers.length || !products.length} onClick={openAssignAllPrices} type="button">
+                <IndianRupee size={16} />
+                Assign Prices to All
+              </button>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadData} title="Refresh" type="button"><RefreshCw size={16} /></button>
             </div>
           </div>
@@ -275,9 +312,9 @@ export default function VehiclePricesPage() {
 
       <Modal
         open={Boolean(priceModal)}
-        title={priceModal?.mode === "view" ? "View product prices" : "Customer Product Prices"}
-        description={priceModal ? priceModal.customer.name : ""}
-        onClose={() => setPriceModal(null)}
+        title={priceModal?.mode === "view" ? "View product prices" : "Customer Display Prices"}
+        description={priceModal?.mode === "bulk" ? `All assigned customers (${customers.length})` : priceModal?.customer?.name || ""}
+        onClose={resetPriceModal}
       >
         {priceModal ? (
           <div className="grid gap-4">
@@ -290,10 +327,10 @@ export default function VehiclePricesPage() {
                 searchPlaceholder="Search categories"
                 value={categoryFilter}
               />
-              {priceModal.mode === "edit" ? (
+              {priceModal.mode !== "view" ? (
                 <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-mint px-4 font-semibold text-white" disabled={saving || loadingPrices} onClick={savePrices} type="button">
                   <IndianRupee size={16} />
-                  {saving ? "Updating..." : "Update Prices"}
+                  {saving ? "Updating..." : priceModal.mode === "bulk" ? "Update All Prices" : "Update Prices"}
                 </button>
               ) : null}
             </div>
@@ -306,18 +343,18 @@ export default function VehiclePricesPage() {
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold">{product.name}</h3>
                         <p className="mt-1 text-xs text-muted">{productCategory(product)}</p>
-                        <p className="mt-1 text-xs text-muted">Bakery base {formatAmount(product.unitPrice)}</p>
-                        <p className="mt-1 text-xs text-muted">Vehicle base {vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</p>
+                        <p className="mt-1 text-xs text-muted">Display Price {formatAmount(product.unitPrice)}</p>
+                        <p className="mt-1 text-xs text-muted">Vehicle Price {vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</p>
                       </div>
                       {priceModal.mode === "view" ? (
                         <span className="grid shrink-0 gap-1 text-right text-sm">
                           <span className="font-semibold">{formatAmount(customerProductPriceMap[product.id] ?? priceMap[product.id] ?? product.unitPrice)}</span>
-                          <span className="text-xs text-muted">Base {formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
+                          <span className="text-xs text-muted">Custom {formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
                         </span>
                       ) : (
                         <div className="grid shrink-0 gap-2">
                           <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
-                            Customer Product Price
+                            Customer Display Price
                             <input
                               className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
                               min="0"
@@ -326,10 +363,16 @@ export default function VehiclePricesPage() {
                               value={customerProductPriceMap[product.id] ?? String(product.unitPrice)}
                             />
                           </label>
-                          <span className="grid gap-1 text-right text-[11px] font-semibold uppercase text-muted">
-                            Customer Base Price
-                            <span className="text-sm text-ink">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
-                          </span>
+                          <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
+                            Custom Price
+                            <input
+                              className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
+                              min="0"
+                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                              type="number"
+                              value={priceMap[product.id] ?? String(product.unitPrice)}
+                            />
+                          </label>
                         </div>
                       )}
                     </div>
@@ -346,10 +389,10 @@ export default function VehiclePricesPage() {
                   <tr>
                     <th className="px-4 py-3">Product</th>
                     <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3 text-right">Bakery Base Price</th>
-                    <th className="px-4 py-3 text-right">Vehicle Base Price</th>
-                    <th className="px-4 py-3 text-right">Customer Product Price</th>
-                    <th className="px-4 py-3 text-right">Customer Base Price</th>
+                    <th className="px-4 py-3 text-right">Display Price</th>
+                    <th className="px-4 py-3 text-right">Vehicle Price</th>
+                    <th className="px-4 py-3 text-right">Customer Display Price</th>
+                    <th className="px-4 py-3 text-right">Custom Price</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -373,7 +416,17 @@ export default function VehiclePricesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
+                        {priceModal.mode === "view" ? (
+                          <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
+                        ) : (
+                          <input
+                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
+                            min="0"
+                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                            type="number"
+                            value={priceMap[product.id] ?? String(product.unitPrice)}
+                          />
+                        )}
                       </td>
                     </tr>
                   ))}
