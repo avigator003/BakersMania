@@ -394,7 +394,7 @@ export const ordersRepository = {
   findOrder(tenantId: string, orderId: string) {
     return prisma.order.findFirst({
       where: { tenantId, id: orderId },
-      include: { payments: true, invoice: true, customer: true, route: true, items: true }
+      include: { payments: true, invoice: true, customer: true, route: true }
     });
   },
 

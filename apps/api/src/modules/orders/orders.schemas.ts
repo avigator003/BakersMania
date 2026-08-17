@@ -39,10 +39,6 @@ export const repeatOrdersSchema = z.object({
   routeId: z.string().optional()
 });
 
-export const completeNextOrderSchema = z.object({
-  targetDate: z.string().min(10).optional()
-});
-
 export const vehicleBakeryOrderSchema = z.object({
   dueAt: z.coerce.date(),
   notes: z.string().optional(),
@@ -74,7 +70,6 @@ export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type RepeatOrdersInput = z.infer<typeof repeatOrdersSchema>;
-export type CompleteNextOrderInput = z.infer<typeof completeNextOrderSchema>;
 export type VehicleBakeryOrderInput = z.infer<typeof vehicleBakeryOrderSchema>;
 export type RouteInvoicePaymentInput = z.infer<typeof routeInvoicePaymentSchema>;
 export type RouteInvoiceLockInput = z.infer<typeof routeInvoiceLockSchema>;

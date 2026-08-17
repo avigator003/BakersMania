@@ -431,25 +431,6 @@ export default function VehicleRoutesPage() {
     }
   }
 
-  async function completeAndCreateNextOrder(order: Order) {
-    if (!apiBase) return;
-    const targetDate = localDateInput(addLocalDays(new Date(`${orderDateKey(order)}T00:00:00`), 1));
-    setSaving(true);
-    try {
-      await authFetch(`${apiBase}/orders/${order.id}/complete-next`, {
-        method: "POST",
-        body: JSON.stringify({ targetDate })
-      });
-      toast.success("Next order created", `${order.customer.name} was completed and copied to ${targetDate}.`);
-      setDate(targetDate);
-      await loadData();
-    } catch (error) {
-      toast.error("Next order failed", error instanceof Error ? error.message : "Could not complete and copy this order.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function saveOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!apiBase || !editOrder) return;
@@ -704,7 +685,6 @@ export default function VehicleRoutesPage() {
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => setDetailOrder(order)} type="button"><Eye size={14} /> Details</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" onClick={() => exportOrderPdf(order)} type="button"><Download size={14} /> Invoice PDF</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold" disabled={saving} onClick={() => openEditOrder(order)} type="button"><Pencil size={14} /> Edit</button>
-                  <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-line bg-panel px-3 py-2 text-xs font-semibold disabled:opacity-50" disabled={saving || vehicleStatusValue(order) === "COMPLETED"} onClick={() => completeAndCreateNextOrder(order)} type="button"><Plus size={14} /> Complete + Next</button>
                   <button className="focus-ring inline-flex items-center justify-center gap-1 rounded-md border border-berry/30 bg-berry/10 px-3 py-2 text-xs font-semibold text-berry disabled:opacity-50" disabled={saving} onClick={() => setDeleteOrder(order)} type="button"><Trash2 size={14} /> Delete</button>
                   <select
                     className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleStatusClass(order)}`}
@@ -758,7 +738,6 @@ export default function VehicleRoutesPage() {
                           <button aria-label="Order details" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2" onClick={() => setDetailOrder(order)} title="Order details" type="button"><Eye size={14} /></button>
                           <button aria-label="Invoice PDF" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2" onClick={() => exportOrderPdf(order)} title="Invoice PDF" type="button"><Download size={14} /></button>
                           <button aria-label="Edit order" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={saving} onClick={() => openEditOrder(order)} title="Edit order" type="button"><Pencil size={14} /></button>
-                          <button aria-label="Complete and create next order" className="focus-ring grid place-items-center rounded-md border border-line bg-panel2 disabled:opacity-50" disabled={saving || vehicleStatusValue(order) === "COMPLETED"} onClick={() => completeAndCreateNextOrder(order)} title="Complete and create next order" type="button"><Plus size={14} /></button>
                           <button aria-label="Delete order" className="focus-ring grid place-items-center rounded-md border border-berry/30 bg-berry/10 text-berry disabled:opacity-50" disabled={saving} onClick={() => setDeleteOrder(order)} title="Delete order" type="button"><Trash2 size={14} /></button>
                           <select
                             className={`focus-ring rounded-md border px-3 py-2 text-xs font-semibold outline-none ${vehicleStatusClass(order)}`}

@@ -17,7 +17,7 @@ export const catalogRepository = {
   },
 
   findProduct(tenantId: string, productId: string) {
-    return prisma.product.findFirst({ where: { id: productId, tenantId }, select: { id: true } });
+    return prisma.product.findFirst({ where: { id: productId, tenantId }, select: { id: true, unitPrice: true } });
   },
 
   findProductDetail(tenantId: string, productId: string) {
@@ -55,6 +55,32 @@ export const catalogRepository = {
 
   findCustomer(tenantId: string, customerId: string) {
     return prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true, routeId: true } });
+  },
+
+  findCustomerProductPrice(tenantId: string, productId: string, customerId: string) {
+    return prisma.customerProductPrice.findUnique({
+      where: {
+        tenantId_productId_customerId: {
+          tenantId,
+          productId,
+          customerId
+        }
+      },
+      select: { price: true }
+    });
+  },
+
+  findRouteProductPrice(tenantId: string, productId: string, routeId: string) {
+    return prisma.routeProductPrice.findUnique({
+      where: {
+        tenantId_productId_routeId: {
+          tenantId,
+          productId,
+          routeId
+        }
+      },
+      select: { price: true }
+    });
   },
 
   findCustomerForPreferenceAccess(tenantId: string, customerId: string) {

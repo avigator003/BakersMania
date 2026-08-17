@@ -67,10 +67,6 @@ export const ordersController = {
     res.status(201).json({ result: await ordersService.repeatOrders(req.tenant!.id, req.auth, req.body) });
   },
 
-  async completeAndCreateNext(req: Request, res: Response) {
-    res.status(201).json({ result: await ordersService.completeAndCreateNextOrder(req.tenant!.id, req.auth, req.params.orderId, req.body) });
-  },
-
   async createVehicleBakeryOrder(req: Request, res: Response) {
     const order = await ordersService.createVehicleBakeryOrder(req.tenant!.id, req.auth, req.body);
     res.status(201).json({ order });
