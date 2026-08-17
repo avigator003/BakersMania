@@ -20,6 +20,10 @@ type OrderApprovalStatus = "accepted" | "pending";
 type TruckLoadingOrderStatus = OrderApprovalStatus;
 const vehicleBakeryOrderTag = "VEHICLE_BAKERY_ORDER";
 
+function roundAmount(value: unknown) {
+  return Math.round(Number(value || 0));
+}
+
 function routeScope(routeIds: string[]): Prisma.OrderWhereInput {
   return {
     OR: [
@@ -569,15 +573,15 @@ export const ordersRepository = {
       GROUP BY "routeId"
     `;
     return rows.map((row) => {
-      const previousDue = Number(row.previousDue || 0);
-      const orderAmount = Number(row.orderAmount || 0);
-      const paidAmount = Number(row.paidAmount || 0);
+      const previousDue = roundAmount(row.previousDue);
+      const orderAmount = roundAmount(row.orderAmount);
+      const paidAmount = roundAmount(row.paidAmount);
       return {
         routeId: row.routeId,
         previousDue,
         orderAmount,
         paidAmount,
-        todaysDue: Math.max(previousDue + orderAmount - paidAmount, 0)
+        todaysDue: roundAmount(Math.max(previousDue + orderAmount - paidAmount, 0))
       };
     });
   },
@@ -642,15 +646,15 @@ export const ordersRepository = {
       GROUP BY "customerId"
     `;
     return rows.map((row) => {
-      const previousDue = Number(row.previousDue || 0);
-      const orderAmount = Number(row.orderAmount || 0);
-      const paidAmount = Number(row.paidAmount || 0);
+      const previousDue = roundAmount(row.previousDue);
+      const orderAmount = roundAmount(row.orderAmount);
+      const paidAmount = roundAmount(row.paidAmount);
       return {
         customerId: row.customerId,
         previousDue,
         orderAmount,
         paidAmount,
-        todaysDue: Math.max(previousDue + orderAmount - paidAmount, 0)
+        todaysDue: roundAmount(Math.max(previousDue + orderAmount - paidAmount, 0))
       };
     });
   },
@@ -942,10 +946,10 @@ export const ordersRepository = {
       routeName: row.routeName,
       customerCount: Number(row.customerCount || 0),
       pricedProductCount: Number(row.pricedProductCount || 0),
-      orderAmount: Number(row.orderAmount || 0),
-      oldDue: Number(row.oldDue || 0),
-      paidAmount: Number(row.paidAmount || 0),
-      totalDue: Number(row.totalDue || 0),
+      orderAmount: roundAmount(row.orderAmount),
+      oldDue: roundAmount(row.oldDue),
+      paidAmount: roundAmount(row.paidAmount),
+      totalDue: roundAmount(row.totalDue),
       locked: false
     }));
     const locks = await prisma.routeOrderLock.findMany({

@@ -167,7 +167,11 @@ export default function VehiclePricesPage() {
 
   async function savePrices() {
     if (!apiBase || !priceModal) return;
-    const getNextCustomerProductPrice = (product: Product) => Number(priceMap[product.id] || 0);
+    const getNextCustomerProductPrice = (product: Product) => (
+      priceModal.mode === "bulk"
+        ? Number(priceMap[product.id] || 0)
+        : Number(customerProductPriceMap[product.id] || 0)
+    );
     const validProducts = products.filter((product) => {
       const nextPrice = Number(priceMap[product.id] || 0);
       const nextCustomerProductPrice = getNextCustomerProductPrice(product);
@@ -353,23 +357,35 @@ export default function VehiclePricesPage() {
                           <span className="text-xs text-muted">Customer {formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
                         </span>
                       ) : priceModal.mode === "bulk" ? (
-                        <label className="grid shrink-0 gap-1 text-[11px] font-semibold uppercase text-muted">
-                          Customer Display Price
-                          <input
-                            className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
-                            min="0"
-                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                            type="number"
-                            value={priceMap[product.id] ?? String(product.unitPrice)}
-                          />
-                        </label>
+                        <div className="grid shrink-0 gap-2">
+                          <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
+                            Customer Display Price
+                            <input
+                              className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
+                              min="0"
+                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                              type="number"
+                              value={priceMap[product.id] ?? String(product.unitPrice)}
+                            />
+                          </label>
+                          <span className="grid gap-1 text-right text-[11px] font-semibold uppercase text-muted">
+                            Customer Price
+                            <span className="grid h-10 w-32 place-items-center rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink">
+                              {formatAmount(priceMap[product.id] ?? product.unitPrice)}
+                            </span>
+                          </span>
+                        </div>
                       ) : (
                         <div className="grid shrink-0 gap-2">
                           <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
                             Customer Display Price
-                            <span className="grid h-10 w-32 place-items-center rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink">
-                              {formatAmount(priceMap[product.id] ?? product.unitPrice)}
-                            </span>
+                            <input
+                              className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
+                              min="0"
+                              onChange={(event) => setCustomerProductPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                              type="number"
+                              value={customerProductPriceMap[product.id] ?? String(product.unitPrice)}
+                            />
                           </label>
                           <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
                             Customer Price
@@ -400,7 +416,7 @@ export default function VehiclePricesPage() {
                     <th className="px-4 py-3 text-right">Display Price</th>
                     <th className="px-4 py-3 text-right">Vehicle Price</th>
                     <th className="px-4 py-3 text-right">Customer Display Price</th>
-                    {priceModal.mode === "bulk" ? null : <th className="px-4 py-3 text-right">Customer Price</th>}
+                    <th className="px-4 py-3 text-right">Customer Price</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -422,31 +438,33 @@ export default function VehiclePricesPage() {
                             value={priceMap[product.id] ?? String(product.unitPrice)}
                           />
                         ) : (
-                          <span className="ml-auto grid h-10 w-32 place-items-center rounded-md border border-line bg-panel2 px-3 text-right font-semibold">
-                            {formatAmount(priceMap[product.id] ?? product.unitPrice)}
-                          </span>
+                          <input
+                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
+                            min="0"
+                            onChange={(event) => setCustomerProductPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                            type="number"
+                            value={customerProductPriceMap[product.id] ?? String(product.unitPrice)}
+                          />
                         )}
                       </td>
-                      {priceModal.mode === "bulk" ? null : (
-                        <td className="px-4 py-3 text-right">
-                          {priceModal.mode === "view" ? (
-                            <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
-                          ) : (
-                            <input
-                              className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
-                              min="0"
-                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                              type="number"
-                              value={priceMap[product.id] ?? String(product.unitPrice)}
-                            />
-                          )}
-                        </td>
-                      )}
+                      <td className="px-4 py-3 text-right">
+                        {priceModal.mode === "view" || priceModal.mode === "bulk" ? (
+                          <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
+                        ) : (
+                          <input
+                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
+                            min="0"
+                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                            type="number"
+                            value={priceMap[product.id] ?? String(product.unitPrice)}
+                          />
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {!filteredProducts.length ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-muted" colSpan={priceModal.mode === "bulk" ? 5 : 6}>No products in this category.</td>
+                      <td className="px-4 py-8 text-center text-muted" colSpan={6}>No products in this category.</td>
                     </tr>
                   ) : null}
                 </tbody>

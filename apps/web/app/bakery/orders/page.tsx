@@ -112,23 +112,23 @@ function vehicleAccepted(order: Order) {
 }
 
 function financialOrderAmount(order: Order) {
-  return vehicleAccepted(order) ? Number(order.grandTotal || 0) : 0;
+  return vehicleAccepted(order) ? roundAmount(order.grandTotal) : 0;
 }
 
 function financialPaid(order: Order) {
-  return vehicleAccepted(order) ? orderPaid(order) : 0;
+  return vehicleAccepted(order) ? roundAmount(orderPaid(order)) : 0;
 }
 
 function financialDue(order: Order) {
-  return vehicleAccepted(order) ? orderDue(order) : 0;
+  return vehicleAccepted(order) ? roundAmount(orderDue(order)) : 0;
 }
 
 function displayOrderAmount(order: Order) {
-  return Number(order.grandTotal || 0);
+  return roundAmount(order.grandTotal);
 }
 
 function displayPaid(order: Order) {
-  return orderPaid(order);
+  return roundAmount(orderPaid(order));
 }
 
 function dueByCustomer(orders: Order[]) {
@@ -159,16 +159,20 @@ function orderPaid(order: Order) {
   return paymentTotal(order.payments);
 }
 
+function roundAmount(value?: string | number | null) {
+  return Math.round(Number(value || 0));
+}
+
 function orderDue(order: Order) {
   return paymentDue(order.grandTotal, order.payments);
 }
 
 function totalAmount(previousDue: number, orderAmount: string | number) {
-  return Number(previousDue || 0) + Number(orderAmount || 0);
+  return roundAmount(previousDue) + roundAmount(orderAmount);
 }
 
 function todaysDueAmount(previousDue: number, orderAmount: string | number, paidAmount: string | number) {
-  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
+  return roundAmount(Math.max(totalAmount(previousDue, orderAmount) - roundAmount(paidAmount), 0));
 }
 
 function paymentStatus(order: Order) {

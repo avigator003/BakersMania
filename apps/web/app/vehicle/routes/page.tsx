@@ -79,6 +79,10 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
 }
 
+function roundAmount(value?: string | number | null) {
+  return Math.round(Number(value || 0));
+}
+
 function orderDateKey(order: Order) {
   return (order.dueAt || order.createdAt).slice(0, 10);
 }
@@ -92,11 +96,11 @@ function orderDue(order: Order) {
 }
 
 function totalAmount(previousDue: number, orderAmount: string | number) {
-  return Number(previousDue || 0) + Number(orderAmount || 0);
+  return roundAmount(previousDue) + roundAmount(orderAmount);
 }
 
 function todaysDueAmount(previousDue: number, orderAmount: string | number, paidAmount: string | number) {
-  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
+  return roundAmount(Math.max(totalAmount(previousDue, orderAmount) - roundAmount(paidAmount), 0));
 }
 
 function vehicleAccepted(order: Order) {
@@ -104,15 +108,15 @@ function vehicleAccepted(order: Order) {
 }
 
 function financialOrderAmount(order: Order) {
-  return vehicleAccepted(order) ? Number(order.grandTotal || 0) : 0;
+  return vehicleAccepted(order) ? roundAmount(order.grandTotal) : 0;
 }
 
 function financialPaid(order: Order) {
-  return vehicleAccepted(order) ? orderPaid(order) : 0;
+  return vehicleAccepted(order) ? roundAmount(orderPaid(order)) : 0;
 }
 
 function financialDue(order: Order) {
-  return vehicleAccepted(order) ? orderDue(order) : 0;
+  return vehicleAccepted(order) ? roundAmount(orderDue(order)) : 0;
 }
 
 function vehicleStatusValue(order: Order) {

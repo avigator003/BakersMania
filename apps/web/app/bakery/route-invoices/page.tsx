@@ -66,12 +66,16 @@ function formatPdfAmount(value?: string | number | null) {
   return `Rs ${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+function roundAmount(value?: string | number | null) {
+  return Math.round(Number(value || 0));
+}
+
 function totalAmount(previousDue: number, orderAmount: number) {
-  return Number(previousDue || 0) + Number(orderAmount || 0);
+  return roundAmount(previousDue) + roundAmount(orderAmount);
 }
 
 function todaysDueAmount(previousDue: number, orderAmount: number, paidAmount: number) {
-  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
+  return roundAmount(Math.max(totalAmount(previousDue, orderAmount) - roundAmount(paidAmount), 0));
 }
 
 function productCategory(price: RoutePrice) {

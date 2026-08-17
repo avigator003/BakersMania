@@ -87,7 +87,7 @@ function paid(order: Order) {
 }
 
 function due(order: Order) {
-  return Math.max(Number(order.grandTotal || 0) - paid(order), 0);
+  return roundAmount(Math.max(roundAmount(order.grandTotal) - roundAmount(paid(order)), 0));
 }
 
 function driverAccepted(order: Order) {
@@ -95,19 +95,23 @@ function driverAccepted(order: Order) {
 }
 
 function financialOrderAmount(order: Order) {
-  return driverAccepted(order) ? Number(order.grandTotal || 0) : 0;
+  return driverAccepted(order) ? roundAmount(order.grandTotal) : 0;
 }
 
 function financialPaid(order: Order) {
-  return driverAccepted(order) ? paid(order) : 0;
+  return driverAccepted(order) ? roundAmount(paid(order)) : 0;
+}
+
+function roundAmount(value?: string | number | null) {
+  return Math.round(Number(value || 0));
 }
 
 function totalAmount(previousDue: number, orderAmount: string | number) {
-  return Number(previousDue || 0) + Number(orderAmount || 0);
+  return roundAmount(previousDue) + roundAmount(orderAmount);
 }
 
 function todaysDueAmount(previousDue: number, orderAmount: string | number, paidAmount: string | number) {
-  return Math.max(totalAmount(previousDue, orderAmount) - Number(paidAmount || 0), 0);
+  return roundAmount(Math.max(totalAmount(previousDue, orderAmount) - roundAmount(paidAmount), 0));
 }
 
 function productCategory(product: Product) {
