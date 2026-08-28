@@ -358,7 +358,7 @@ export const ordersRepository = {
         ...(filters.categoryId && filters.categoryId !== "all" ? { categoryId: filters.categoryId } : {})
       },
       include: { categoryRef: true },
-      orderBy: [{ updatedAt: "asc" }, { name: "asc" }]
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }]
     });
   },
 
@@ -370,7 +370,7 @@ export const ordersRepository = {
         ...(filters.routeIds?.length ? { id: { in: filters.routeIds } } : {})
       },
       include: { _count: { select: { customers: true } } },
-      orderBy: [{ updatedAt: "asc" }, { name: "asc" }]
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }]
     });
   },
 
@@ -381,7 +381,7 @@ export const ordersRepository = {
         ...(filters.routeIds?.length ? { routeId: { in: filters.routeIds } } : {})
       },
       include: { route: true },
-      orderBy: [{ updatedAt: "asc" }, { name: "asc" }]
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }]
     });
   },
 

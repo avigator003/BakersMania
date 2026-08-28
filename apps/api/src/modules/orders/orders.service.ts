@@ -38,10 +38,10 @@ function financiallyAccepted(order: { status?: string | null; vehicleStatus?: st
 
 const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 
-function updatedAscending(a: { updatedAt?: Date | string | null; name: string }, b: { updatedAt?: Date | string | null; name: string }) {
+function updatedDescending(a: { updatedAt?: Date | string | null; name: string }, b: { updatedAt?: Date | string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
+  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
 function newestDate(current: Date | string | null | undefined, candidate: Date | string | null | undefined) {
@@ -51,7 +51,7 @@ function newestDate(current: Date | string | null | undefined, candidate: Date |
 }
 
 function productSort(a: { name: string; category: string; updatedAt?: Date | string | null }, b: { name: string; category: string; updatedAt?: Date | string | null }) {
-  return updatedAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
+  return updatedDescending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 function customerDefaultDueAt() {
@@ -680,7 +680,7 @@ export const ordersService = {
     const routes = Array.from(routeMap.values()).map((row) => {
       const { customerIds, ...route } = row;
       return { ...route, customerCount: Math.max(route.customerCount, customerIds.size) };
-    }).sort(updatedAscending);
+    }).sort(updatedDescending);
     return {
       date: filters.date,
       products,

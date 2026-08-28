@@ -57,14 +57,14 @@ function compactRowName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 10);
 }
 
-function updatedAscending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
+function updatedDescending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
   const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
+  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
 function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return updatedAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
+  return updatedDescending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 export default function BakeryTruckLoadingPage() {
@@ -120,7 +120,7 @@ export default function BakeryTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedAscending), [truckLoading]);
+  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedDescending), [truckLoading]);
 
   const routeOptions = useMemo(() => sortedRoutes.map((route) => ({
     value: route.id,
