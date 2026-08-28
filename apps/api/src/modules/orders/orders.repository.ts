@@ -722,6 +722,8 @@ export const ordersRepository = {
     items: CalculatedOrderItem[];
     routeId?: string | null;
     pipelineStage?: OrderPipelineStage | null;
+    status?: OrderStatus;
+    vehicleStatus?: VehicleOrderStatus;
   }) {
     return prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
@@ -730,6 +732,8 @@ export const ordersRepository = {
           tenantId: input.tenantId,
           customerId: input.customerId,
           routeId: input.routeId || undefined,
+          ...(input.status ? { status: input.status } : {}),
+          ...(input.vehicleStatus ? { vehicleStatus: input.vehicleStatus } : {}),
           ...input.totals,
           pipelineStageKey: input.pipelineStage?.key,
           pipelineStageActor: input.pipelineStage?.actorType,

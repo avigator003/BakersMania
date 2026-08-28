@@ -398,12 +398,16 @@ export const ordersService = {
   },
 
   async createVehicleBakeryOrder(tenantId: string, auth: AccessTokenPayload | undefined, input: VehicleBakeryOrderInput) {
-    if (auth?.actorType !== "vehicle" || !auth.vehicleId) {
-      throw new HttpError(403, "Vehicle workspace access required");
+    if (auth?.actorType !== "vehicle" && auth?.actorType !== "bakery_user") {
+      throw new HttpError(403, "Vehicle or bakery access required");
     }
-    const vehicle = await ordersRepository.findVehicleRoutes(tenantId, auth.vehicleId);
+    const vehicleId = auth?.actorType === "vehicle" ? auth.vehicleId : input.vehicleId;
+    if (!vehicleId) {
+      throw new HttpError(422, "Vehicle is required");
+    }
+    const vehicle = await ordersRepository.findVehicleRoutes(tenantId, vehicleId);
     if (!vehicle) {
-      throw new HttpError(403, "Vehicle workspace access required");
+      throw new HttpError(403, "Selected vehicle is not available");
     }
     const route = vehicle.routes[0];
     if (!route) {
@@ -421,7 +425,7 @@ export const ordersService = {
     };
     const payload = await buildOrderPayload(tenantId, customer.id, orderInput, { useRoutePrice: true });
     const pipelineStages = await pipelineStagesForTenant(tenantId);
-    const pipelineStage = nextStageAfterActor(pipelineStages, "VEHICLE");
+    const pipelineStage = nextStageAfterActor(pipelineStages, auth?.actorType === "bakery_user" ? "BAKERY" : "VEHICLE");
     const existing = await ordersRepository.findCustomerOrderOnDate(tenantId, customer.id, input.dueAt);
     if (existing) {
       throw new HttpError(409, "Only one bakery order is allowed for the selected date. Edit the pending bakery order instead.");
@@ -434,7 +438,9 @@ export const ordersService = {
       orderInput: payload.orderInput,
       totals: payload.totals,
       items: payload.items,
-      pipelineStage
+      pipelineStage,
+      vehicleStatus: "ACCEPTED",
+      ...(auth?.actorType === "bakery_user" ? { status: "ACCEPTED" as const } : {})
     });
   },
 

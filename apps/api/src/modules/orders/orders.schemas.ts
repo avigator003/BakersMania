@@ -40,6 +40,7 @@ export const repeatOrdersSchema = z.object({
 });
 
 export const vehicleBakeryOrderSchema = z.object({
+  vehicleId: z.string().optional(),
   dueAt: z.coerce.date(),
   notes: z.string().optional(),
   items: orderItemsSchema

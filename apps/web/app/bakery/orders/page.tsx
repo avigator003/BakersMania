@@ -14,6 +14,7 @@ import { fetchAllProducts } from "../../../lib/catalog";
 
 type Route = { id: string; name: string };
 type Customer = { id: string; name: string; phone?: string | null; route?: Route | null; tags?: string[] };
+type Vehicle = { id: string; name: string; number?: string | null; driverName?: string | null; active?: boolean; routes?: Route[] };
 type Category = { id: string; name: string };
 type Product = { id: string; name: string; category: string; unitPrice: string; categoryRef?: Category | null };
 type OrderItem = { id: string; productId: string; name: string; quantity: string | number; unitPrice: string | number; lineTotal: string | number };
@@ -37,6 +38,7 @@ type Order = {
   createdAt: string;
 };
 type OrderFormState = {
+  vehicleId: string;
   customerId: string;
   source: string;
   fulfillmentType: string;
@@ -77,6 +79,7 @@ const paymentTypes = [
   { value: "DUE_FULL", label: "Due Full Payment" }
 ];
 const emptyOrderForm: OrderFormState = {
+  vehicleId: "",
   customerId: "",
   source: "STAFF_CREATED",
   fulfillmentType: "DELIVERY",
@@ -237,6 +240,7 @@ export default function BakeryOrdersPage() {
   const [previousOrders, setPreviousOrders] = useState<Order[]>([]);
   const [carryForwardSummary, setCarryForwardSummary] = useState<CarryForwardSummary | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,6 +278,14 @@ export default function BakeryOrdersPage() {
     label: customer.name,
     description: [customer.phone, customer.route?.name || "No route"].filter(Boolean).join(" · ")
   })), [customers]);
+
+  const vehicleOptions = useMemo(() => vehicles
+    .filter((vehicle) => vehicle.active !== false)
+    .map((vehicle) => ({
+      value: vehicle.id,
+      label: vehicle.name,
+      description: [vehicle.number, vehicle.driverName, vehicle.routes?.map((route) => route.name).join(", ")].filter(Boolean).join(" · ")
+    })), [vehicles]);
 
   const routeOptions = useMemo(() => routes.map((route) => ({
     value: route.id,
@@ -352,12 +364,13 @@ export default function BakeryOrdersPage() {
       if (customerFilter.length) previousParams.set("customerIds", customerFilter.join(","));
       if (routeFilter.length) previousParams.set("routeIds", routeFilter.join(","));
       if (search.trim()) previousParams.set("search", search.trim());
-      const [orderData, previousData, customerData, productData, routeData] = await Promise.all([
+      const [orderData, previousData, customerData, productData, routeData, vehicleData] = await Promise.all([
         authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${orderParams.toString()}`),
         authFetch<PaginatedOrdersResponse>(`${apiBase}/orders?${previousParams.toString()}`),
         authFetch<{ customers: Customer[] }>(`${apiBase}/customers?pageSize=100`),
         fetchAllProducts<Product>(apiBase),
-        authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`)
+        authFetch<{ routes: Route[] }>(`${apiBase}/routes?pageSize=100`),
+        authFetch<{ vehicles: Vehicle[] }>(`${apiBase}/routes/vehicles?pageSize=100`)
       ]);
       const effectiveCarryForwardSummary: CarryForwardSummary = {
         previousDue: Array.from(dueByCustomer(previousData.orders).values()).reduce((sum, due) => sum + due, 0)
@@ -374,6 +387,7 @@ export default function BakeryOrdersPage() {
       setPage(orderData.pagination?.page ?? page);
       setPageSize(orderData.pagination?.pageSize ?? pageSize);
       setCustomers(customerData.customers);
+      setVehicles(vehicleData.vehicles);
       setProducts(productData);
       setRoutes(routeData.routes);
     } catch (error) {
@@ -417,6 +431,7 @@ export default function BakeryOrdersPage() {
     }
     setEditOrder(order);
     setEditForm({
+      vehicleId: "",
       customerId: order.customer.id,
       source: order.source,
       fulfillmentType: order.fulfillmentType,
@@ -440,14 +455,16 @@ export default function BakeryOrdersPage() {
       toast.warning("No products selected", "Add at least one product quantity.");
       return;
     }
+    if (!form.vehicleId) {
+      toast.warning("Vehicle required", "Select the vehicle this bakery order is for.");
+      return;
+    }
     setSaving(true);
     try {
-      await authFetch(`${apiBase}/orders`, {
+      await authFetch(`${apiBase}/orders/vehicle-bakery-order`, {
         method: "POST",
         body: JSON.stringify({
-          customerId: form.customerId,
-          source: form.source,
-          fulfillmentType: form.fulfillmentType,
+          vehicleId: form.vehicleId,
           dueAt: form.dueAt,
           notes: form.notes || undefined,
           items
@@ -964,13 +981,11 @@ export default function BakeryOrdersPage() {
         </form>
       </Modal>
 
-      <Modal open={orderOpen} title="Create order" description="Select customer and product quantities. The route is taken from the customer for truck loading." onClose={() => setOrderOpen(false)}>
+      <Modal open={orderOpen} title="Create order" description="Select vehicle and product quantities. The route is taken from the vehicle assignment for truck loading." onClose={() => setOrderOpen(false)}>
         <form className="grid gap-4" onSubmit={createOrder}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <SearchableSelect label="Customer" onChange={(value) => setForm((current) => ({ ...current, customerId: value }))} options={customerOptions} placeholder="Select customer" required searchPlaceholder="Search customers" value={form.customerId} />
+            <SearchableSelect label="Vehicle" onChange={(value) => setForm((current) => ({ ...current, vehicleId: value }))} options={vehicleOptions} placeholder="Select vehicle" required searchPlaceholder="Search vehicles" value={form.vehicleId} />
             <label className="grid gap-1 text-sm font-semibold">Order date<DateInput className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(value) => setForm((current) => ({ ...current, dueAt: value }))} value={form.dueAt} /></label>
-            <label className="grid gap-1 text-sm font-semibold">Source<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, source: event.target.value }))} value={form.source}><option value="STAFF_CREATED">Staff created</option><option value="WHATSAPP">WhatsApp</option><option value="PHONE">Phone</option><option value="WALK_IN">Walk-in</option></select></label>
-            <label className="grid gap-1 text-sm font-semibold">Fulfillment<select className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint" onChange={(event) => setForm((current) => ({ ...current, fulfillmentType: event.target.value }))} value={form.fulfillmentType}><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select></label>
           </div>
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
