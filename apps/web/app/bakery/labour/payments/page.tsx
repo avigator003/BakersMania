@@ -9,6 +9,7 @@ import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
 type PaymentType = "ADVANCE" | "PARTIAL" | "FULL";
+type StatusFilter = "active" | "inactive" | "all";
 
 type SalaryPayment = {
   id: string;
@@ -98,33 +99,38 @@ export default function LabourPaymentsPage() {
   const [paidAt, setPaidAt] = useState(localDateInput());
   const [method, setMethod] = useState("Cash");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiPath = tenantSlug ? `/t/${tenantSlug}/staff` : "";
 
-  const activeLabours = useMemo(() => labours.filter((labour) => labour.active), [labours]);
+  const filteredLabours = useMemo(() => labours.filter((labour) => {
+    if (statusFilter === "active") return labour.active;
+    if (statusFilter === "inactive") return !labour.active;
+    return true;
+  }), [labours, statusFilter]);
   const visibleLabours = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return activeLabours;
-    return activeLabours.filter((labour) =>
+    if (!query) return filteredLabours;
+    return filteredLabours.filter((labour) =>
       [labour.name, labour.phone, labour.skill]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query))
     );
-  }, [activeLabours, search]);
+  }, [filteredLabours, search]);
 
   const draftRows = useMemo(() => {
-    return activeLabours.filter((labour) => Number(draft[labour.id]?.amount || 0) > 0);
-  }, [activeLabours, draft]);
+    return filteredLabours.filter((labour) => Number(draft[labour.id]?.amount || 0) > 0);
+  }, [filteredLabours, draft]);
 
   const totalAmount = useMemo(() => {
     return draftRows.reduce((total, labour) => total + Number(draft[labour.id]?.amount || 0), 0);
   }, [draftRows, draft]);
 
   const paymentSummary = useMemo(() => {
-    return activeLabours.reduce(
+    return filteredLabours.reduce(
       (summary, labour) => {
         const calculation = labour.salaryCalculation;
         summary.payable += Number(calculation?.payableAmount || 0);
@@ -150,13 +156,13 @@ export default function LabourPaymentsPage() {
         unpaidLabours: 0
       }
     );
-  }, [activeLabours]);
+  }, [filteredLabours]);
 
-  async function fetchActiveLabourDashboard(date: string) {
+  async function fetchLabourDashboard(date: string) {
     const buildPath = (page: number) => {
       const params = new URLSearchParams({
         date,
-        status: "active",
+        status: statusFilter,
         page: String(page),
         pageSize: String(labourPageSize)
       });
@@ -186,10 +192,9 @@ export default function LabourPaymentsPage() {
 
     setLoading(true);
     try {
-      const response = await fetchActiveLabourDashboard(`${periodMonth}-01`);
-      const active = response.labours.filter((labour) => labour.active);
+      const response = await fetchLabourDashboard(`${periodMonth}-01`);
       setLabours(response.labours);
-      setDraft(Object.fromEntries(active.map((labour) => [labour.id, emptyDraft()])));
+      setDraft(Object.fromEntries(response.labours.map((labour) => [labour.id, emptyDraft()])));
     } catch (error) {
       toast.error("Could not load payment sheet", error instanceof Error ? error.message : "Please check API and login.");
     } finally {
@@ -199,7 +204,7 @@ export default function LabourPaymentsPage() {
 
   useEffect(() => {
     loadPayments();
-  }, [periodMonth]);
+  }, [periodMonth, statusFilter]);
 
   function updateDraft(labourId: string, patch: Partial<PaymentDraft>) {
     setDraft((current) => ({
@@ -255,6 +260,25 @@ export default function LabourPaymentsPage() {
         <section className="rounded-lg border border-line bg-panel p-3 shadow-subtle">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-end">
             <div className="flex flex-wrap items-end gap-2">
+              <div className="grid gap-1">
+                <span className="text-xs font-semibold text-muted">Labour status</span>
+                <div className="inline-flex rounded-md border border-line bg-panel2 p-1 text-sm font-semibold">
+                  {[
+                    ["active", "Active"],
+                    ["inactive", "Inactive"],
+                    ["all", "All"]
+                  ].map(([value, label]) => (
+                    <button
+                      className={`focus-ring rounded px-3 py-1.5 ${statusFilter === value ? "bg-mint text-white" : "text-muted hover:text-ink"}`}
+                      key={value}
+                      onClick={() => setStatusFilter(value as StatusFilter)}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <label className="grid gap-1">
                 <span className="text-xs font-semibold text-muted">Salary month</span>
                 <input
@@ -295,14 +319,14 @@ export default function LabourPaymentsPage() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Active Labour", activeLabours.length, `${paymentSummary.unpaidLabours} with balance`],
+            ["Labour", filteredLabours.length, `${paymentSummary.unpaidLabours} with balance`],
             ["Total Payable", formatAmount(paymentSummary.payable), `${paymentSummary.payableDays}/${paymentSummary.eligibleDays} payable days`],
             ["Paid This Month", formatAmount(paymentSummary.paid), `Selected: ${formatAmount(totalAmount)}`],
             ["Balance Due", formatAmount(paymentSummary.balance), `Carry forward: ${formatAmount(paymentSummary.carryForward)}`],
             ["Opening Advance", formatAmount(paymentSummary.openingAdvance), `Applied: ${formatAmount(paymentSummary.advanceApplied)}`],
             ["Payment Rows", draftRows.length, `${method} · ${paidAt}`],
-            ["Monthly Salary Base", formatAmount(activeLabours.reduce((sum, labour) => sum + Number(labour.monthlySalary || 0), 0)), monthLabel(periodMonth)],
-            ["Daily Wage Base", formatAmount(activeLabours.reduce((sum, labour) => sum + Number(labour.dailyWage || 0), 0)), "All active labour"]
+            ["Monthly Salary Base", formatAmount(filteredLabours.reduce((sum, labour) => sum + Number(labour.monthlySalary || 0), 0)), monthLabel(periodMonth)],
+            ["Daily Wage Base", formatAmount(filteredLabours.reduce((sum, labour) => sum + Number(labour.dailyWage || 0), 0)), statusFilter === "all" ? "All labour" : `${statusFilter} labour`]
           ].map(([label, value, helper]) => (
             <div className="rounded-lg border border-line bg-panel p-4 shadow-subtle" key={label}>
               <p className="text-xs font-semibold uppercase text-muted">{label}</p>
