@@ -156,7 +156,7 @@ export const catalogRepository = {
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
-        orderBy: [{ active: "desc" }, { updatedAt: "desc" }, { name: "asc" }],
+        orderBy: [{ active: "desc" }, { createdAt: "asc" }, { name: "asc" }],
         include: {
           categoryRef: true,
           ...(filters.customerIdForPreferences
