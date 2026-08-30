@@ -123,6 +123,35 @@ export default function LabourPaymentsPage() {
     return draftRows.reduce((total, labour) => total + Number(draft[labour.id]?.amount || 0), 0);
   }, [draftRows, draft]);
 
+  const paymentSummary = useMemo(() => {
+    return activeLabours.reduce(
+      (summary, labour) => {
+        const calculation = labour.salaryCalculation;
+        summary.payable += Number(calculation?.payableAmount || 0);
+        summary.paid += Number(calculation?.paidAmount || 0);
+        summary.balance += Number(calculation?.balanceAmount || 0);
+        summary.openingAdvance += Number(calculation?.openingAdvanceAmount || 0);
+        summary.advanceApplied += Number(calculation?.advanceAppliedAmount || 0);
+        summary.carryForward += Number(calculation?.carryForwardAmount || 0);
+        summary.payableDays += Number(calculation?.payableDays || 0);
+        summary.eligibleDays += Number(calculation?.eligibleDays || 0);
+        if (Number(calculation?.balanceAmount || 0) > 0) summary.unpaidLabours += 1;
+        return summary;
+      },
+      {
+        payable: 0,
+        paid: 0,
+        balance: 0,
+        openingAdvance: 0,
+        advanceApplied: 0,
+        carryForward: 0,
+        payableDays: 0,
+        eligibleDays: 0,
+        unpaidLabours: 0
+      }
+    );
+  }, [activeLabours]);
+
   async function fetchActiveLabourDashboard(date: string) {
     const buildPath = (page: number) => {
       const params = new URLSearchParams({
@@ -262,6 +291,25 @@ export default function LabourPaymentsPage() {
               </button>
             </div>
           </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Active Labour", activeLabours.length, `${paymentSummary.unpaidLabours} with balance`],
+            ["Total Payable", formatAmount(paymentSummary.payable), `${paymentSummary.payableDays}/${paymentSummary.eligibleDays} payable days`],
+            ["Paid This Month", formatAmount(paymentSummary.paid), `Selected: ${formatAmount(totalAmount)}`],
+            ["Balance Due", formatAmount(paymentSummary.balance), `Carry forward: ${formatAmount(paymentSummary.carryForward)}`],
+            ["Opening Advance", formatAmount(paymentSummary.openingAdvance), `Applied: ${formatAmount(paymentSummary.advanceApplied)}`],
+            ["Payment Rows", draftRows.length, `${method} · ${paidAt}`],
+            ["Monthly Salary Base", formatAmount(activeLabours.reduce((sum, labour) => sum + Number(labour.monthlySalary || 0), 0)), monthLabel(periodMonth)],
+            ["Daily Wage Base", formatAmount(activeLabours.reduce((sum, labour) => sum + Number(labour.dailyWage || 0), 0)), "All active labour"]
+          ].map(([label, value, helper]) => (
+            <div className="rounded-lg border border-line bg-panel p-4 shadow-subtle" key={label}>
+              <p className="text-xs font-semibold uppercase text-muted">{label}</p>
+              <p className="mt-2 text-2xl font-bold text-ink">{value}</p>
+              <p className="mt-1 text-xs text-muted">{helper}</p>
+            </div>
+          ))}
         </section>
 
         <section className="rounded-lg border border-line bg-panel shadow-subtle">
