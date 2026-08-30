@@ -239,8 +239,8 @@ export default function LabourDetailPage() {
     event.preventDefault();
     if (!tenantSlug || !editPayment || !editForm) return;
     const amount = Number(editForm.amount || 0);
-    if (amount <= 0) {
-      toast.warning("Invalid amount", "Amount should be greater than 0.");
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.warning("Invalid amount", "Amount should be 0 or more.");
       return;
     }
 
@@ -475,7 +475,7 @@ export default function LabourDetailPage() {
                 <span className="text-sm font-medium">Amount</span>
                 <input
                   className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
-                  min="1"
+                  min="0"
                   onChange={(event) => setEditForm((current) => current ? { ...current, amount: event.target.value } : current)}
                   type="number"
                   value={editForm.amount}
