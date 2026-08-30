@@ -1,6 +1,6 @@
 import { staffRepository } from "./staff.repository.js";
 import type { LabourDashboardFilters } from "./staff.repository.js";
-import type { AttendanceInput, LabourInput, LabourUpdateInput, SalaryPaymentInput } from "./staff.schemas.js";
+import type { AttendanceInput, LabourInput, LabourUpdateInput, SalaryPaymentInput, SalaryPaymentUpdateInput } from "./staff.schemas.js";
 
 function monthRange(month?: string) {
   const [yearValue, monthValue] = (month || "").split("-").map(Number);
@@ -39,6 +39,7 @@ function yearRange(year?: string) {
 
 const attendanceStatuses = ["PRESENT", "HALF_DAY", "ABSENT", "PAID_LEAVE", "UNPAID_LEAVE"] as const;
 const paymentTypes = ["ADVANCE", "PARTIAL", "FULL"] as const;
+const monthlySalaryDivisor = 30;
 
 function emptyAttendanceCounts() {
   return Object.fromEntries(attendanceStatuses.map((status) => [status, 0])) as Record<(typeof attendanceStatuses)[number], number>;
@@ -89,8 +90,10 @@ function salaryCalculation(input: {
     const eligibleDays = input.joinedAt >= cursorEnd ? 0 : daysBetween(eligibleStart, cursorEnd);
     const payableDays = payableAttendanceDays(input.attendance, input.joinedAt, cursor, cursorEnd);
     const daysInMonth = daysBetween(cursor, cursorEnd);
-    const dailySalary = daysInMonth ? monthlySalary / daysInMonth : 0;
-    const payableAmount = Math.round(dailySalary * payableDays);
+    const dailySalary = monthlySalary ? monthlySalary / monthlySalaryDivisor : 0;
+    const calculatedPayableAmount = Math.round(dailySalary * payableDays);
+    const workedFullMonth = eligibleDays === daysInMonth && payableDays >= eligibleDays;
+    const payableAmount = workedFullMonth ? monthlySalary : Math.min(calculatedPayableAmount, monthlySalary);
     const paidAmount = input.payments
       .filter((payment) => payment.paidAt >= cursor && payment.paidAt < cursorEnd)
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -318,5 +321,9 @@ export const staffService = {
 
   createSalaryPayment(tenantId: string, input: SalaryPaymentInput) {
     return staffRepository.createSalaryPayment(tenantId, input);
+  },
+
+  updateSalaryPayment(tenantId: string, paymentId: string, input: SalaryPaymentUpdateInput) {
+    return staffRepository.updateSalaryPayment(tenantId, paymentId, input);
   }
 };

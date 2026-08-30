@@ -1,9 +1,11 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { IndianRupee, RefreshCw, UserRound } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { IndianRupee, Pencil, RefreshCw, UserRound } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
+import { DateInput } from "../../../../components/date-input";
+import { Modal } from "../../../../components/modal";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
@@ -59,6 +61,16 @@ type LabourDetail = {
   payments: SalaryPayment[];
 };
 
+type PaymentEditForm = {
+  amount: string;
+  paymentType: PaymentType;
+  paidAt: string;
+  method: string;
+  reason: string;
+  reference: string;
+  notes: string;
+};
+
 function currentMonth() {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -85,12 +97,34 @@ function paymentClass(type: PaymentType) {
   return "border-mint/30 bg-mint/10 text-mint";
 }
 
+function dateInputValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function editFormFromPayment(payment: SalaryPayment): PaymentEditForm {
+  return {
+    amount: String(payment.amount || ""),
+    paymentType: payment.paymentType,
+    paidAt: dateInputValue(payment.paidAt),
+    method: payment.method || "Cash",
+    reason: payment.reason || "",
+    reference: payment.reference || "",
+    notes: payment.notes || ""
+  };
+}
+
 export default function LabourDetailPage() {
   const params = useParams<{ labourId: string }>();
   const toast = useToast();
   const [month, setMonth] = useState(currentMonth());
   const [detail, setDetail] = useState<LabourDetail | null>(null);
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("ALL");
+  const [editPayment, setEditPayment] = useState<SalaryPayment | null>(null);
+  const [editForm, setEditForm] = useState<PaymentEditForm | null>(null);
+  const [savingPayment, setSavingPayment] = useState(false);
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
 
   const filteredPayments = useMemo(() => {
@@ -120,6 +154,49 @@ export default function LabourDetailPage() {
   useEffect(() => {
     loadDetail();
   }, [params.labourId]);
+
+  function openPaymentEdit(payment: SalaryPayment) {
+    setEditPayment(payment);
+    setEditForm(editFormFromPayment(payment));
+  }
+
+  function closePaymentEdit() {
+    setEditPayment(null);
+    setEditForm(null);
+  }
+
+  async function savePaymentEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!tenantSlug || !editPayment || !editForm) return;
+    const amount = Number(editForm.amount || 0);
+    if (amount <= 0) {
+      toast.warning("Invalid amount", "Amount should be greater than 0.");
+      return;
+    }
+
+    setSavingPayment(true);
+    try {
+      await authFetch(`/t/${tenantSlug}/staff/salary-payments/${editPayment.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          amount,
+          paymentType: editForm.paymentType,
+          paidAt: editForm.paidAt || undefined,
+          method: editForm.method,
+          reason: editForm.reason,
+          reference: editForm.reference,
+          notes: editForm.notes
+        })
+      });
+      toast.success("Payment updated", "Payment history was corrected.");
+      closePaymentEdit();
+      await loadDetail(month);
+    } catch (error) {
+      toast.error("Payment update failed", error instanceof Error ? error.message : "Could not update payment.");
+    } finally {
+      setSavingPayment(false);
+    }
+  }
 
   return (
     <AppShell title="Bakery CRM" subtitle="Labour monthly salary overview" surface="bakery">
@@ -243,7 +320,7 @@ export default function LabourDetailPage() {
           </div>
           <div className="divide-y divide-line">
             {filteredPayments.map((payment) => (
-              <div className="grid gap-3 p-4 lg:grid-cols-[160px_140px_120px_1fr] lg:items-center" key={payment.id}>
+              <div className="grid gap-3 p-4 lg:grid-cols-[160px_140px_120px_1fr_96px] lg:items-center" key={payment.id}>
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted">Paid At</p>
                   <p className="mt-1 text-sm font-semibold">{formatDateTime(payment.paidAt)}</p>
@@ -263,6 +340,14 @@ export default function LabourDetailPage() {
                   <p><span className="font-semibold text-ink">Reason:</span> {payment.reason || "-"}</p>
                   <p><span className="font-semibold text-ink">Reference:</span> {payment.reference || "-"}</p>
                 </div>
+                <button
+                  className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-3 text-sm font-semibold hover:border-mint"
+                  onClick={() => openPaymentEdit(payment)}
+                  type="button"
+                >
+                  <Pencil size={15} />
+                  Edit
+                </button>
               </div>
             ))}
             {detail && !filteredPayments.length ? (
@@ -270,6 +355,84 @@ export default function LabourDetailPage() {
             ) : null}
           </div>
         </section>
+
+        <Modal open={Boolean(editPayment && editForm)} title="Edit Payment" description="Correct saved labour payment details." onClose={closePaymentEdit}>
+          {editForm ? (
+            <form className="grid gap-3" onSubmit={savePaymentEdit}>
+              <label className="grid gap-1">
+                <span className="text-sm font-medium">Amount</span>
+                <input
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  min="1"
+                  onChange={(event) => setEditForm((current) => current ? { ...current, amount: event.target.value } : current)}
+                  type="number"
+                  value={editForm.amount}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm font-medium">Type</span>
+                <select
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(event) => setEditForm((current) => current ? { ...current, paymentType: event.target.value as PaymentType } : current)}
+                  value={editForm.paymentType}
+                >
+                  <option value="FULL">Full</option>
+                  <option value="PARTIAL">Partial</option>
+                  <option value="ADVANCE">Advance</option>
+                </select>
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm font-medium">Paid date</span>
+                <DateInput
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(value) => setEditForm((current) => current ? { ...current, paidAt: value } : current)}
+                  value={editForm.paidAt}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm font-medium">Method</span>
+                <select
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(event) => setEditForm((current) => current ? { ...current, method: event.target.value } : current)}
+                  value={editForm.method}
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI</option>
+                </select>
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm font-medium">Reason</span>
+                <input
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(event) => setEditForm((current) => current ? { ...current, reason: event.target.value } : current)}
+                  value={editForm.reason}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm font-medium">Reference</span>
+                <input
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(event) => setEditForm((current) => current ? { ...current, reference: event.target.value } : current)}
+                  value={editForm.reference}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm font-medium">Notes</span>
+                <input
+                  className="rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-mint"
+                  onChange={(event) => setEditForm((current) => current ? { ...current, notes: event.target.value } : current)}
+                  value={editForm.notes}
+                />
+              </label>
+              <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button className="focus-ring rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" onClick={closePaymentEdit} type="button">Cancel</button>
+                <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={savingPayment} type="submit">
+                  {savingPayment ? "Saving..." : "Save Payment"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </Modal>
       </div>
     </AppShell>
   );

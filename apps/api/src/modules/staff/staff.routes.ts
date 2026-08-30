@@ -4,7 +4,7 @@ import { resolveTenant } from "../../middleware/tenant.js";
 import { validateBody } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/http.js";
 import { staffController } from "./staff.controller.js";
-import { attendanceSchema, labourSchema, labourUpdateSchema, salaryPaymentSchema } from "./staff.schemas.js";
+import { attendanceSchema, labourSchema, labourUpdateSchema, salaryPaymentSchema, salaryPaymentUpdateSchema } from "./staff.schemas.js";
 
 export const staffRouter = Router({ mergeParams: true });
 
@@ -17,3 +17,4 @@ staffRouter.patch("/labour/:labourId", validateBody(labourUpdateSchema), asyncHa
 staffRouter.get("/labour/:labourId", asyncHandler(staffController.getLabourDetail));
 staffRouter.post("/attendance", validateBody(attendanceSchema), asyncHandler(staffController.createAttendance));
 staffRouter.post("/salary-payments", validateBody(salaryPaymentSchema), asyncHandler(staffController.createSalaryPayment));
+staffRouter.patch("/salary-payments/:paymentId", validateBody(salaryPaymentUpdateSchema), asyncHandler(staffController.updateSalaryPayment));

@@ -51,5 +51,13 @@ export const staffController = {
   async createSalaryPayment(req: Request, res: Response) {
     const salaryPayment = await staffService.createSalaryPayment(req.tenant!.id, req.body);
     res.status(201).json({ salaryPayment });
+  },
+
+  async updateSalaryPayment(req: Request, res: Response) {
+    const salaryPayment = await staffService.updateSalaryPayment(req.tenant!.id, req.params.paymentId, req.body);
+    if (!salaryPayment) {
+      throw new HttpError(404, "Salary payment not found");
+    }
+    res.json({ salaryPayment });
   }
 };

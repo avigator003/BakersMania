@@ -1,6 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { pagination, paginationMeta, type PaginationInput } from "../../utils/pagination.js";
-import type { AttendanceInput, LabourInput, LabourUpdateInput, SalaryPaymentInput } from "./staff.schemas.js";
+import type { AttendanceInput, LabourInput, LabourUpdateInput, SalaryPaymentInput, SalaryPaymentUpdateInput } from "./staff.schemas.js";
 
 export type LabourDashboardFilters = PaginationInput & {
   search?: string;
@@ -146,5 +146,11 @@ export const staffRepository = {
 
   createSalaryPayment(tenantId: string, input: SalaryPaymentInput) {
     return prisma.salaryPayment.create({ data: { ...input, tenantId } });
+  },
+
+  async updateSalaryPayment(tenantId: string, paymentId: string, input: SalaryPaymentUpdateInput) {
+    const existing = await prisma.salaryPayment.findFirst({ where: { id: paymentId, tenantId }, select: { id: true } });
+    if (!existing) return null;
+    return prisma.salaryPayment.update({ where: { id: paymentId }, data: input });
   }
 };

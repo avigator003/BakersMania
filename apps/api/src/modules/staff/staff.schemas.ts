@@ -37,7 +37,10 @@ export const salaryPaymentSchema = z.object({
   notes: z.string().optional()
 });
 
+export const salaryPaymentUpdateSchema = salaryPaymentSchema.partial();
+
 export type LabourInput = z.infer<typeof labourSchema>;
 export type LabourUpdateInput = z.infer<typeof labourUpdateSchema>;
 export type AttendanceInput = z.infer<typeof attendanceSchema>;
 export type SalaryPaymentInput = z.infer<typeof salaryPaymentSchema>;
+export type SalaryPaymentUpdateInput = z.infer<typeof salaryPaymentUpdateSchema>;
