@@ -11,6 +11,7 @@ import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
 type PaymentType = "ADVANCE" | "PARTIAL" | "FULL";
 type StatusFilter = "active" | "inactive" | "all";
+type SummaryCardTone = "labour" | "payable" | "paid" | "balance" | "advance" | "rows" | "monthly" | "daily";
 
 type SalaryPayment = {
   id: string;
@@ -117,6 +118,19 @@ function SalaryMetric({ label, value, tone }: { label: string; value: string; to
       <span>{value}</span>
     </span>
   );
+}
+
+function summaryCardClass(tone: SummaryCardTone) {
+  return {
+    labour: "border-sky-300 bg-sky-50 text-sky-700",
+    payable: "border-mint/30 bg-mint/10 text-mint",
+    paid: "border-indigo-300 bg-indigo-50 text-indigo-700",
+    balance: "border-berry/30 bg-berry/10 text-berry",
+    advance: "border-slate-400/30 bg-slate-100 text-slate-700",
+    rows: "border-saffron/30 bg-saffron/10 text-saffron",
+    monthly: "border-emerald-300 bg-emerald-50 text-emerald-700",
+    daily: "border-cyan-300 bg-cyan-50 text-cyan-700"
+  }[tone];
 }
 
 export default function LabourPaymentsPage() {
@@ -348,20 +362,20 @@ export default function LabourPaymentsPage() {
         </section>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Labour", filteredLabours.length, `${paymentSummary.unpaidLabours} with balance`],
-            ["Total Payable", formatAmount(paymentSummary.payable), `${paymentSummary.payableDays}/${paymentSummary.eligibleDays} payable days`],
-            ["Paid This Month", formatAmount(paymentSummary.paid), `Selected: ${formatAmount(totalAmount)}`],
-            ["Balance Due", formatAmount(paymentSummary.balance), `Carry forward: ${formatAmount(paymentSummary.carryForward)}`],
-            ["Opening Advance", formatAmount(paymentSummary.openingAdvance), `Applied: ${formatAmount(paymentSummary.advanceApplied)}`],
-            ["Payment Rows", draftRows.length, `${method} · ${paidAt}`],
-            ["Monthly Salary Base", formatAmount(filteredLabours.reduce((sum, labour) => sum + Number(labour.monthlySalary || 0), 0)), monthLabel(periodMonth)],
-            ["Daily Wage Base", formatAmount(filteredLabours.reduce((sum, labour) => sum + Number(labour.dailyWage || 0), 0)), statusFilter === "all" ? "All labour" : `${statusFilter} labour`]
-          ].map(([label, value, helper]) => (
-            <div className="rounded-lg border border-line bg-panel p-4 shadow-subtle" key={label}>
-              <p className="text-xs font-semibold uppercase text-muted">{label}</p>
+          {([
+            ["Labour", filteredLabours.length, `${paymentSummary.unpaidLabours} with balance`, "labour"],
+            ["Total Payable", formatAmount(paymentSummary.payable), `${paymentSummary.payableDays}/${paymentSummary.eligibleDays} payable days`, "payable"],
+            ["Paid This Month", formatAmount(paymentSummary.paid), `Selected: ${formatAmount(totalAmount)}`, "paid"],
+            ["Balance Due", formatAmount(paymentSummary.balance), `Carry forward: ${formatAmount(paymentSummary.carryForward)}`, "balance"],
+            ["Opening Advance", formatAmount(paymentSummary.openingAdvance), `Applied: ${formatAmount(paymentSummary.advanceApplied)}`, "advance"],
+            ["Payment Rows", draftRows.length, `${method} · ${paidAt}`, "rows"],
+            ["Monthly Salary Base", formatAmount(filteredLabours.reduce((sum, labour) => sum + Number(labour.monthlySalary || 0), 0)), monthLabel(periodMonth), "monthly"],
+            ["Daily Wage Base", formatAmount(filteredLabours.reduce((sum, labour) => sum + Number(labour.dailyWage || 0), 0)), statusFilter === "all" ? "All labour" : `${statusFilter} labour`, "daily"]
+          ] as Array<[string, string | number, string, SummaryCardTone]>).map(([label, value, helper, tone]) => (
+            <div className={`rounded-lg border p-4 shadow-subtle ${summaryCardClass(tone)}`} key={label}>
+              <p className="text-xs font-semibold uppercase opacity-80">{label}</p>
               <p className="mt-2 text-2xl font-bold text-ink">{value}</p>
-              <p className="mt-1 text-xs text-muted">{helper}</p>
+              <p className="mt-1 text-xs font-medium opacity-90">{helper}</p>
             </div>
           ))}
         </section>
