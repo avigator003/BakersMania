@@ -308,7 +308,7 @@ export const staffService = {
       month: range.label,
       labour,
       stats,
-      attendance: [],
+      attendance,
       payments,
       absentDates: [],
       halfDayDates: []

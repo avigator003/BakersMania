@@ -11,6 +11,7 @@ import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
 type PaymentType = "ADVANCE" | "PARTIAL" | "FULL";
 type PaymentFilter = PaymentType | "ALL";
+type AttendanceStatus = "PRESENT" | "ABSENT" | "HALF_DAY" | "PAID_LEAVE" | "UNPAID_LEAVE";
 
 type SalaryPayment = {
   id: string;
@@ -21,6 +22,14 @@ type SalaryPayment = {
   method?: string | null;
   reference?: string | null;
   paidAt: string;
+  notes?: string | null;
+};
+
+type Attendance = {
+  id: string;
+  labourId?: string | null;
+  workDate: string;
+  status: AttendanceStatus;
   notes?: string | null;
 };
 
@@ -58,6 +67,7 @@ type LabourDetail = {
     partialPaid: number;
     fullPaid: number;
   };
+  attendance: Attendance[];
   payments: SalaryPayment[];
 };
 
@@ -95,6 +105,60 @@ function paymentClass(type: PaymentType) {
   if (type === "ADVANCE") return "border-saffron/30 bg-saffron/10 text-saffron";
   if (type === "PARTIAL") return "border-berry/30 bg-berry/10 text-berry";
   return "border-mint/30 bg-mint/10 text-mint";
+}
+
+function attendanceClass(status?: AttendanceStatus) {
+  if (status === "PRESENT") return "border-mint/30 bg-mint/10 text-mint";
+  if (status === "ABSENT") return "border-berry/30 bg-berry/10 text-berry";
+  if (status === "HALF_DAY") return "border-saffron/30 bg-saffron/10 text-saffron";
+  if (status === "PAID_LEAVE") return "border-sky-300 bg-sky-50 text-sky-700";
+  if (status === "UNPAID_LEAVE") return "border-slate-400/30 bg-slate-100 text-slate-600";
+  return "border-line bg-panel2 text-muted";
+}
+
+function attendanceLabel(status?: AttendanceStatus) {
+  if (status === "PRESENT") return "Present";
+  if (status === "ABSENT") return "Absent";
+  if (status === "HALF_DAY") return "Half";
+  if (status === "PAID_LEAVE") return "Paid leave";
+  if (status === "UNPAID_LEAVE") return "Unpaid leave";
+  return "Not marked";
+}
+
+function attendanceShortLabel(status?: AttendanceStatus) {
+  if (status === "PRESENT") return "P";
+  if (status === "ABSENT") return "A";
+  if (status === "HALF_DAY") return "H";
+  if (status === "PAID_LEAVE") return "PL";
+  if (status === "UNPAID_LEAVE") return "UL";
+  return "-";
+}
+
+function dateKey(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function localDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function monthDisplayLabel(monthValue: string) {
+  const [year, month] = monthValue.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
+function monthCalendarDays(monthValue: string) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const firstDay = new Date(year, month - 1, 1);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const startOffset = firstDay.getDay();
+  return [
+    ...Array.from({ length: startOffset }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => new Date(year, month - 1, index + 1))
+  ];
 }
 
 function dateInputValue(value?: string | null) {
@@ -136,6 +200,12 @@ export default function LabourDetailPage() {
   const filteredPaymentTotal = useMemo(() => {
     return filteredPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
   }, [filteredPayments]);
+
+  const attendanceByDate = useMemo(() => {
+    return new Map((detail?.attendance || []).map((attendance) => [dateKey(attendance.workDate), attendance]));
+  }, [detail?.attendance]);
+
+  const calendarDays = useMemo(() => monthCalendarDays(month), [month]);
 
   async function loadDetail(nextMonth = month) {
     if (!tenantSlug) {
@@ -239,6 +309,48 @@ export default function LabourDetailPage() {
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={() => loadDetail(month)} title="Refresh overview">
                 <RefreshCw size={16} />
               </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-line bg-panel shadow-subtle">
+          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="font-semibold">Attendance Calendar</h2>
+              <p className="mt-1 text-sm text-muted">{monthDisplayLabel(month)}</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              {([
+                ["PRESENT", "Present"],
+                ["HALF_DAY", "Half"],
+                ["ABSENT", "Absent"],
+                ["PAID_LEAVE", "Paid leave"],
+                ["UNPAID_LEAVE", "Unpaid leave"]
+              ] as Array<[AttendanceStatus, string]>).map(([status, label]) => (
+                <span className={`rounded-md border px-2 py-1 ${attendanceClass(status)}`} key={status}>{label}</span>
+              ))}
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase text-muted">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}
+            </div>
+            <div className="mt-2 grid grid-cols-7 gap-2">
+              {calendarDays.map((day, index) => {
+                if (!day) return <div className="min-h-24 rounded-md border border-transparent" key={`empty-${index}`} />;
+                const key = localDateKey(day);
+                const attendance = attendanceByDate.get(key);
+                return (
+                  <div className={`min-h-24 rounded-md border p-2 ${attendanceClass(attendance?.status)}`} key={key}>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-ink">{day.getDate()}</span>
+                      <span className="rounded border border-current px-1.5 py-0.5 text-[11px] font-bold">{attendanceShortLabel(attendance?.status)}</span>
+                    </div>
+                    <p className="mt-2 text-xs font-semibold">{attendanceLabel(attendance?.status)}</p>
+                    {attendance?.notes ? <p className="mt-1 line-clamp-2 text-xs text-muted">{attendance.notes}</p> : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>

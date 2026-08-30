@@ -101,6 +101,24 @@ function draftPaymentAmount(labour: Labour, row?: PaymentDraft) {
   return Number(row?.amount || 0);
 }
 
+function SalaryMetric({ label, value, tone }: { label: string; value: string; tone: "payable" | "balance" | "days" | "advance" | "applied" | "carry" }) {
+  const className = {
+    payable: "border-mint/30 bg-mint/10 text-mint",
+    balance: "border-berry/30 bg-berry/10 text-berry",
+    days: "border-saffron/30 bg-saffron/10 text-saffron",
+    advance: "border-slate-400/30 bg-slate-100 text-slate-700",
+    applied: "border-sky-300 bg-sky-50 text-sky-700",
+    carry: "border-indigo-300 bg-indigo-50 text-indigo-700"
+  }[tone];
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold ${className}`}>
+      <span className="text-muted">{label}:</span>
+      <span>{value}</span>
+    </span>
+  );
+}
+
 export default function LabourPaymentsPage() {
   const toast = useToast();
   const [labours, setLabours] = useState<Labour[]>([]);
@@ -391,16 +409,14 @@ export default function LabourPaymentsPage() {
                     <p className="mt-1 text-xs text-muted">
                       {formatAmount(labour.dailyWage)} daily · {formatAmount(labour.monthlySalary)} monthly
                     </p>
-                    <p className="mt-1 text-xs text-muted">
-                      Payable: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.payableAmount)}</span> ·
-                      Balance: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.balanceAmount)}</span> ·
-                      Days: <span className="font-semibold text-ink">{labour.salaryCalculation?.payableDays ?? 0}/{labour.salaryCalculation?.eligibleDays ?? 0}</span>
-                    </p>
-                    <p className="mt-1 text-xs text-muted">
-                      Opening advance: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.openingAdvanceAmount)}</span> ·
-                      Applied: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.advanceAppliedAmount)}</span> ·
-                      Carry forward: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.carryForwardAmount)}</span>
-                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <SalaryMetric label="Payable" tone="payable" value={formatAmount(labour.salaryCalculation?.payableAmount)} />
+                      <SalaryMetric label="Balance" tone="balance" value={formatAmount(labour.salaryCalculation?.balanceAmount)} />
+                      <SalaryMetric label="Days" tone="days" value={`${labour.salaryCalculation?.payableDays ?? 0}/${labour.salaryCalculation?.eligibleDays ?? 0}`} />
+                      <SalaryMetric label="Opening" tone="advance" value={formatAmount(labour.salaryCalculation?.openingAdvanceAmount)} />
+                      <SalaryMetric label="Applied" tone="applied" value={formatAmount(labour.salaryCalculation?.advanceAppliedAmount)} />
+                      <SalaryMetric label="Carry" tone="carry" value={formatAmount(labour.salaryCalculation?.carryForwardAmount)} />
+                    </div>
                   </div>
                   {row.paymentType === "FULL" ? (
                     <div className="grid gap-1">
