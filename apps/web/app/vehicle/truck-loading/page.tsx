@@ -36,7 +36,6 @@ type TruckLoading = {
 };
 type OrderStatusFilter = "all" | "accepted" | "pending";
 const today = localDateInput();
-const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 const orderStatusOptions = [
   { value: "all", label: "All orders" },
   { value: "accepted", label: "Accepted orders" },
@@ -70,16 +69,6 @@ function formatDisplayDate(value: string) {
 
 function productHeaderName(name: string) {
   return name.trim().replace(/\s+/g, "\n");
-}
-
-function createdAscending(a: { createdAt?: string | null; name: string }, b: { createdAt?: string | null; name: string }) {
-  const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-  const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
-}
-
-function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return createdAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 export default function VehicleTruckLoadingPage() {
@@ -135,13 +124,11 @@ export default function VehicleTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(createdAscending), [truckLoading]);
-
-  const customerOptions = useMemo(() => sortedCustomers.map((route) => ({
+  const customerOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
     value: route.id,
     label: route.name,
     description: route.routeName || undefined
-  })), [sortedCustomers]);
+  })), [truckLoading]);
 
   const visibleProducts = useMemo(() => {
     const products = truckLoading?.products || [];
@@ -149,13 +136,13 @@ export default function VehicleTruckLoadingPage() {
       const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
       const productMatches = !productFilter.length || productFilter.includes(product.id);
       return categoryMatches && productMatches;
-    }).sort(productSort);
+    });
   }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {
-    const routes = sortedCustomers;
+    const routes = truckLoading?.routes || [];
     return customerFilter.length ? routes.filter((route) => customerFilter.includes(route.id)) : routes;
-  }, [customerFilter, sortedCustomers]);
+  }, [customerFilter, truckLoading]);
 
   function routeTotal(route: TruckLoading["routes"][number]) {
     return visibleProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0);
@@ -178,7 +165,7 @@ export default function VehicleTruckLoadingPage() {
 
   function exportTruckLoading() {
     if (!truckLoading) return;
-    const candidateProducts = visibleProducts.length ? visibleProducts : [...truckLoading.products].sort(productSort);
+    const candidateProducts = visibleProducts.length ? visibleProducts : truckLoading.products;
     const exportProducts = candidateProducts.filter((product) => (
       visibleRoutes.reduce((sum, route) => sum + Number(route.quantities[product.id] || 0), 0) >= 1
     ));

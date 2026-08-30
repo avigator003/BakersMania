@@ -25,7 +25,6 @@ type TruckLoading = {
 type OrderStatusFilter = "all" | "accepted" | "pending";
 
 const today = localDateInput();
-const naturalSort = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
 const orderStatusOptions = [
   { value: "all", label: "All orders" },
   { value: "accepted", label: "Accepted orders" },
@@ -55,16 +54,6 @@ function productHeaderName(name: string) {
 
 function compactRowName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 10);
-}
-
-function createdAscending(a: { createdAt?: string | null; name: string }, b: { createdAt?: string | null; name: string }) {
-  const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-  const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
-}
-
-function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return createdAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 export default function BakeryTruckLoadingPage() {
@@ -120,17 +109,15 @@ export default function BakeryTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(createdAscending), [truckLoading]);
-
-  const routeOptions = useMemo(() => sortedRoutes.map((route) => ({
+  const routeOptions = useMemo(() => (truckLoading?.routes || []).map((route) => ({
     value: route.id,
     label: route.name
-  })), [sortedRoutes]);
+  })), [truckLoading]);
 
   const visibleProducts = useMemo(() => {
     const products = truckLoading?.products || [];
     const productHasQuantity = new Set<string>();
-    sortedRoutes.forEach((route) => {
+    (truckLoading?.routes || []).forEach((route) => {
       Object.entries(route.quantities).forEach(([productId, quantity]) => {
         if (Number(quantity || 0) > 0) productHasQuantity.add(productId);
       });
@@ -140,13 +127,13 @@ export default function BakeryTruckLoadingPage() {
       const productMatches = !productFilter.length || productFilter.includes(product.id);
       const hasQuantity = productHasQuantity.has(product.id);
       return categoryMatches && productMatches && hasQuantity;
-    }).sort(productSort);
-  }, [categoryFilter, productFilter, sortedRoutes, truckLoading]);
+    });
+  }, [categoryFilter, productFilter, truckLoading]);
 
   const visibleRoutes = useMemo(() => {
-    const routes = sortedRoutes;
+    const routes = truckLoading?.routes || [];
     return routeFilter.length ? routes.filter((route) => routeFilter.includes(route.id)) : routes;
-  }, [routeFilter, sortedRoutes]);
+  }, [routeFilter, truckLoading]);
 
   function routeTotal(route: TruckLoading["routes"][number]) {
     return visibleProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0);
@@ -167,7 +154,7 @@ export default function BakeryTruckLoadingPage() {
       const categoryMatches = !categoryFilter.length || categoryFilter.includes(product.category);
       const productMatches = !productFilter.length || productFilter.includes(product.id);
       return categoryMatches && productMatches;
-    }).sort(productSort);
+    });
     const exportRoutes = visibleRoutes.filter((route) => (
       exportProducts.reduce((sum, product) => sum + Number(route.quantities[product.id] || 0), 0) >= 1
     ));

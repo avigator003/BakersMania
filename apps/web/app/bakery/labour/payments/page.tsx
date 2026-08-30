@@ -85,11 +85,20 @@ function paymentClass(type: PaymentType) {
 function emptyDraft(): PaymentDraft {
   return {
     amount: "",
-    paymentType: "FULL",
+    paymentType: "PARTIAL",
     reason: "",
     reference: "",
     notes: ""
   };
+}
+
+function fullPaymentAmount(labour: Labour) {
+  return Math.max(Number(labour.salaryCalculation?.balanceAmount || labour.salaryCalculation?.payableAmount || 0), 0);
+}
+
+function draftPaymentAmount(labour: Labour, row?: PaymentDraft) {
+  if (row?.paymentType === "FULL") return fullPaymentAmount(labour);
+  return Number(row?.amount || 0);
 }
 
 export default function LabourPaymentsPage() {
@@ -124,11 +133,11 @@ export default function LabourPaymentsPage() {
   }, [filteredLabours, search]);
 
   const draftRows = useMemo(() => {
-    return filteredLabours.filter((labour) => Number(draft[labour.id]?.amount || 0) > 0);
+    return filteredLabours.filter((labour) => draftPaymentAmount(labour, draft[labour.id]) > 0);
   }, [filteredLabours, draft]);
 
   const totalAmount = useMemo(() => {
-    return draftRows.reduce((total, labour) => total + Number(draft[labour.id]?.amount || 0), 0);
+    return draftRows.reduce((total, labour) => total + draftPaymentAmount(labour, draft[labour.id]), 0);
   }, [draftRows, draft]);
 
   const paymentSummary = useMemo(() => {
@@ -231,11 +240,12 @@ export default function LabourPaymentsPage() {
       await Promise.all(
         rows.map((labour) => {
           const row = draft[labour.id] || emptyDraft();
+          const amount = draftPaymentAmount(labour, row);
           return authFetch(`${apiPath}/salary-payments`, {
             method: "POST",
             body: JSON.stringify({
               labourId: labour.id,
-              amount: Number(row.amount),
+              amount,
               paymentType: row.paymentType,
               period: monthLabel(periodMonth),
               reason: row.reason,
@@ -392,17 +402,26 @@ export default function LabourPaymentsPage() {
                       Carry forward: <span className="font-semibold text-ink">{formatAmount(labour.salaryCalculation?.carryForwardAmount)}</span>
                     </p>
                   </div>
-                  <label className="grid gap-1">
-                    <span className="text-xs font-semibold text-muted">Amount</span>
-                    <input
-                      className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-mint"
-                      min="0"
-                      onChange={(event) => updateDraft(labour.id, { amount: event.target.value })}
-                      placeholder="0"
-                      type="number"
-                      value={row.amount}
-                    />
-                  </label>
+                  {row.paymentType === "FULL" ? (
+                    <div className="grid gap-1">
+                      <span className="text-xs font-semibold text-muted">Full amount</span>
+                      <div className="rounded-md border border-mint/30 bg-mint/10 px-3 py-2 text-sm font-semibold text-mint">
+                        {formatAmount(fullPaymentAmount(labour))}
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="grid gap-1">
+                      <span className="text-xs font-semibold text-muted">Amount</span>
+                      <input
+                        className="rounded-md border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-mint"
+                        min="0"
+                        onChange={(event) => updateDraft(labour.id, { amount: event.target.value })}
+                        placeholder="0"
+                        type="number"
+                        value={row.amount}
+                      />
+                    </label>
+                  )}
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       ["ADVANCE", "Advance"],
@@ -416,7 +435,7 @@ export default function LabourPaymentsPage() {
                           className={`focus-ring rounded-md border px-3 py-2 text-sm font-semibold ${active ? paymentClass(type as PaymentType) : "border-line bg-panel2 text-muted"}`}
                           onClick={() => updateDraft(labour.id, {
                             paymentType: type as PaymentType,
-                            ...(type === "FULL" ? { amount: String(labour.salaryCalculation?.balanceAmount || "") } : {})
+                            ...(type === "FULL" ? { amount: "" } : {})
                           })}
                           type="button"
                         >
