@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Search } from "lucide-react";
+import { Eye, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
 import { DateInput, localDateInput, localMonthInput } from "../../../../components/date-input";
 import { LoadingSpinner } from "../../../../components/loading-spinner";
@@ -105,6 +106,7 @@ export default function LabourPaymentsPage() {
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiPath = tenantSlug ? `/t/${tenantSlug}/staff` : "";
+  const labourDetailBasePath = tenantSlug ? `/${tenantSlug}/bakery/labour` : "/bakery/labour";
 
   const filteredLabours = useMemo(() => labours.filter((labour) => {
     if (statusFilter === "active") return labour.active;
@@ -362,8 +364,20 @@ export default function LabourPaymentsPage() {
               return (
                 <div key={labour.id} className="grid gap-3 p-4 xl:grid-cols-[1fr_180px_360px_1fr_180px] xl:items-center">
                   <div>
-                    <p className="font-semibold">{labour.name}</p>
-                    <p className="text-sm text-muted">{labour.skill || "General labour"} · {labour.phone || "No phone"}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{labour.name}</p>
+                        <p className="text-sm text-muted">{labour.skill || "General labour"} · {labour.phone || "No phone"}</p>
+                      </div>
+                      <Link
+                        aria-label={`View ${labour.name} details`}
+                        className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-md border border-line bg-panel2 text-muted hover:border-mint hover:text-mint"
+                        href={`${labourDetailBasePath}/${labour.id}`}
+                        title="View details"
+                      >
+                        <Eye size={16} />
+                      </Link>
+                    </div>
                     <p className="mt-1 text-xs text-muted">
                       {formatAmount(labour.dailyWage)} daily · {formatAmount(labour.monthlySalary)} monthly
                     </p>

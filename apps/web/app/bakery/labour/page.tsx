@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { CalendarCheck, Download, IndianRupee, Pencil, RefreshCw, Search, UserPlus } from "lucide-react";
+import { CalendarCheck, Download, Eye, IndianRupee, Pencil, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
 import { DateInput, localDateInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
@@ -124,6 +124,7 @@ export default function LabourManagementPage() {
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiPath = tenantSlug ? `/t/${tenantSlug}/staff` : "";
+  const labourDetailBasePath = tenantSlug ? `/${tenantSlug}/bakery/labour` : "/bakery/labour";
 
   async function loadLabour() {
     if (!apiPath) {
@@ -392,10 +393,16 @@ export default function LabourManagementPage() {
                       <span className="font-semibold">{formatAmount(labour.monthlySalary)}</span>
                     </span>
                   </div>
-                  <button className="focus-ring mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel text-sm font-semibold" onClick={() => openEditLabour(labour)} type="button">
-                    <Pencil size={15} />
-                    Edit Details
-                  </button>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Link className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel text-sm font-semibold" href={`${labourDetailBasePath}/${labour.id}`}>
+                      <Eye size={15} />
+                      View
+                    </Link>
+                    <button className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-panel text-sm font-semibold" onClick={() => openEditLabour(labour)} type="button">
+                      <Pencil size={15} />
+                      Edit
+                    </button>
+                  </div>
                 </article>
               );
             })}
@@ -442,6 +449,10 @@ export default function LabourManagementPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="table-action-grid table-action-grid--compact">
+                          <Link className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" href={`${labourDetailBasePath}/${labour.id}`}>
+                            <Eye size={15} />
+                            View
+                          </Link>
                           <button className="focus-ring inline-flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold hover:border-mint" onClick={() => openEditLabour(labour)} type="button">
                             <Pencil size={15} />
                             Edit

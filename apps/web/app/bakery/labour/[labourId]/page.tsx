@@ -1,13 +1,26 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IndianRupee, RefreshCw, UserRound } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
 
 type PaymentType = "ADVANCE" | "PARTIAL" | "FULL";
+type PaymentFilter = PaymentType | "ALL";
+
+type SalaryPayment = {
+  id: string;
+  amount: string;
+  period: string;
+  paymentType: PaymentType;
+  reason?: string | null;
+  method?: string | null;
+  reference?: string | null;
+  paidAt: string;
+  notes?: string | null;
+};
 
 type LabourDetail = {
   month: string;
@@ -43,6 +56,7 @@ type LabourDetail = {
     partialPaid: number;
     fullPaid: number;
   };
+  payments: SalaryPayment[];
 };
 
 function currentMonth() {
@@ -60,6 +74,11 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function paymentClass(type: PaymentType) {
   if (type === "ADVANCE") return "border-saffron/30 bg-saffron/10 text-saffron";
   if (type === "PARTIAL") return "border-berry/30 bg-berry/10 text-berry";
@@ -71,7 +90,18 @@ export default function LabourDetailPage() {
   const toast = useToast();
   const [month, setMonth] = useState(currentMonth());
   const [detail, setDetail] = useState<LabourDetail | null>(null);
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("ALL");
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
+
+  const filteredPayments = useMemo(() => {
+    const payments = detail?.payments || [];
+    if (paymentFilter === "ALL") return payments;
+    return payments.filter((payment) => payment.paymentType === paymentFilter);
+  }, [detail?.payments, paymentFilter]);
+
+  const filteredPaymentTotal = useMemo(() => {
+    return filteredPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
+  }, [filteredPayments]);
 
   async function loadDetail(nextMonth = month) {
     if (!tenantSlug) {
@@ -179,6 +209,65 @@ export default function LabourDetailPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-line bg-panel shadow-subtle">
+          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <IndianRupee className="text-mint" size={20} />
+                <h2 className="font-semibold">Payment History</h2>
+              </div>
+              <p className="mt-1 text-sm text-muted">
+                {filteredPayments.length} payment{filteredPayments.length === 1 ? "" : "s"} · {formatAmount(filteredPaymentTotal)}
+              </p>
+            </div>
+            <div className="inline-flex rounded-md border border-line bg-panel2 p-1 text-sm font-semibold">
+              {([
+                ["ALL", "All"],
+                ["FULL", "Full"],
+                ["PARTIAL", "Partial"],
+                ["ADVANCE", "Advance"]
+              ] as Array<[PaymentFilter, string]>).map(([value, label]) => (
+                <button
+                  className={`focus-ring rounded px-3 py-1.5 ${paymentFilter === value ? "bg-mint text-white" : "text-muted hover:text-ink"}`}
+                  key={value}
+                  onClick={() => setPaymentFilter(value)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="divide-y divide-line">
+            {filteredPayments.map((payment) => (
+              <div className="grid gap-3 p-4 lg:grid-cols-[160px_140px_120px_1fr] lg:items-center" key={payment.id}>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted">Paid At</p>
+                  <p className="mt-1 text-sm font-semibold">{formatDateTime(payment.paidAt)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted">Amount</p>
+                  <p className="mt-1 font-semibold">{formatAmount(payment.amount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted">Type</p>
+                  <span className={`mt-1 inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${paymentClass(payment.paymentType)}`}>
+                    {payment.paymentType}
+                  </span>
+                </div>
+                <div className="grid gap-1 text-sm text-muted">
+                  <p><span className="font-semibold text-ink">Method:</span> {payment.method || "-"}</p>
+                  <p><span className="font-semibold text-ink">Reason:</span> {payment.reason || "-"}</p>
+                  <p><span className="font-semibold text-ink">Reference:</span> {payment.reference || "-"}</p>
+                </div>
+              </div>
+            ))}
+            {detail && !filteredPayments.length ? (
+              <p className="p-4 text-sm text-muted">No payments found for this filter.</p>
+            ) : null}
           </div>
         </section>
       </div>

@@ -306,7 +306,7 @@ export const staffService = {
       labour,
       stats,
       attendance: [],
-      payments: [],
+      payments,
       absentDates: [],
       halfDayDates: []
     };
