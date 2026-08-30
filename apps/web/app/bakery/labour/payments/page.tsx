@@ -85,7 +85,7 @@ function paymentClass(type: PaymentType) {
 function emptyDraft(): PaymentDraft {
   return {
     amount: "",
-    paymentType: "PARTIAL",
+    paymentType: "FULL",
     reason: "",
     reference: "",
     notes: ""
