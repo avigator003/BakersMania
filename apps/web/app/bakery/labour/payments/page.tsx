@@ -47,7 +47,14 @@ type Labour = {
 
 type LabourDashboard = {
   labours: Labour[];
+  pagination?: {
+    page: number;
+    pageSize: number;
+    pageCount: number;
+  };
 };
+
+const labourPageSize = 100;
 
 type PaymentDraft = {
   amount: string;
@@ -116,6 +123,31 @@ export default function LabourPaymentsPage() {
     return draftRows.reduce((total, labour) => total + Number(draft[labour.id]?.amount || 0), 0);
   }, [draftRows, draft]);
 
+  async function fetchActiveLabourDashboard(date: string) {
+    const buildPath = (page: number) => {
+      const params = new URLSearchParams({
+        date,
+        status: "active",
+        page: String(page),
+        pageSize: String(labourPageSize)
+      });
+      return `${apiPath}/labour?${params.toString()}`;
+    };
+    const firstPage = await authFetch<LabourDashboard>(buildPath(1));
+    const pageCount = firstPage.pagination?.pageCount || 1;
+    if (pageCount <= 1) return firstPage;
+    const remainingPages = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, index) => authFetch<LabourDashboard>(buildPath(index + 2)))
+    );
+    return {
+      ...firstPage,
+      labours: [
+        ...firstPage.labours,
+        ...remainingPages.flatMap((page) => page.labours)
+      ]
+    };
+  }
+
   async function loadPayments() {
     if (!apiPath) {
       toast.error("Bakery slug missing", "Please sign in again.");
@@ -125,7 +157,7 @@ export default function LabourPaymentsPage() {
 
     setLoading(true);
     try {
-      const response = await authFetch<LabourDashboard>(`${apiPath}/labour?date=${periodMonth}-01`);
+      const response = await fetchActiveLabourDashboard(`${periodMonth}-01`);
       const active = response.labours.filter((labour) => labour.active);
       setLabours(response.labours);
       setDraft(Object.fromEntries(active.map((labour) => [labour.id, emptyDraft()])));

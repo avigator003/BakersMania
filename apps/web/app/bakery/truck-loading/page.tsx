@@ -18,8 +18,8 @@ type TruckLoading = {
     accepted: number;
     pending: number;
   };
-  products: { id: string; name: string; category: string; updatedAt?: string }[];
-  routes: { id: string; name: string; updatedAt?: string; quantities: Record<string, number>; total: number }[];
+  products: { id: string; name: string; category: string; createdAt?: string }[];
+  routes: { id: string; name: string; createdAt?: string; quantities: Record<string, number>; total: number }[];
   totals: Record<string, number>;
 };
 type OrderStatusFilter = "all" | "accepted" | "pending";
@@ -57,14 +57,14 @@ function compactRowName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 10);
 }
 
-function updatedDescending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
-  const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-  const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
+function createdAscending(a: { createdAt?: string | null; name: string }, b: { createdAt?: string | null; name: string }) {
+  const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+  const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
 function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return updatedDescending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
+  return createdAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 export default function BakeryTruckLoadingPage() {
@@ -120,7 +120,7 @@ export default function BakeryTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedDescending), [truckLoading]);
+  const sortedRoutes = useMemo(() => [...(truckLoading?.routes || [])].sort(createdAscending), [truckLoading]);
 
   const routeOptions = useMemo(() => sortedRoutes.map((route) => ({
     value: route.id,

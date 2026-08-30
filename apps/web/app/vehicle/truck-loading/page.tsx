@@ -18,12 +18,12 @@ type TruckLoading = {
     accepted: number;
     pending: number;
   };
-  products: { id: string; name: string; category: string; updatedAt?: string }[];
+  products: { id: string; name: string; category: string; createdAt?: string }[];
   routes: {
     id: string;
     name: string;
     routeName?: string | null;
-    updatedAt?: string;
+    createdAt?: string;
     quantities: Record<string, number>;
     total: number;
     previousDue: number;
@@ -72,14 +72,14 @@ function productHeaderName(name: string) {
   return name.trim().replace(/\s+/g, "\n");
 }
 
-function updatedDescending(a: { updatedAt?: string | null; name: string }, b: { updatedAt?: string | null; name: string }) {
-  const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-  const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-  return bTime - aTime || naturalSort.compare(a.name || "", b.name || "");
+function createdAscending(a: { createdAt?: string | null; name: string }, b: { createdAt?: string | null; name: string }) {
+  const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+  const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+  return aTime - bTime || naturalSort.compare(a.name || "", b.name || "");
 }
 
 function productSort(a: TruckLoading["products"][number], b: TruckLoading["products"][number]) {
-  return updatedDescending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
+  return createdAscending(a, b) || naturalSort.compare(a.category || "General", b.category || "General");
 }
 
 export default function VehicleTruckLoadingPage() {
@@ -135,7 +135,7 @@ export default function VehicleTruckLoadingPage() {
     return categories.map((category) => ({ value: category, label: category }));
   }, [truckLoading]);
 
-  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(updatedDescending), [truckLoading]);
+  const sortedCustomers = useMemo(() => [...(truckLoading?.routes || [])].sort(createdAscending), [truckLoading]);
 
   const customerOptions = useMemo(() => sortedCustomers.map((route) => ({
     value: route.id,
