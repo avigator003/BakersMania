@@ -64,7 +64,7 @@ function salaryCalculation(input: {
   monthlySalary?: unknown;
   joinedAt: Date;
   attendance: Array<{ workDate: Date; status: string }>;
-  payments: Array<{ amount: unknown; paidAt: Date }>;
+  payments: Array<{ amount: unknown; paidAt: Date; paymentType?: string | null }>;
   monthStart: Date;
   monthEnd: Date;
 }) {
@@ -81,7 +81,8 @@ function salaryCalculation(input: {
     openingAdvanceAmount: 0,
     advanceAppliedAmount: 0,
     carryForwardAmount: 0,
-    balanceAmount: 0
+    balanceAmount: 0,
+    paymentTypes: [] as string[]
   };
 
   while (cursor < input.monthEnd) {
@@ -94,9 +95,9 @@ function salaryCalculation(input: {
     const calculatedPayableAmount = Math.round(dailySalary * payableDays);
     const workedFullMonth = eligibleDays === daysInMonth && payableDays >= eligibleDays;
     const payableAmount = workedFullMonth ? monthlySalary : Math.min(calculatedPayableAmount, monthlySalary);
-    const paidAmount = input.payments
-      .filter((payment) => payment.paidAt >= cursor && payment.paidAt < cursorEnd)
-      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const selectedPayments = input.payments.filter((payment) => payment.paidAt >= cursor && payment.paidAt < cursorEnd);
+    const paidAmount = selectedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const paymentTypesForMonth = Array.from(new Set(selectedPayments.map((payment) => payment.paymentType).filter(Boolean))) as string[];
     const openingAdvanceAmount = carryForwardAmount;
     const advanceAppliedAmount = Math.min(openingAdvanceAmount, payableAmount);
     const balanceAmount = Math.max(payableAmount - advanceAppliedAmount - paidAmount, 0);
@@ -113,7 +114,8 @@ function salaryCalculation(input: {
         openingAdvanceAmount,
         advanceAppliedAmount,
         carryForwardAmount,
-        balanceAmount
+        balanceAmount,
+        paymentTypes: paymentTypesForMonth
       };
     }
 

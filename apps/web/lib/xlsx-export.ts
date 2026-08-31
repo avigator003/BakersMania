@@ -170,10 +170,12 @@ const rootRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
 </Relationships>`;
 
-const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+function workbookXml(sheetName = "Truck Loading") {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="Truck Loading" sheetId="1" r:id="rId1"/></sheets>
+  <sheets><sheet name="${escapeXml(sheetName.slice(0, 31))}" sheetId="1" r:id="rId1"/></sheets>
 </workbook>`;
+}
 
 const workbookRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -239,12 +241,12 @@ function createZip(entries: Array<{ path: string; content: string }>) {
   return new Uint8Array(output);
 }
 
-export function createXlsxBlob(rows: XlsxRow[], columns: XlsxColumn[]) {
+export function createXlsxBlob(rows: XlsxRow[], columns: XlsxColumn[], sheetName?: string) {
   return new Blob([
     createZip([
       { path: "[Content_Types].xml", content: contentTypesXml() },
       { path: "_rels/.rels", content: rootRelsXml },
-      { path: "xl/workbook.xml", content: workbookXml },
+      { path: "xl/workbook.xml", content: workbookXml(sheetName) },
       { path: "xl/_rels/workbook.xml.rels", content: workbookRelsXml },
       { path: "xl/styles.xml", content: stylesXml() },
       { path: "xl/worksheets/sheet1.xml", content: worksheetXml(rows, columns) }
@@ -252,8 +254,8 @@ export function createXlsxBlob(rows: XlsxRow[], columns: XlsxColumn[]) {
   ], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
-export function downloadXlsx(filename: string, rows: XlsxRow[], columns: XlsxColumn[]) {
-  const url = URL.createObjectURL(createXlsxBlob(rows, columns));
+export function downloadXlsx(filename: string, rows: XlsxRow[], columns: XlsxColumn[], sheetName?: string) {
+  const url = URL.createObjectURL(createXlsxBlob(rows, columns, sheetName));
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;

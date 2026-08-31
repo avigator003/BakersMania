@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Eye, RefreshCw, Search } from "lucide-react";
+import { Download, Eye, RefreshCw, Search } from "lucide-react";
 import { AppShell } from "../../../../components/shell";
 import { DateInput, localDateInput, localMonthInput } from "../../../../components/date-input";
 import { LoadingSpinner } from "../../../../components/loading-spinner";
 import { useToast } from "../../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../../lib/api";
+import { downloadXlsx, type XlsxColumn, type XlsxRow } from "../../../../lib/xlsx-export";
 
 type PaymentType = "ADVANCE" | "PARTIAL" | "FULL";
 type StatusFilter = "active" | "inactive" | "all";
@@ -45,6 +46,7 @@ type Labour = {
     advanceAppliedAmount: number;
     carryForwardAmount: number;
     balanceAmount: number;
+    paymentTypes: PaymentType[];
   };
 };
 
@@ -75,6 +77,23 @@ function monthLabel(value: string) {
 function formatAmount(value?: string | number | null) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+}
+
+function amountValue(value?: string | number | null) {
+  return Number(value || 0);
+}
+
+function statusLabel(status: StatusFilter) {
+  if (status === "all") return "All";
+  return status === "active" ? "Active" : "Inactive";
+}
+
+function paymentTypeLabel(type: PaymentType) {
+  return {
+    ADVANCE: "Advance",
+    PARTIAL: "Partial",
+    FULL: "Full"
+  }[type];
 }
 
 function paymentClass(type: PaymentType) {
@@ -144,6 +163,7 @@ export default function LabourPaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   const tenantSlug = typeof window === "undefined" ? "" : getStoredTenantSlug() || "";
   const apiPath = tenantSlug ? `/t/${tenantSlug}/staff` : "";
@@ -298,6 +318,74 @@ export default function LabourPaymentsPage() {
     }
   }
 
+  function downloadMonthlyExcel() {
+    setExportingExcel(true);
+    try {
+      const totalSalaries = filteredLabours.reduce((sum, labour) => sum + amountValue(labour.monthlySalary), 0);
+      const includeStatus = statusFilter === "all";
+      const headerCells: XlsxRow["cells"] = [
+        { value: "Labour", style: "header" },
+        ...(includeStatus ? [{ value: "Status", style: "header" as const }] : []),
+        { value: "Salary", style: "header" },
+        { value: "Payable", style: "header" },
+        { value: "Paid", style: "header" },
+        { value: "Paid Type", style: "header" },
+        { value: "Attendance", style: "header" }
+      ];
+
+      const rows: XlsxRow[] = [
+        { cells: [{ value: `Labour Salary - ${monthLabel(periodMonth)}`, style: "summary", colSpan: headerCells.length }], height: 30 },
+        { cells: [{ value: "Month", style: "metaLabel" }, { value: monthLabel(periodMonth), style: "metaValue" }] },
+        { cells: [{ value: "Labour Status", style: "metaLabel" }, { value: statusLabel(statusFilter), style: "metaValue" }] },
+        { cells: [] },
+        { cells: [{ value: "No. of Labours", style: "summary" }, { value: filteredLabours.length, style: "summary" }] },
+        { cells: [{ value: "Total Salaries", style: "summary" }, { value: totalSalaries, style: "summary" }] },
+        { cells: [{ value: "Total Payable", style: "summary" }, { value: paymentSummary.payable, style: "summary" }] },
+        { cells: [{ value: "Total Paid", style: "summary" }, { value: paymentSummary.paid, style: "summary" }] },
+        { cells: [] },
+        { cells: headerCells },
+        ...filteredLabours.map((labour) => {
+          const calculation = labour.salaryCalculation;
+          const paidTypes = calculation?.paymentTypes?.length
+            ? calculation.paymentTypes.map(paymentTypeLabel).join(", ")
+            : "-";
+          const cells: XlsxRow["cells"] = [
+            { value: labour.name, style: "name" },
+            ...(includeStatus ? [{ value: labour.active ? "Active" : "Inactive" }] : []),
+            { value: amountValue(labour.monthlySalary), style: "amount" },
+            { value: amountValue(calculation?.payableAmount), style: "amount" },
+            { value: amountValue(calculation?.paidAmount), style: "amount" },
+            { value: paidTypes },
+            { value: `${calculation?.payableDays ?? 0}/${calculation?.daysInMonth ?? 0}` }
+          ];
+          return { cells };
+        })
+      ];
+
+      const columns: XlsxColumn[] = [
+        { width: 28 },
+        ...(includeStatus ? [{ width: 14 }] : []),
+        { width: 14 },
+        { width: 14 },
+        { width: 14 },
+        { width: 18 },
+        { width: 16 }
+      ];
+
+      downloadXlsx(
+        `${tenantSlug || "bakery"}-labour-salary-${periodMonth}-${statusFilter}.xlsx`,
+        rows,
+        columns,
+        "Labour Salary"
+      );
+      toast.success("Labour Excel downloaded", `${monthLabel(periodMonth)} ${statusLabel(statusFilter).toLowerCase()} labour sheet is ready.`);
+    } catch (error) {
+      toast.error("Excel download failed", error instanceof Error ? error.message : "Could not create labour sheet.");
+    } finally {
+      setExportingExcel(false);
+    }
+  }
+
   return (
     <AppShell title="Bakery CRM" subtitle="Labour salary, advance, and partial payment sheet" surface="bakery">
       <div className="grid gap-4">
@@ -353,6 +441,10 @@ export default function LabourPaymentsPage() {
               </label>
               <button className="focus-ring grid h-10 w-10 place-items-center rounded-md border border-line bg-panel2" onClick={loadPayments} title="Refresh payments">
                 <RefreshCw size={16} />
+              </button>
+              <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 font-semibold" disabled={exportingExcel || loading} onClick={downloadMonthlyExcel} type="button">
+                <Download size={16} />
+                {exportingExcel ? "Preparing..." : "Export Excel"}
               </button>
               <button className="focus-ring rounded-md bg-mint px-4 py-2 font-semibold text-white" disabled={saving || !draftRows.length} onClick={savePayments}>
                 {saving ? "Saving..." : "Save Payments"}

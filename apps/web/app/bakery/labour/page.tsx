@@ -4,13 +4,16 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { CalendarCheck, Download, Eye, IndianRupee, Pencil, RefreshCw, Search, UserPlus } from "lucide-react";
 import { AppShell } from "../../../components/shell";
-import { DateInput, localDateInput } from "../../../components/date-input";
+import { DateInput, localDateInput, localMonthInput } from "../../../components/date-input";
 import { LoadingSpinner } from "../../../components/loading-spinner";
 import { Modal } from "../../../components/modal";
 import { PaginationControls } from "../../../components/pagination";
 import { useToast } from "../../../components/toast-provider";
 import { authFetch, getStoredTenantSlug } from "../../../lib/api";
 import { downloadLabourAttendanceWorkbook, downloadLabourOverviewWorkbook, fetchLabourYearExport } from "../../../lib/labour-export";
+import { downloadXlsx, type XlsxColumn, type XlsxRow } from "../../../lib/xlsx-export";
+
+type PaymentType = "ADVANCE" | "PARTIAL" | "FULL";
 
 type Labour = {
   id: string;
@@ -26,6 +29,20 @@ type Labour = {
   notes?: string | null;
   attendance: Attendance[];
   salaryPayments: SalaryPayment[];
+  salaryCalculation?: {
+    monthlySalary: number;
+    daysInMonth: number;
+    eligibleDays: number;
+    payableDays: number;
+    dailySalary: number;
+    payableAmount: number;
+    paidAmount: number;
+    openingAdvanceAmount: number;
+    advanceAppliedAmount: number;
+    carryForwardAmount: number;
+    balanceAmount: number;
+    paymentTypes: PaymentType[];
+  };
 };
 
 type Attendance = {
@@ -42,7 +59,7 @@ type SalaryPayment = {
   labourId?: string | null;
   amount: string;
   period: string;
-  paymentType: "ADVANCE" | "PARTIAL" | "FULL";
+  paymentType: PaymentType;
   reason?: string | null;
   method?: string | null;
   reference?: string | null;
@@ -91,6 +108,28 @@ function formatAmount(value?: string | number | null) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
 
+function amountValue(value?: string | number | null) {
+  return Number(value || 0);
+}
+
+function monthLabel(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
+function statusLabel(status: StatusFilter) {
+  if (status === "all") return "All";
+  return status === "active" ? "Active" : "Inactive";
+}
+
+function paymentTypeLabel(type: PaymentType) {
+  return {
+    ADVANCE: "Advance",
+    PARTIAL: "Partial",
+    FULL: "Full"
+  }[type];
+}
+
 function labourAge(dateOfBirth?: string | null) {
   if (!dateOfBirth) return "-";
   const birthDate = new Date(dateOfBirth);
@@ -116,7 +155,9 @@ export default function LabourManagementPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [updatingLabourId, setUpdatingLabourId] = useState<string | null>(null);
   const [exportYear, setExportYear] = useState(String(new Date().getFullYear()));
+  const [exportMonth, setExportMonth] = useState(localMonthInput());
   const [exporting, setExporting] = useState<"overview" | "attendance" | null>(null);
+  const [exportingSalary, setExportingSalary] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [pageCount, setPageCount] = useState(1);
@@ -263,6 +304,104 @@ export default function LabourManagementPage() {
     }
   }
 
+  async function fetchAllLaboursForMonth(month: string) {
+    if (!apiPath) throw new Error("Bakery slug missing");
+    const buildPath = (page: number) => {
+      const params = new URLSearchParams({
+        date: `${month}-01`,
+        status: statusFilter,
+        page: String(page),
+        pageSize: "100"
+      });
+      return `${apiPath}/labour?${params.toString()}`;
+    };
+    const firstPage = await authFetch<LabourDashboard>(buildPath(1));
+    const pageCount = firstPage.pagination?.pageCount || 1;
+    if (pageCount <= 1) return firstPage.labours;
+    const remainingPages = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, index) => authFetch<LabourDashboard>(buildPath(index + 2)))
+    );
+    return [
+      ...firstPage.labours,
+      ...remainingPages.flatMap((response) => response.labours)
+    ];
+  }
+
+  async function downloadSalaryExport() {
+    if (!tenantSlug) {
+      toast.error("Bakery slug missing", "Please sign in again.");
+      return;
+    }
+
+    setExportingSalary(true);
+    try {
+      const labours = await fetchAllLaboursForMonth(exportMonth);
+      const totalSalaries = labours.reduce((sum, labour) => sum + amountValue(labour.monthlySalary), 0);
+      const totalPayable = labours.reduce((sum, labour) => sum + amountValue(labour.salaryCalculation?.payableAmount), 0);
+      const totalPaid = labours.reduce((sum, labour) => sum + amountValue(labour.salaryCalculation?.paidAmount), 0);
+      const includeStatus = statusFilter === "all";
+      const headerCells: XlsxRow["cells"] = [
+        { value: "Labour", style: "header" },
+        ...(includeStatus ? [{ value: "Status", style: "header" as const }] : []),
+        { value: "Salary", style: "header" },
+        { value: "Payable", style: "header" },
+        { value: "Paid", style: "header" },
+        { value: "Paid Type", style: "header" },
+        { value: "Attendance", style: "header" }
+      ];
+
+      const rows: XlsxRow[] = [
+        { cells: [{ value: `Labour Salary - ${monthLabel(exportMonth)}`, style: "summary", colSpan: headerCells.length }], height: 30 },
+        { cells: [{ value: "Month", style: "metaLabel" }, { value: monthLabel(exportMonth), style: "metaValue" }] },
+        { cells: [{ value: "Labour Status", style: "metaLabel" }, { value: statusLabel(statusFilter), style: "metaValue" }] },
+        { cells: [] },
+        { cells: [{ value: "No. of Labours", style: "summary" }, { value: labours.length, style: "summary" }] },
+        { cells: [{ value: "Total Salaries", style: "summary" }, { value: totalSalaries, style: "summary" }] },
+        { cells: [{ value: "Total Payable", style: "summary" }, { value: totalPayable, style: "summary" }] },
+        { cells: [{ value: "Total Paid", style: "summary" }, { value: totalPaid, style: "summary" }] },
+        { cells: [] },
+        { cells: headerCells },
+        ...labours.map((labour) => {
+          const calculation = labour.salaryCalculation;
+          const paidTypes = calculation?.paymentTypes?.length
+            ? calculation.paymentTypes.map(paymentTypeLabel).join(", ")
+            : "-";
+          const cells: XlsxRow["cells"] = [
+            { value: labour.name, style: "name" },
+            ...(includeStatus ? [{ value: labour.active ? "Active" : "Inactive" }] : []),
+            { value: amountValue(labour.monthlySalary), style: "amount" },
+            { value: amountValue(calculation?.payableAmount), style: "amount" },
+            { value: amountValue(calculation?.paidAmount), style: "amount" },
+            { value: paidTypes },
+            { value: `${calculation?.payableDays ?? 0}/${calculation?.daysInMonth ?? 0}` }
+          ];
+          return { cells };
+        })
+      ];
+      const columns: XlsxColumn[] = [
+        { width: 28 },
+        ...(includeStatus ? [{ width: 14 }] : []),
+        { width: 14 },
+        { width: 14 },
+        { width: 14 },
+        { width: 18 },
+        { width: 16 }
+      ];
+
+      downloadXlsx(
+        `${tenantSlug}-labour-salary-${exportMonth}-${statusFilter}.xlsx`,
+        rows,
+        columns,
+        "Labour Salary"
+      );
+      toast.success("Salary Excel downloaded", `${monthLabel(exportMonth)} ${statusLabel(statusFilter).toLowerCase()} labour sheet is ready.`);
+    } catch (error) {
+      toast.error("Excel download failed", error instanceof Error ? error.message : "Could not create salary sheet.");
+    } finally {
+      setExportingSalary(false);
+    }
+  }
+
   return (
     <AppShell title="Bakery CRM" subtitle="Labour attendance, advances, partial payments, and salary records" surface="bakery">
       <div className="grid gap-4">
@@ -280,6 +419,24 @@ export default function LabourManagementPage() {
                   value={exportYear}
                 />
               </label>
+              <label className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-sm font-semibold">
+                <span className="text-muted">Month</span>
+                <input
+                  className="bg-transparent outline-none"
+                  onChange={(event) => setExportMonth(event.target.value)}
+                  type="month"
+                  value={exportMonth}
+                />
+              </label>
+              <button
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold"
+                disabled={exportingSalary}
+                onClick={downloadSalaryExport}
+                type="button"
+              >
+                <Download size={16} />
+                {exportingSalary ? "Preparing..." : "Salary Excel"}
+              </button>
               <button
                 className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-line bg-panel2 px-4 py-2 text-sm font-semibold"
                 disabled={exporting !== null}
