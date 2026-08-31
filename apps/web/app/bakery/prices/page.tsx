@@ -51,6 +51,12 @@ function productCategory(product: Product) {
   return product.categoryRef?.name || product.category || "General";
 }
 
+function priceDiffers(left?: string | number | null, right?: string | number | null) {
+  const leftValue = Number(left || 0);
+  const rightValue = Number(right || 0);
+  return Number.isFinite(leftValue) && Number.isFinite(rightValue) && leftValue !== rightValue;
+}
+
 export default function BakeryProductPricesPage() {
   const toast = useToast();
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -270,17 +276,23 @@ export default function BakeryProductPricesPage() {
                         <p className="mt-1 text-xs text-muted">{productCategory(product)}</p>
                         <p className="mt-1 text-xs text-muted">Base {formatAmount(product.unitPrice)}</p>
                       </div>
-                      {priceModal.mode === "view" ? (
-                        <span className="shrink-0 text-sm font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
-                      ) : (
-                        <input
-                          className="h-10 w-28 shrink-0 rounded-md border border-line bg-panel px-3 text-right font-semibold outline-none focus:border-mint"
-                          min="0"
-                          onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                          type="number"
-                          value={priceMap[product.id] ?? String(product.unitPrice)}
-                        />
-                      )}
+                      {(() => {
+                        const routePrice = priceMap[product.id] ?? product.unitPrice;
+                        const isCustomRoutePrice = priceDiffers(routePrice, product.unitPrice);
+                        return priceModal.mode === "view" ? (
+                          <span className={`shrink-0 rounded-md px-2 py-1 text-sm font-semibold ${isCustomRoutePrice ? "bg-amber-100 text-amber-800" : ""}`}>
+                            {formatAmount(routePrice)}
+                          </span>
+                        ) : (
+                          <input
+                            className={`h-10 w-28 shrink-0 rounded-md border px-3 text-right font-semibold outline-none focus:border-mint ${isCustomRoutePrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel"}`}
+                            min="0"
+                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                            type="number"
+                            value={routePrice}
+                          />
+                        );
+                      })()}
                     </div>
                   </article>
                 ))}
@@ -300,26 +312,32 @@ export default function BakeryProductPricesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id}>
-                      <td className="px-4 py-3 font-semibold">{product.name}</td>
-                      <td className="px-4 py-3 text-muted">{productCategory(product)}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(product.unitPrice)}</td>
-                      <td className="px-4 py-3 text-right">
-                        {priceModal.mode === "view" ? (
-                          <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
-                        ) : (
-                          <input
-                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
-                            min="0"
-                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                            type="number"
-                            value={priceMap[product.id] ?? String(product.unitPrice)}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredProducts.map((product) => {
+                    const routePrice = priceMap[product.id] ?? product.unitPrice;
+                    const isCustomRoutePrice = priceDiffers(routePrice, product.unitPrice);
+                    return (
+                      <tr key={product.id}>
+                        <td className="px-4 py-3 font-semibold">{product.name}</td>
+                        <td className="px-4 py-3 text-muted">{productCategory(product)}</td>
+                        <td className="px-4 py-3 text-right">{formatAmount(product.unitPrice)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {priceModal.mode === "view" ? (
+                            <span className={`rounded-md px-2 py-1 font-semibold ${isCustomRoutePrice ? "bg-amber-100 text-amber-800" : ""}`}>
+                              {formatAmount(routePrice)}
+                            </span>
+                          ) : (
+                            <input
+                              className={`ml-auto h-10 w-32 rounded-md border px-3 text-right font-semibold outline-none focus:border-mint ${isCustomRoutePrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel2"}`}
+                              min="0"
+                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                              type="number"
+                              value={routePrice}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!filteredProducts.length ? (
                     <tr>
                       <td className="px-4 py-8 text-center text-muted" colSpan={4}>No products in this category.</td>

@@ -61,6 +61,12 @@ function productCategory(product: Product) {
   return product.categoryRef?.name || product.category || "General";
 }
 
+function priceDiffers(left?: string | number | null, right?: string | number | null) {
+  const leftValue = Number(left || 0);
+  const rightValue = Number(right || 0);
+  return Number.isFinite(leftValue) && Number.isFinite(rightValue) && leftValue !== rightValue;
+}
+
 export default function VehiclePricesPage() {
   const toast = useToast();
   const pathname = usePathname();
@@ -361,62 +367,74 @@ export default function VehiclePricesPage() {
             {loadingPrices ? <LoadingSpinner label="Loading product prices" /> : null}
             <div className="max-h-[62vh] overflow-auto rounded-lg border border-line sm:hidden">
               <div className="grid gap-3 p-3">
-                {filteredProducts.map((product) => (
-                  <article className="rounded-lg border border-line bg-panel2 p-3" key={product.id}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold">{product.name}</h3>
-                        <p className="mt-1 text-xs text-muted">{productCategory(product)}</p>
-                        <p className="mt-1 text-xs text-muted">Display Price {formatAmount(product.unitPrice)}</p>
-                        <p className="mt-1 text-xs text-muted">Vehicle Price {vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</p>
-                      </div>
-                      {priceModal.mode === "view" ? (
-                        <span className="grid shrink-0 gap-1 text-right text-sm">
-                          <span className="font-semibold">{formatAmount(customerProductPriceMap[product.id] ?? priceMap[product.id] ?? product.unitPrice)}</span>
-                          <span className="text-xs text-muted">Customer {formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
-                        </span>
-                      ) : priceModal.mode === "bulk" ? (
-                        <div className="grid shrink-0 gap-2">
-                          <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
-                            Customer Display Price
-                            <input
-                              className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
-                              min="0"
-                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                              type="number"
-                              value={priceMap[product.id] ?? String(product.unitPrice)}
-                            />
-                          </label>
-                          <span className="grid gap-1 text-right text-[11px] font-semibold uppercase text-muted">
-                            Customer Price
-                            <span className="grid h-10 w-32 place-items-center rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink">
-                              {formatAmount(priceMap[product.id] ?? product.unitPrice)}
+                {filteredProducts.map((product) => {
+                  const vehicleBasePrice = vehicleBasePriceMap[product.id] ?? product.unitPrice;
+                  const customerPrice = priceMap[product.id] ?? product.unitPrice;
+                  const customerDisplayPrice = customerProductPriceMap[product.id] ?? customerPrice;
+                  const isCustomCustomerPrice = priceDiffers(customerPrice, vehicleBasePrice);
+                  const isCustomCustomerDisplayPrice = priceDiffers(customerDisplayPrice, vehicleBasePrice);
+
+                  return (
+                    <article className="rounded-lg border border-line bg-panel2 p-3" key={product.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold">{product.name}</h3>
+                          <p className="mt-1 text-xs text-muted">{productCategory(product)}</p>
+                          <p className="mt-1 text-xs text-muted">Display Price {formatAmount(product.unitPrice)}</p>
+                          <p className="mt-1 text-xs text-muted">Vehicle Price {vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</p>
+                        </div>
+                        {priceModal.mode === "view" ? (
+                          <span className="grid shrink-0 gap-1 text-right text-sm">
+                            <span className={`rounded-md px-2 py-1 font-semibold ${isCustomCustomerDisplayPrice ? "bg-amber-100 text-amber-800" : ""}`}>
+                              {formatAmount(customerDisplayPrice)}
+                            </span>
+                            <span className={`rounded-md px-2 py-1 text-xs font-semibold ${isCustomCustomerPrice ? "bg-amber-100 text-amber-800" : "text-muted"}`}>
+                              Customer {formatAmount(customerPrice)}
                             </span>
                           </span>
-                        </div>
-                      ) : (
-                        <div className="grid shrink-0 gap-2">
-                          <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
-                            Customer Display Price
-                            <span className="grid h-10 w-32 place-items-center rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink">
-                              {formatAmount(customerProductPriceMap[product.id] ?? product.unitPrice)}
+                        ) : priceModal.mode === "bulk" ? (
+                          <div className="grid shrink-0 gap-2">
+                            <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
+                              Customer Display Price
+                              <input
+                                className={`h-10 w-32 rounded-md border px-3 text-right text-sm font-semibold outline-none focus:border-mint ${isCustomCustomerPrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel text-ink"}`}
+                                min="0"
+                                onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                                type="number"
+                                value={customerPrice}
+                              />
+                            </label>
+                            <span className="grid gap-1 text-right text-[11px] font-semibold uppercase text-muted">
+                              Customer Price
+                              <span className={`grid h-10 w-32 place-items-center rounded-md border px-3 text-right text-sm font-semibold ${isCustomCustomerPrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel text-ink"}`}>
+                                {formatAmount(customerPrice)}
+                              </span>
                             </span>
-                          </label>
-                          <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
-                            Customer Price
-                            <input
-                              className="h-10 w-32 rounded-md border border-line bg-panel px-3 text-right text-sm font-semibold text-ink outline-none focus:border-mint"
-                              min="0"
-                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                              type="number"
-                              value={priceMap[product.id] ?? String(product.unitPrice)}
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                ))}
+                          </div>
+                        ) : (
+                          <div className="grid shrink-0 gap-2">
+                            <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
+                              Customer Display Price
+                              <span className={`grid h-10 w-32 place-items-center rounded-md border px-3 text-right text-sm font-semibold ${isCustomCustomerDisplayPrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel text-ink"}`}>
+                                {formatAmount(customerDisplayPrice)}
+                              </span>
+                            </label>
+                            <label className="grid gap-1 text-[11px] font-semibold uppercase text-muted">
+                              Customer Price
+                              <input
+                                className={`h-10 w-32 rounded-md border px-3 text-right text-sm font-semibold outline-none focus:border-mint ${isCustomCustomerPrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel text-ink"}`}
+                                min="0"
+                                onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                                type="number"
+                                value={customerPrice}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
                 {!filteredProducts.length ? (
                   <div className="rounded-lg border border-line bg-panel2 px-4 py-8 text-center text-sm text-muted">No products in this category.</div>
                 ) : null}
@@ -435,44 +453,56 @@ export default function VehiclePricesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id}>
-                      <td className="px-4 py-3 font-semibold">{product.name}</td>
-                      <td className="px-4 py-3 text-muted">{productCategory(product)}</td>
-                      <td className="px-4 py-3 text-right">{formatAmount(product.unitPrice)}</td>
-                      <td className="px-4 py-3 text-right">{vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</td>
-                      <td className="px-4 py-3 text-right">
-                        {priceModal.mode === "view" ? (
-                          <span className="font-semibold">{formatAmount(customerProductPriceMap[product.id] ?? priceMap[product.id] ?? product.unitPrice)}</span>
-                        ) : priceModal.mode === "bulk" ? (
-                          <input
-                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
-                            min="0"
-                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                            type="number"
-                            value={priceMap[product.id] ?? String(product.unitPrice)}
-                          />
-                        ) : (
-                          <span className="ml-auto grid h-10 w-32 place-items-center rounded-md border border-line bg-panel2 px-3 text-right font-semibold">
-                            {formatAmount(customerProductPriceMap[product.id] ?? product.unitPrice)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {priceModal.mode === "view" || priceModal.mode === "bulk" ? (
-                          <span className="font-semibold">{formatAmount(priceMap[product.id] ?? product.unitPrice)}</span>
-                        ) : (
-                          <input
-                            className="ml-auto h-10 w-32 rounded-md border border-line bg-panel2 px-3 text-right font-semibold outline-none focus:border-mint"
-                            min="0"
-                            onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
-                            type="number"
-                            value={priceMap[product.id] ?? String(product.unitPrice)}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredProducts.map((product) => {
+                    const vehicleBasePrice = vehicleBasePriceMap[product.id] ?? product.unitPrice;
+                    const customerPrice = priceMap[product.id] ?? product.unitPrice;
+                    const customerDisplayPrice = customerProductPriceMap[product.id] ?? customerPrice;
+                    const isCustomCustomerPrice = priceDiffers(customerPrice, vehicleBasePrice);
+                    const isCustomCustomerDisplayPrice = priceDiffers(customerDisplayPrice, vehicleBasePrice);
+
+                    return (
+                      <tr key={product.id}>
+                        <td className="px-4 py-3 font-semibold">{product.name}</td>
+                        <td className="px-4 py-3 text-muted">{productCategory(product)}</td>
+                        <td className="px-4 py-3 text-right">{formatAmount(product.unitPrice)}</td>
+                        <td className="px-4 py-3 text-right">{vehicleBasePriceMap[product.id] !== undefined ? formatAmount(vehicleBasePriceMap[product.id]) : "-"}</td>
+                        <td className="px-4 py-3 text-right">
+                          {priceModal.mode === "view" ? (
+                            <span className={`rounded-md px-2 py-1 font-semibold ${isCustomCustomerDisplayPrice ? "bg-amber-100 text-amber-800" : ""}`}>
+                              {formatAmount(customerDisplayPrice)}
+                            </span>
+                          ) : priceModal.mode === "bulk" ? (
+                            <input
+                              className={`ml-auto h-10 w-32 rounded-md border px-3 text-right font-semibold outline-none focus:border-mint ${isCustomCustomerPrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel2"}`}
+                              min="0"
+                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                              type="number"
+                              value={customerPrice}
+                            />
+                          ) : (
+                            <span className={`ml-auto grid h-10 w-32 place-items-center rounded-md border px-3 text-right font-semibold ${isCustomCustomerDisplayPrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel2"}`}>
+                              {formatAmount(customerDisplayPrice)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {priceModal.mode === "view" || priceModal.mode === "bulk" ? (
+                            <span className={`rounded-md px-2 py-1 font-semibold ${isCustomCustomerPrice ? "bg-amber-100 text-amber-800" : ""}`}>
+                              {formatAmount(customerPrice)}
+                            </span>
+                          ) : (
+                            <input
+                              className={`ml-auto h-10 w-32 rounded-md border px-3 text-right font-semibold outline-none focus:border-mint ${isCustomCustomerPrice ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-panel2"}`}
+                              min="0"
+                              onChange={(event) => setPriceMap((current) => ({ ...current, [product.id]: event.target.value }))}
+                              type="number"
+                              value={customerPrice}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!filteredProducts.length ? (
                     <tr>
                       <td className="px-4 py-8 text-center text-muted" colSpan={6}>No products in this category.</td>
