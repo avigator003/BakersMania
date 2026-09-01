@@ -92,6 +92,8 @@ type PaginationMeta = {
 
 type StatusFilter = "active" | "inactive" | "all";
 
+const labourSalaryExcelRowHeight = 12;
+
 const initialLabourForm = {
   name: "",
   phone: "",
@@ -351,7 +353,7 @@ export default function LabourManagementPage() {
       ];
 
       const rows: XlsxRow[] = [
-        { cells: [{ value: `Labour Salary - ${monthLabel(exportMonth)}`, style: "summary", colSpan: headerCells.length }], height: 30 },
+        { cells: [{ value: `Labour Salary - ${monthLabel(exportMonth)}`, style: "summary", colSpan: headerCells.length }] },
         { cells: [{ value: "Month", style: "metaLabel" }, { value: monthLabel(exportMonth), style: "metaValue" }] },
         { cells: [{ value: "Labour Status", style: "metaLabel" }, { value: statusLabel(statusFilter), style: "metaValue" }] },
         { cells: [] },
@@ -378,19 +380,20 @@ export default function LabourManagementPage() {
           return { cells };
         })
       ];
+      const compactRows = rows.map((row) => ({ ...row, height: labourSalaryExcelRowHeight }));
       const columns: XlsxColumn[] = [
-        { width: 28 },
-        ...(includeStatus ? [{ width: 14 }] : []),
-        { width: 14 },
-        { width: 14 },
-        { width: 14 },
-        { width: 18 },
-        { width: 16 }
+        { width: 7 },
+        ...(includeStatus ? [{ width: 4 }] : []),
+        { width: 4 },
+        { width: 4 },
+        { width: 4 },
+        { width: 5 },
+        { width: 4 }
       ];
 
       downloadXlsx(
         `${tenantSlug}-labour-salary-${exportMonth}-${statusFilter}.xlsx`,
-        rows,
+        compactRows,
         columns,
         "Labour Salary"
       );

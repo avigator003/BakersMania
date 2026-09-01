@@ -60,6 +60,7 @@ type LabourDashboard = {
 };
 
 const labourPageSize = 100;
+const labourSalaryExcelRowHeight = 12;
 
 type PaymentDraft = {
   amount: string;
@@ -334,7 +335,7 @@ export default function LabourPaymentsPage() {
       ];
 
       const rows: XlsxRow[] = [
-        { cells: [{ value: `Labour Salary - ${monthLabel(periodMonth)}`, style: "summary", colSpan: headerCells.length }], height: 30 },
+        { cells: [{ value: `Labour Salary - ${monthLabel(periodMonth)}`, style: "summary", colSpan: headerCells.length }] },
         { cells: [{ value: "Month", style: "metaLabel" }, { value: monthLabel(periodMonth), style: "metaValue" }] },
         { cells: [{ value: "Labour Status", style: "metaLabel" }, { value: statusLabel(statusFilter), style: "metaValue" }] },
         { cells: [] },
@@ -362,19 +363,20 @@ export default function LabourPaymentsPage() {
         })
       ];
 
+      const compactRows = rows.map((row) => ({ ...row, height: labourSalaryExcelRowHeight }));
       const columns: XlsxColumn[] = [
-        { width: 28 },
-        ...(includeStatus ? [{ width: 14 }] : []),
-        { width: 14 },
-        { width: 14 },
-        { width: 14 },
-        { width: 18 },
-        { width: 16 }
+        { width: 7 },
+        ...(includeStatus ? [{ width: 4 }] : []),
+        { width: 4 },
+        { width: 4 },
+        { width: 4 },
+        { width: 5 },
+        { width: 4 }
       ];
 
       downloadXlsx(
         `${tenantSlug || "bakery"}-labour-salary-${periodMonth}-${statusFilter}.xlsx`,
-        rows,
+        compactRows,
         columns,
         "Labour Salary"
       );

@@ -47,6 +47,8 @@ export type LabourYearExport = {
 type CellValue = string | number | null | undefined;
 
 const attendanceStatuses: AttendanceStatus[] = ["PRESENT", "HALF_DAY", "ABSENT", "PAID_LEAVE", "UNPAID_LEAVE"];
+const compactLabourCellHeight = 12;
+const compactLabourCellWidth = 48;
 
 export async function fetchLabourYearExport(tenantSlug: string, year: number) {
   return authFetch<LabourYearExport>(`/t/${tenantSlug}/staff/labour/export/year?year=${year}`);
@@ -199,12 +201,14 @@ function toWorkbook(sheets: Array<{ name: string; rows: CellValue[][] }>) {
 }
 
 function toWorksheet(name: string, rows: CellValue[][]) {
-  return `<Worksheet ss:Name="${escapeXml(sheetName(name))}"><Table>${rows.map(toRow).join("")}</Table></Worksheet>`;
+  const maxColumns = Math.max(...rows.map((row) => row.length), 1);
+  const columns = Array.from({ length: maxColumns }, () => `<Column ss:AutoFitWidth="0" ss:Width="${compactLabourCellWidth}"/>`).join("");
+  return `<Worksheet ss:Name="${escapeXml(sheetName(name))}"><Table>${columns}${rows.map(toRow).join("")}</Table></Worksheet>`;
 }
 
 function toRow(row: CellValue[], index: number) {
   const style = index === 0 || (row.length === 1 && typeof row[0] === "string") ? ' ss:StyleID="header"' : "";
-  return `<Row>${row.map((cell) => toCell(cell, style)).join("")}</Row>`;
+  return `<Row ss:Height="${compactLabourCellHeight}">${row.map((cell) => toCell(cell, style)).join("")}</Row>`;
 }
 
 function toCell(value: CellValue, style: string) {
