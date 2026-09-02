@@ -60,7 +60,7 @@ type LabourDashboard = {
 };
 
 const labourPageSize = 100;
-const labourSalaryExcelRowHeight = 12;
+const labourSalaryExcelRowHeight = 14.4;
 
 type PaymentDraft = {
   amount: string;
@@ -365,13 +365,13 @@ export default function LabourPaymentsPage() {
 
       const compactRows = rows.map((row) => ({ ...row, height: labourSalaryExcelRowHeight }));
       const columns: XlsxColumn[] = [
+        { width: 9.8 },
+        ...(includeStatus ? [{ width: 5.6 }] : []),
+        { width: 5.6 },
+        { width: 5.6 },
+        { width: 5.6 },
         { width: 7 },
-        ...(includeStatus ? [{ width: 4 }] : []),
-        { width: 4 },
-        { width: 4 },
-        { width: 4 },
-        { width: 5 },
-        { width: 4 }
+        { width: 5.6 }
       ];
 
       downloadXlsx(
