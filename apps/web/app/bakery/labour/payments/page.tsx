@@ -372,7 +372,7 @@ export default function LabourPaymentsPage() {
         { width: 16.56 },
         ...(includeStatus ? [{ width: 9.46 }] : []),
         { width: 9.46 },
-        { width: 9.46 },
+        { width: 10.88 },
         { width: 9.46 },
         { width: 11.83 },
         { width: 9.46 }
