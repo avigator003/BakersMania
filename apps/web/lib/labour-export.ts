@@ -48,7 +48,7 @@ type CellValue = string | number | null | undefined;
 
 const attendanceStatuses: AttendanceStatus[] = ["PRESENT", "HALF_DAY", "ABSENT", "PAID_LEAVE", "UNPAID_LEAVE"];
 const compactLabourCellHeight = 18.72;
-const compactLabourCellWidth = 87.36;
+const compactLabourCellWidth = 113.57;
 
 export async function fetchLabourYearExport(tenantSlug: string, year: number) {
   return authFetch<LabourYearExport>(`/t/${tenantSlug}/staff/labour/export/year?year=${year}`);

@@ -386,13 +386,13 @@ export default function LabourManagementPage() {
       ];
       const compactRows = rows.map((row) => ({ ...row, height: labourSalaryExcelRowHeight }));
       const columns: XlsxColumn[] = [
-        { width: 12.74 },
-        ...(includeStatus ? [{ width: 7.28 }] : []),
-        { width: 7.28 },
-        { width: 7.28 },
-        { width: 7.28 },
-        { width: 9.1 },
-        { width: 7.28 }
+        { width: 16.56 },
+        ...(includeStatus ? [{ width: 9.46 }] : []),
+        { width: 9.46 },
+        { width: 9.46 },
+        { width: 9.46 },
+        { width: 11.83 },
+        { width: 9.46 }
       ];
 
       downloadXlsx(
