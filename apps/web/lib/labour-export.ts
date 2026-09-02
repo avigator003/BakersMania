@@ -213,8 +213,7 @@ function toRow(row: CellValue[], index: number) {
 
 function toCell(value: CellValue, style: string) {
   const text = value ?? "";
-  const type = typeof text === "number" ? "Number" : "String";
-  return `<Cell${style}><Data ss:Type="${type}">${escapeXml(String(text))}</Data></Cell>`;
+  return `<Cell${style}><Data ss:Type="String">${escapeXml(String(text))}</Data></Cell>`;
 }
 
 function downloadWorkbook(content: string, filename: string) {

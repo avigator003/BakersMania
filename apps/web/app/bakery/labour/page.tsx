@@ -114,6 +114,10 @@ function amountValue(value?: string | number | null) {
   return Number(value || 0);
 }
 
+function excelText(value?: string | number | null) {
+  return String(value ?? "");
+}
+
 function monthLabel(value: string) {
   const [year, month] = value.split("-").map(Number);
   return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
@@ -357,10 +361,10 @@ export default function LabourManagementPage() {
         { cells: [{ value: "Month", style: "metaLabel" }, { value: monthLabel(exportMonth), style: "metaValue" }] },
         { cells: [{ value: "Labour Status", style: "metaLabel" }, { value: statusLabel(statusFilter), style: "metaValue" }] },
         { cells: [] },
-        { cells: [{ value: "No. of Labours", style: "summary" }, { value: labours.length, style: "summary" }] },
-        { cells: [{ value: "Total Salaries", style: "summary" }, { value: totalSalaries, style: "summary" }] },
-        { cells: [{ value: "Total Payable", style: "summary" }, { value: totalPayable, style: "summary" }] },
-        { cells: [{ value: "Total Paid", style: "summary" }, { value: totalPaid, style: "summary" }] },
+        { cells: [{ value: "No. of Labours", style: "summary" }, { value: excelText(labours.length), style: "summary" }] },
+        { cells: [{ value: "Total Salaries", style: "summary" }, { value: excelText(totalSalaries), style: "summary" }] },
+        { cells: [{ value: "Total Payable", style: "summary" }, { value: excelText(totalPayable), style: "summary" }] },
+        { cells: [{ value: "Total Paid", style: "summary" }, { value: excelText(totalPaid), style: "summary" }] },
         { cells: [] },
         { cells: headerCells },
         ...labours.map((labour) => {
@@ -371,9 +375,9 @@ export default function LabourManagementPage() {
           const cells: XlsxRow["cells"] = [
             { value: labour.name, style: "name" },
             ...(includeStatus ? [{ value: labour.active ? "Active" : "Inactive" }] : []),
-            { value: amountValue(labour.monthlySalary), style: "amount" },
-            { value: amountValue(calculation?.payableAmount), style: "amount" },
-            { value: amountValue(calculation?.paidAmount), style: "amount" },
+            { value: excelText(amountValue(labour.monthlySalary)), style: "amount" },
+            { value: excelText(amountValue(calculation?.payableAmount)), style: "amount" },
+            { value: excelText(amountValue(calculation?.paidAmount)), style: "amount" },
             { value: paidTypes },
             { value: `${calculation?.payableDays ?? 0}/${calculation?.daysInMonth ?? 0}` }
           ];
